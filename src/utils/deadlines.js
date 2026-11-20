@@ -1,4 +1,4 @@
-import { leafNodes, parentId, resolveToLeafIds } from './scheduler.js';
+import { parentId, resolveToLeafIds } from './scheduler.js';
 
 function asId(nodeOrId) {
   return typeof nodeOrId === 'string' ? nodeOrId : nodeOrId?.id;

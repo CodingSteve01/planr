@@ -1,9 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { Icon } from '../shared/Icon.jsx';
 import { SBadge } from '../shared/Badges.jsx';
-import { SL, GT, GT_ICON, CONF_COLOR } from '../../constants.js';
+import { SL, GT_ICON, CONF_COLOR } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
-import { HandoffPlanEditor } from '../shared/HandoffPlanEditor.jsx';
 import { PhaseList } from '../shared/Phases.jsx';
 import { AutoAssignHint } from '../shared/AutoAssignHint.jsx';
 import { CustomFieldInput } from '../shared/CustomFieldInput.jsx';
@@ -18,6 +17,10 @@ import { normalizePhases } from '../../utils/phases.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from '../../utils/deadlines.js';
 import { summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
+// Switched off, not removed (see the comment where it used to render): kept
+// imported so the file stays part of the app and is found when it is wanted.
+// eslint-disable-next-line no-unused-vars
+import { HandoffPlanEditor } from '../shared/HandoffPlanEditor.jsx';
 import { ItemHistoryTimeline } from '../shared/ItemHistoryTimeline.jsx';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';

@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useCapacityAt } from '../../utils/capacityLens.js';
-import { isOnboard } from '../../utils/capacity.js';
-import { deriveCap, memberAtDate } from '../../utils/capacity.js';
+import { isOnboard, deriveCap, memberAtDate } from '../../utils/capacity.js';
 import { iso, localDate } from '../../utils/date.js';
 import { useT } from '../../i18n.jsx';
 import { tipLines } from '../../utils/tipText.js';

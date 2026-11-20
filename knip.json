@@ -1,0 +1,22 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "obsidian/src/main.jsx",
+    "obsidian/src/filePickers.js",
+    "obsidian/src/fileHandleStore.js",
+    "scripts/*.mjs",
+    "tools/*.mjs",
+    "vitest.worktree.config.js",
+    "src/**/__tests__/**/*.{js,jsx}",
+    "obsidian/__tests__/**/*.{js,jsx}"
+  ],
+  "project": [
+    "src/**/*.{js,jsx}",
+    "obsidian/**/*.{js,jsx,mjs}",
+    "scripts/**/*.mjs",
+    "tools/**/*.mjs"
+  ],
+  "ignoreDependencies": [
+    "buffer"
+  ]
+}

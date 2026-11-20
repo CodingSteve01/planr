@@ -6,10 +6,9 @@ import { getLineColor } from '../../utils/roadmap.js';
 import { progressPctLabel } from '../../utils/progress.js';
 import { statusChangePatch } from '../../utils/completion.js';
 import { currentPhase, setPhaseCursor, statusFromPhases, phaseProgress } from '../../utils/phases.js';
-import { GT, GT_ICON } from '../../constants.js';
+import { GT_ICON } from '../../constants.js';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { useT } from '../../i18n.jsx';
-import { resolveUri } from '../../utils/customFields.js';
 import { localDate } from '../../utils/date.js';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
@@ -20,7 +19,7 @@ import { stateAsOf } from '../../utils/history.js';
 import { sortTree, filterCollapsedRows, fieldPatchForKey, parsePastedRows, scrollAdjustment } from '../../utils/treeEdit.js';
 import { canTreeCommand, canTreeCommandMany, dropRows, remapIds } from '../../utils/treeMove.js';
 import { setDragBadge } from '../../utils/dragBadge.js';
-import { withKey, keyHint, ALT, ariaChord } from '../../utils/shortcuts.js';
+import { withKey, ariaChord } from '../../utils/shortcuts.js';
 import { KEYMAP_OPEN_EVENT } from '../shared/KeyboardMap.jsx';
 
 function depth(id) { return id.split('.').length; }
@@ -178,7 +177,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
       }
     }
     return keep;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [onlyChanged, pastLeafState, tree]);
 
   // Parent-then-children, displayOrder-aware sort — see utils/treeEdit.js
@@ -908,7 +907,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     };
     window.addEventListener(TREE_FOCUS_EVENT, onEvent);
     return () => window.removeEventListener(TREE_FOCUS_EVENT, onEvent);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   useEffect(() => {
@@ -919,7 +918,7 @@ function TreeViewImpl({ tree, selected, multiSel, onSelect, search, teamFilter, 
     // `filt` is already narrowed to matches, so its first row IS the first
     // hit. The existing scroll-on-selection effect brings it into view.
     if (first) onSelect(first, {}, visibleIds);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [jumpTo, search, filt]);
 
   // Bound to the editing <tr>: focus moving between the row's own cells is

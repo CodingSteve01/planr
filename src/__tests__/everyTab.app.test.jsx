@@ -10,7 +10,7 @@
 // sure the shell is still standing rather than merely not throwing.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { render, cleanup, fireEvent, screen, act, waitFor } from '@testing-library/react';
+import { render, cleanup, fireEvent, act, waitFor } from '@testing-library/react';
 import App, { TAB_IDS } from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 

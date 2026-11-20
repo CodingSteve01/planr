@@ -205,7 +205,7 @@ export function parsePastedRows(text) {
     const name = rawLine.slice(lead.length).replace(/^[-*•]\s+/, '').trim();
     if (!name) continue;
     if (baseIndent === null) baseIndent = indentLevel;
-    let depth = rows.length === 0 ? 0 : Math.min(Math.max(0, indentLevel - baseIndent), prevDepth + 1);
+    const depth = rows.length === 0 ? 0 : Math.min(Math.max(0, indentLevel - baseIndent), prevDepth + 1);
     rows.push({ name, depth });
     prevDepth = depth;
   }

@@ -37,6 +37,17 @@ export default defineConfig({
     // regression in whatever was just edited.
     testTimeout: 20000,
     hookTimeout: 20000,
+    // Coverage is a floor, not a target: the thresholds sit just under what
+    // the suite reached when they were set, so a change that leaves a lot of
+    // new code untested fails, and nobody is paid for chasing a number. Raise
+    // them when the suite has moved up (docs/quality.md).
+    coverage: {
+      provider: 'v8',
+      include: ['src/**', 'obsidian/src/**'],
+      exclude: ['**/__tests__/**', 'src/utils/pdfFonts.js'],
+      reporter: ['text-summary'],
+      thresholds: { lines: 74, statements: 69, functions: 63, branches: 60 },
+    },
   },
   resolve: {
     alias: {

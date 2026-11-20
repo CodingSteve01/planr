@@ -1,19 +1,26 @@
 {
   "name": "planr",
   "private": true,
-  "version": "1.7.3",
+  "version": "1.7.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint . --quiet",
+    "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
     "build:obsidian": "node obsidian/esbuild.config.mjs",
     "obsidian:install": "node obsidian/install.mjs",
     "version:set": "node scripts/version.mjs",
-    "version:check": "node scripts/version.mjs --check"
+    "version:check": "node scripts/version.mjs --check",
+    "lint:prune": "eslint . --prune-suppressions",
+    "test:coverage": "vitest run --coverage",
+    "dup": "jscpd",
+    "deadcode": "knip --no-progress --include files,dependencies,unlisted,binaries,unresolved",
+    "deadcode:exports": "knip --no-progress --include exports,types",
+    "private": "node scripts/check-private.mjs",
+    "quality": "npm run lint && npm run dup && npm run deadcode && npm run version:check && npm run private"
   },
   "dependencies": {
     "@turbodocx/html-to-docx": "^1.20.1",
@@ -23,15 +30,18 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@testing-library/react": "^16.3.2",
     "@vitejs/plugin-react": "^6.0.2",
+    "@vitest/coverage-v8": "^4.1.12",
     "esbuild": "^0.28.2",
     "eslint": "^10.11.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.12.0",
     "happy-dom": "^21.0.4",
+    "jscpd": "^5.4.3",
+    "knip": "^6.47.0",
     "postcss": "^8.5.28",
-    "react-test-renderer": "^18.3.1",
     "vite": "^8.3.5",
     "vitest": "^4.1.12"
   }

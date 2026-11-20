@@ -11,7 +11,7 @@
 // The bars still say when; the rows say what the plan is.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { render, cleanup, fireEvent, act, waitFor } from '@testing-library/react';
+import { render, cleanup, waitFor } from '@testing-library/react';
 import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 

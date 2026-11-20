@@ -103,6 +103,7 @@ Everything lives in [docs/](docs/). This README is an index.
 
 - **[docs/user-guide.md](docs/user-guide.md)** — end-to-end workflow, from new project to saved plan
 - **[docs/features.md](docs/features.md)** — full feature catalog
+- **[docs/quality.md](docs/quality.md)** — what the pipeline checks, the limits, and how the baseline works
 - **[docs/earlier-days.md](docs/earlier-days.md)** — the plan on an earlier day: what you see, what an edit there does, the day log
 - **[docs/dated-changes.md](docs/dated-changes.md)** — changes that take effect on a date: people, teams, meeting plans
 - **[docs/scenarios.md](docs/scenarios.md)** — what-if versions of the plan: the model, the comparison, the file format

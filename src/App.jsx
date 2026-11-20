@@ -15,10 +15,10 @@ import { applyPastEdit, inIdsOf, localDay, logStart, planOn, recordToday } from 
 import { applyPatch, isEmptyPatch, carryScenarioList, deepEqual, describeChanges, diffPlan, newScenarioId, revertChange, uniqueScenarioName, withScenarioPatch } from './utils/scenario.js';
 import { baselineWindows, compareScenario, schedulePlanData } from './utils/scenarioCompare.js';
 import { exportScenarioComparePDF } from './utils/scenarioReport.js';
-import { addDays, changeDates, compileMembers, dayOf, dropChange, foldEdit, migrateLegacyChanges, pruneChanges, resourcesAsOf } from './utils/effective.js';
+import { addDays, changeDates, compileMembers, dropChange, foldEdit, migrateLegacyChanges, pruneChanges, resourcesAsOf } from './utils/effective.js';
 import { EffectiveBar, EffectiveProvider, EffectiveSwitch, EFFECTIVE_OPEN_EVENT } from './components/shared/Effective.jsx';
 import { CapacityProvider, capacityLookup } from './utils/capacityLens.js';
-import { compactHistory, parseHistoryBlock, leafSnapshot, diffSnapshots, supersededByBackdate, pendingDate, stampPendingDates, withoutPendingDates } from './utils/history.js';
+import { compactHistory, leafSnapshot, diffSnapshots, supersededByBackdate, pendingDate, stampPendingDates, withoutPendingDates } from './utils/history.js';
 import { computeDisplayOrder, applyDisplayOrder } from './utils/displayOrder.js';
 import { moveInQueue, placeInQueue, queueOwnerOf, reconcileQueue } from './utils/personQueue.js';
 import { computeDiff, parseSinceValue } from './utils/diff.js';
@@ -30,12 +30,11 @@ import { scanArchive, stripArchivedRoots, stripArchivedMembers, isArchivedId, AR
 import { buildExportCtx } from './utils/exportCtx.js';
 import { projectWaits } from './utils/projectWaits.js';
 import { applyRootOrder } from './utils/orderSearch.js';
-import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, pt, parentId, computeConfidence, leafProgress, scheduleEffort, isDropped, derivePhaseStatus } from './utils/scheduler.js';
+import { schedule, treeStats, enrichParentSchedules, nextChildId, deriveParentStatuses, leafNodes, isLeafNode, parentId, computeConfidence, leafProgress, scheduleEffort, isDropped, derivePhaseStatus } from './utils/scheduler.js';
 import { buildPasteNodes, sortTree } from './utils/treeEdit.js';
 import { applyTreeCommand, applyTreeCommandMany, dropRows, moveSubtree, placeAmongSiblings } from './utils/treeMove.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId, statusChangePatch } from './utils/completion.js';
-import { resolveMemberMeetings } from './utils/capacity.js';
-import { instantiateTemplatePhases, parsePhaseToken, parseTemplatePhaseLine, phaseTeamIds } from './utils/phases.js';
+import { instantiateTemplatePhases } from './utils/phases.js';
 import { rootCpm, goalCpm, criticalPathLabelMap } from './utils/cpm.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from './utils/deadlines.js';
 import { clearMountedFileHandle, loadMountedFileHandle, persistMountedFileHandle, queryHandlePermission, requestHandlePermission } from './utils/fileHandleStore.js';

@@ -1,9 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { Icon } from '../shared/Icon.jsx';
 import { SBadge } from '../shared/Badges.jsx';
-import { SL, GT, GT_ICON, CONF_COLOR } from '../../constants.js';
+import { SL, GT_ICON, CONF_COLOR } from '../../constants.js';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
-import { HandoffPlanEditor } from '../shared/HandoffPlanEditor.jsx';
 import { PhaseList } from '../shared/Phases.jsx';
 import { AutoAssignHint } from '../shared/AutoAssignHint.jsx';
 import { CustomFieldInput } from '../shared/CustomFieldInput.jsx';

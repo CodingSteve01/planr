@@ -250,7 +250,7 @@ export function applyTreeCommandMany(tree, ids, command, visibleIds = sortTree(t
   const order = TOP_DOWN.has(command) ? roots : roots.slice().reverse();
   let next = tree;
   let visible = new Set(visibleIds);
-  let idMap = {};
+  const idMap = {};
   const stuck = new Set();
   let moved = false;
   const follow = id => idMap[id] || id;

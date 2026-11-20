@@ -1,0 +1,73 @@
+# What a change has to pass before it is merged, and what main is held to.
+#
+#   lint      ESLint with the baseline (eslint-suppressions.json): no new
+#             finding, and no suppression left that is no longer needed
+#   quality   duplicated code under the ceiling, no unused file or dependency,
+#             the three version files in step
+#   test      the whole suite, with the coverage floor
+#   build     the web app and the Obsidian plugin both build
+#   audit     no known high or critical vulnerability in what ships
+#
+# docs/quality.md says what each limit is and why.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run lint
+
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run dup
+      - run: npm run deadcode
+      - run: npm run version:check
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run test:coverage
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run build
+      - run: npm run build:obsidian
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm audit --omit=dev --audit-level=high

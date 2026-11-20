@@ -316,7 +316,7 @@ export function exportJiraCSV({ tree, scheduled, members, teams, meta, selectedI
   // a ticket created from it would outlive the decision to drop it, and this
   // is the one export that writes into another system.
   const dropped = treeIndex(tree).droppedIds;
-  let items = tree.filter(r => {
+  const items = tree.filter(r => {
     if (dropped.has(r.id)) return false;
     if (selectedIds?.size) return selectedIds.has(r.id);
     const isLeaf = !tree.some(c => c.id !== r.id && c.id.startsWith(r.id + '.'));

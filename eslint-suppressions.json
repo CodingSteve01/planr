@@ -1,0 +1,576 @@
+{
+  "obsidian/__tests__/planNoteRedirect.test.js": {
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "src/App.jsx": {
+    "complexity": {
+      "count": 11
+    },
+    "max-depth": {
+      "count": 5
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 9
+    }
+  },
+  "src/__tests__/archive.roadmap.test.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/__tests__/icons.test.jsx": {
+    "no-misleading-character-class": {
+      "count": 1
+    }
+  },
+  "src/__tests__/jiraExportDropped.test.jsx": {
+    "no-irregular-whitespace": {
+      "count": 1
+    }
+  },
+  "src/__tests__/personQueue.app.test.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/__tests__/queueIsBinding.app.test.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/__tests__/treeEditor.app.test.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/modals/AddModal.jsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/components/modals/AssignModal.jsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/components/modals/EstimationWizard.jsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/modals/JiraExportModal.jsx": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/components/modals/NodeModal.jsx": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    },
+    "react-hooks/rules-of-hooks": {
+      "count": 5
+    }
+  },
+  "src/components/modals/SettingsModal.jsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/shared/Effective.jsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/components/shared/FeatureCarousel.jsx": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/components/shared/HandoffPlanEditor.jsx": {
+    "complexity": {
+      "count": 2
+    },
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "src/components/shared/ItemHistoryTimeline.jsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/components/shared/Phases.jsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/shared/ResourceLoadMatrix.jsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/shared/Roadmap.jsx": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/shared/RoadmapLens.jsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/components/shared/Scenario.jsx": {
+    "complexity": {
+      "count": 5
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/shared/SearchBox.jsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/components/shared/SearchSelect.jsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/components/shared/TaskInsights.jsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "src/components/shared/Tooltip.jsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/shared/ViewFilters.jsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/views/BriefingView.jsx": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/views/GanttView.jsx": {
+    "complexity": {
+      "count": 16
+    },
+    "max-depth": {
+      "count": 1
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 3
+    },
+    "no-unused-vars": {
+      "count": 11
+    },
+    "react-hooks/rules-of-hooks": {
+      "count": 1
+    }
+  },
+  "src/components/views/NetGraph.jsx": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 5
+    }
+  },
+  "src/components/views/Onboard.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/components/views/PlanReview.jsx": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 5
+    }
+  },
+  "src/components/views/PlanRoadmap.jsx": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/views/QuickEdit.jsx": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    },
+    "react-hooks/rules-of-hooks": {
+      "count": 6
+    }
+  },
+  "src/components/views/ResView.jsx": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/components/views/SumView.jsx": {
+    "complexity": {
+      "count": 4
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 16
+    }
+  },
+  "src/components/views/TimetableView.jsx": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/views/TreeView.jsx": {
+    "complexity": {
+      "count": 6
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 2
+    },
+    "no-unused-vars": {
+      "count": 5
+    }
+  },
+  "src/components/views/WorkOrderView.jsx": {
+    "complexity": {
+      "count": 4
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/utils/__tests__/phaseWalk.test.js": {
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "src/utils/capacity.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/utils/completion.js": {
+    "complexity": {
+      "count": 4
+    }
+  },
+  "src/utils/cpm.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/utils/dayLog.js": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/utils/diff.js": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/utils/displayOrder.js": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 3
+    }
+  },
+  "src/utils/effective.js": {
+    "complexity": {
+      "count": 3
+    }
+  },
+  "src/utils/exports.js": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 3
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/utils/history.js": {
+    "complexity": {
+      "count": 5
+    }
+  },
+  "src/utils/horizon.js": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/utils/jiraSync.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/utils/markdown.js": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/utils/markdownParse.js": {
+    "complexity": {
+      "count": 4
+    },
+    "max-depth": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/utils/orderSearch.js": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "src/utils/palette.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/utils/pdfExports.js": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 2
+    },
+    "no-unused-vars": {
+      "count": 14
+    }
+  },
+  "src/utils/planIntegrity.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/utils/projectRoadmap.js": {
+    "complexity": {
+      "count": 4
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/utils/projectWaits.js": {
+    "complexity": {
+      "count": 1
+    },
+    "max-depth": {
+      "count": 1
+    }
+  },
+  "src/utils/report.js": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 2
+    },
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/utils/roadmap.js": {
+    "complexity": {
+      "count": 13
+    },
+    "max-depth": {
+      "count": 10
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 5
+    },
+    "no-unused-vars": {
+      "count": 5
+    }
+  },
+  "src/utils/scenario.js": {
+    "complexity": {
+      "count": 9
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/utils/scenarioCompare.js": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/utils/scheduler.js": {
+    "complexity": {
+      "count": 6
+    },
+    "max-depth": {
+      "count": 14
+    },
+    "max-lines": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 2
+    },
+    "max-params": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "src/utils/sollIst.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/utils/threads.js": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "src/utils/timeline.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/utils/treeEdit.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/utils/treeMove.js": {
+    "complexity": {
+      "count": 3
+    }
+  },
+  "src/utils/viewWindow.js": {
+    "complexity": {
+      "count": 1
+    }
+  }
+}

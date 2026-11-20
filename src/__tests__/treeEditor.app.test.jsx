@@ -144,7 +144,7 @@ describe('the tree editor writes through to the plan', () => {
     await selectRow('P1.2');
 
     await press(grid(), 'Enter');
-    let input = screen.getByTestId('tree-name-input-P1.2');
+    const input = screen.getByTestId('tree-name-input-P1.2');
     await act(async () => { fireEvent.change(input, { target: { value: 'Masks UI' } }); });
     // Plain Enter on an existing row only saves it; ⌘↵ goes on to a new one.
     await press(input, 'Enter', { metaKey: true });
@@ -380,7 +380,7 @@ describe('the tree editor writes through to the plan', () => {
     await selectRow('P1.1');
     await press(grid(), 'Enter');
 
-    let input = screen.getByTestId('tree-name-input-P1.1');
+    const input = screen.getByTestId('tree-name-input-P1.1');
     await act(async () => { fireEvent.change(input, { target: { value: 'Prices reworked' } }); });
     await press(input, 'ArrowDown');
 

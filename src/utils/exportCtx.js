@@ -52,7 +52,7 @@ export function isProjectScoped(ctx) {
 export function projectScopedCtx(ctx, label = 'export') {
   if (!ctx?.data?.tree) return ctx;
   if (isProjectScoped(ctx)) return ctx;
-  // eslint-disable-next-line no-console
+   
   console.warn(
     `[planr] ${label} was handed a filtered tree (${ctx.tree?.length ?? 0} of `
     + `${ctx.data.tree.length} items). Exports always cover the whole plan — using the full tree.`,
