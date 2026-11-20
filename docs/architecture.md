@@ -543,7 +543,12 @@ overlays are `BarOverlays`. The view's state and effects are grouped into
 hooks in the same folder: `useGanttZoom` (zoom and the wheel gesture),
 `useGanttPrefs` (remembered view choices), `useGanttSelection` (selection and
 the keyboard cursor), `useGanttScrollTo` (scroll to match and to today) and
-`useGanttDrag` (bar, pan, selection-rectangle and link drag). The drag state
+`useGanttDrag` (bar, pan, selection-rectangle and link drag). What the view derives
+from its inputs sits in eight more: `useGanttItems`, `useGanttTree`, `useGanttStructure`
+(items, orderings, grouped rows), `useGanttRows` and `useGanttVisibleRows` (collapse state,
+filters), `useGanttLoad` (vacations, holidays, resource load), `useGanttLines` (row index
+and dependency lines) and `useGanttSearch`. Each takes one argument object and returns one.
+The row list is `GanttRows` and the rubber band is `GanttSelectionRect`. The drag state
 itself stays in the view, because memos early in the file read it; the hook
 gets the values and setters. The functions that were over the limits moved as
 they stood. The components still take the view's
