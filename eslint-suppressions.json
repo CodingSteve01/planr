@@ -349,6 +349,11 @@
       "count": 1
     }
   },
+  "src/components/views/gantt/GanttGroupBarRow.jsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/components/views/gantt/GanttHeader.jsx": {
     "max-lines-per-function": {
       "count": 1
