@@ -212,7 +212,7 @@
   },
   "src/components/views/GanttView.jsx": {
     "complexity": {
-      "count": 15
+      "count": 14
     },
     "max-depth": {
       "count": 1
@@ -221,7 +221,7 @@
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 4
+      "count": 3
     },
     "no-unused-vars": {
       "count": 6
@@ -402,6 +402,14 @@
   "src/utils/gantt/items.js": {
     "complexity": {
       "count": 1
+    }
+  },
+  "src/utils/gantt/structure.js": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 2
     }
   },
   "src/utils/history.js": {
