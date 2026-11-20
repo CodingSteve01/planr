@@ -10,6 +10,7 @@ import { mergeRoadmapAssignment } from './utils/roadmap.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { parseMdToProject } from './utils/markdownParse.js';
 import { buildMemberShortMap } from './utils/memberShort.js';
+import { isBusy, MAX_BUSY_ROUNDS, stillWritable, writeWithRetry } from './utils/fileWrite.js';
 import { applyPastEdit, inIdsOf, localDay, logStart, planOn, recordToday } from './utils/dayLog.js';
 import { applyPatch, isEmptyPatch, carryScenarioList, deepEqual, describeChanges, diffPlan, newScenarioId, revertChange, uniqueScenarioName, withScenarioPatch } from './utils/scenario.js';
 import { baselineWindows, compareScenario, schedulePlanData } from './utils/scenarioCompare.js';
@@ -352,7 +353,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const [history, setHistory] = useState(() => createHistory({ limit: 100 }));
   // A different document is on screen: its undo stack is gone, and so is any
   // scenario that was open over the previous one.
-  function resetHistory() { setEffDate(''); setPast(null); lastSavedPlanRef.current = null; dayUndoRef.current = null; setHistory(createHistory({ limit: 100 })); setScn(null); planHistoryRef.current = null; setScnNotice(null); leafBaselineStaleRef.current = true; }
+  function resetHistory() { diskTextRef.current = null; busyRoundsRef.current = 0; clearTimeout(saveRetryTimerRef.current); setEffDate(''); setPast(null); lastSavedPlanRef.current = null; dayUndoRef.current = null; setHistory(createHistory({ limit: 100 })); setScn(null); planHistoryRef.current = null; setScnNotice(null); leafBaselineStaleRef.current = true; }
   // ── Scenarios ────────────────────────────────────────────────────────────
   // While a scenario is on screen, `data` IS the scenario — the plan with the
   // scenario's changes applied — and every view, edit, undo and export works
@@ -789,6 +790,16 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     leafBaselineStaleRef.current = false;
   }, [data]);
   const [saving, setSaving] = useState(false);
+  // Bumped to run the autosave again after a write that failed on a busy file.
+  const [saveRetry, setSaveRetry] = useState(0);
+  // What the file on disk says, as far as Planr knows: what it last wrote or
+  // read. A changed modification time with this same text is a sync service
+  // touching the file, not somebody changing it.
+  const diskTextRef = useRef(null);
+  // Rounds in a row a save found the file busy, and the timer for the next.
+  const busyRoundsRef = useRef(0);
+  const saveRetryTimerRef = useRef(null);
+  useEffect(() => () => clearTimeout(saveRetryTimerRef.current), []);
   useEffect(() => {
     if (!data || !autoSave || !fileHandleRef.current || fileSynced) return;
     const t = setTimeout(async () => {
@@ -799,9 +810,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       setSaving(true);
       try {
         const { content, ...composed } = composeFileForSave();
-        const wr = await handle.createWritable();
-        await wr.write(content);
-        await wr.close();
+        await writeWithRetry(handle, content);
+        diskTextRef.current = content;
+        busyRoundsRef.current = 0;
         setFileWriteOk(true);
         setFileSynced(true);
         lastOwnWriteRef.current = Date.now();
@@ -809,11 +820,21 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         // Snapshot ring tracks file-save events, throttled internally.
         pushSnapshot(fileDataRef.current);
         commitSaveSideEffects(composed);
-      } catch (e) { console.error('Auto-save failed:', e); setFileWriteOk(false); }
+      } catch (e) {
+        console.error('Auto-save failed:', e);
+        // The file is busy (a sync service uploading it), not gone: keep the
+        // handle and try again shortly. Only a lost permission asks for the
+        // file to be picked again.
+        busyRoundsRef.current += 1;
+        if (isBusy(e) && busyRoundsRef.current <= MAX_BUSY_ROUNDS && await stillWritable(handle)) {
+          clearTimeout(saveRetryTimerRef.current);
+          saveRetryTimerRef.current = setTimeout(() => setSaveRetry(n => n + 1), 15000);
+        } else setFileWriteOk(false);
+      }
       finally { setSaving(false); }
     }, SAVE_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [data, autoSave, fileSynced]);
+  }, [data, autoSave, fileSynced, saveRetry]);
 
   // 1-second tick to drive the live countdown. Only ticks while there's something to wait for.
   const [, setSaveTick] = useState(0);
@@ -840,8 +861,11 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         const mod = file.lastModified;
         // Skip if this is our own write (within 3s window)
         const isOwnWrite = (Date.now() - lastOwnWriteRef.current) < 3000;
-        if (lastModRef.current && mod > lastModRef.current && !isOwnWrite) {
-          setExternalChangeAvailable(true);
+        if (diskTextRef.current == null) diskTextRef.current = await file.text();
+        else if (lastModRef.current && mod > lastModRef.current && !isOwnWrite) {
+          // Only a different text is a change. A sync service bumps the time
+          // on its own.
+          if ((await file.text()) !== diskTextRef.current) setExternalChangeAvailable(true);
         }
         lastModRef.current = mod;
       } catch {}
@@ -868,6 +892,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
           lastSavedPlanRef.current = inIdsOf(before, d);
           leafBaselineStaleRef.current = false;
         }
+        // After resetHistory, which forgets what the previous document said.
+        diskTextRef.current = text;
         setLastSavedAt(new Date(file.lastModified));
         lastModRef.current = file.lastModified;
         setSaved(true);
@@ -901,9 +927,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
 
   // Write content to a handle (caller already has write permission)
   async function writeToHandle(handle, content) {
-    const wr = await handle.createWritable();
-    await wr.write(content);
-    await wr.close();
+    await writeWithRetry(handle, content);
+    diskTextRef.current = content;
+    busyRoundsRef.current = 0;
   }
 
   // Save to file (File System Access API). On failure, fall back to Save-As with previous filename.
