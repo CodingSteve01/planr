@@ -111,6 +111,18 @@ block: what changes about people, teams and meeting plans from that day on
 scenarios. The older per-person lines `*Capacity plan:*` and `*Meeting plan:*`
 are still read and become dated changes on load.
 
+### A file in a synced folder
+
+A sync service (iCloud, Dropbox, OneDrive) touches a plan file in two ways
+that are not a change: it bumps the modification time when it uploads, and it
+locks the file for a moment while it does. Planr compares the text, not the
+time, before it says the file changed outside. A write that fails is tried
+again twice within a few seconds and, while the permission is intact, again
+after a quarter of a minute; the file is asked for again only when the browser
+has taken the permission away (`src/utils/fileWrite.js`). After a page reload
+the browser asks for the permission once more unless it was granted for every
+visit; that prompt is the browser's.
+
 ### The day log in the file
 
 `## Log` holds a `planr-log` block: one JSON line per day on which the plan

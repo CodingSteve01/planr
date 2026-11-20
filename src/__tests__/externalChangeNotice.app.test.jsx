@@ -28,13 +28,15 @@ const PLAN = `# Baseline
 `;
 
 
-function changingFile(initial) {
+// `onDisk`: a write lands in the file, as it does on a real disk. Off where a
+// test plays the outside writer itself and must not be overwritten.
+function changingFile(initial, { onDisk = false } = {}) {
   const state = { text: initial, mod: 1000, reads: 0 };
   const handle = {
     name: 'baseline.planr.md', kind: 'file',
     queryPermission: async () => 'granted', requestPermission: async () => 'granted',
     getFile: async () => { state.reads++; return { name: 'baseline.planr.md', lastModified: state.mod, text: async () => state.text }; },
-    createWritable: async () => ({ write: async content => { state.out = String(content); state.written = (state.written || 0) + 1; }, close: async () => {} }),
+    createWritable: async () => ({ write: async content => { state.out = String(content); if (onDisk) state.text = state.out; state.written = (state.written || 0) + 1; }, close: async () => {} }),
   };
   return { handle, state };
 }
@@ -61,6 +63,25 @@ describe('the file-changed notice in the header', () => {
     fireEvent.click(screen.getByTestId('external-reload'));
     await screen.findByText('Gamma Task', {}, { timeout: 10000 });
     await waitFor(() => expect(screen.queryByTestId('external-change')).toBeNull());
+  }, 45000);
+
+  it('a file that was only touched, as a sync service does, is not a changed file', async () => {
+    const { handle, state } = changingFile(PLAN, { onDisk: true });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    render(<I18nProvider><ThemeProvider><App mount={handle} onFileChange={() => {}} /></ThemeProvider></I18nProvider>);
+    await screen.findByText('Beta Task', {}, { timeout: 10000 });
+    await act(async () => { await vi.advanceTimersByTimeAsync(5100); });
+    // Same text, newer time: twice, as it happens on every upload.
+    state.mod = 9000;
+    await act(async () => { await vi.advanceTimersByTimeAsync(5100); });
+    state.mod = 12000;
+    await act(async () => { await vi.advanceTimersByTimeAsync(5100); });
+    expect(screen.queryByTestId('external-change')).toBeNull();
+    // A real change after that is still seen.
+    state.mod = 15000;
+    state.text = state.text.replace('Beta Task', 'Gamma Task');
+    await act(async () => { await vi.advanceTimersByTimeAsync(5100); });
+    expect(await screen.findByTestId('external-change', {}, { timeout: 5000 })).toBeTruthy();
   }, 45000);
 
   it('what changed outside is recorded as a change of the day it was picked up', async () => {
