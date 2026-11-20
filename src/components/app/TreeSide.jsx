@@ -17,7 +17,7 @@ export function TreeSide({ plan, view, handlers, _t, renderBulkEditBody }) {
     setSideTab,
     sideTab,
   } = view;
-  const { addDep, deleteNode, duplicateNode, mutate, removeDep, splitHandoff, splitTaskAtProgress, updateNode } = handlers;
+  const { addDep, deleteNode, duplicateNode, setHistoryEvents, removeDep, splitHandoff, splitTaskAtProgress, updateNode } = handlers;
   return (
     <>
       {selected && !editorAsDialog && (
@@ -121,7 +121,7 @@ export function TreeSide({ plan, view, handlers, _t, renderBulkEditBody }) {
                   }}
                   historyEvents={data?.historyEvents || []}
                   viewDay={past?.day || ''}
-                  onHistoryChange={events => mutate(d => ({ ...d, historyEvents: events }))}
+                  onHistoryChange={setHistoryEvents}
                   onSplitHandoff={splitHandoff}
                   onSplitTaskAtProgress={splitTaskAtProgress}
                 />

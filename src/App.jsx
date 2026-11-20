@@ -2837,6 +2837,16 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     tourStep,
     uiScale,
   };
+  // The two raw writes a component may ask for, by name. `mutate`, `setData`
+  // and `setSaved` themselves stay in here: a component that held them could
+  // write past undo without anybody noticing.
+  const setHistoryEvents = events => mutate(d => ({ ...d, historyEvents: events }));
+  // Another document on screen: a new project, or a snapshot brought back.
+  const showLoadedDocument = d => {
+    setData(d);
+    resetHistory();
+    setSaved(false);
+  };
   const handlers = {
     ...act,
     ...treeEditor,
@@ -2849,7 +2859,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     handleUndo,
     loadFile,
     loadFromFile,
-    mutate,
     newProject,
     onGanttBarClick,
     onNetAddNode,
@@ -2872,8 +2881,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     scenarioRename,
     scenarioRevertChange,
     scenarioSwitch,
-    setData,
-    setSaved,
+    setHistoryEvents,
+    showLoadedDocument,
     startTour,
     syncTabFades,
   };

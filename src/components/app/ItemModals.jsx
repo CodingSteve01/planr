@@ -50,7 +50,7 @@ function EstimateModal({ plan, view, handlers }) {
 export function ItemModals({ plan, view, handlers, _t, renderBulkEditBody }) {
   const { confReasons, confidence, cpLabels, cpSet, data, members, past, scheduled, stats, teams, tree } = plan;
   const { editorAsDialog, modal, modalFocus, modalNode, selected, setEditorDock, setMN, setModal, setModalFocus, setSel } = view;
-  const { addNode, deleteNode, duplicateNode, moveNode, mutate, splitHandoff, splitTaskAtProgress, updateNode } = handlers;
+  const { addNode, deleteNode, duplicateNode, moveNode, setHistoryEvents, splitHandoff, splitTaskAtProgress, updateNode } = handlers;
   return (
     <>
       {modal === 'node' && modalNode && (
@@ -117,9 +117,7 @@ export function ItemModals({ plan, view, handlers, _t, renderBulkEditBody }) {
           }}
           onSplitHandoff={splitHandoff}
           onSplitTaskAtProgress={splitTaskAtProgress}
-          onHistoryChange={events => {
-            mutate(d => ({ ...d, historyEvents: events }));
-          }}
+          onHistoryChange={setHistoryEvents}
           onNavigate={id => {
             const target = tree.find(r => r.id === id);
             if (!target) return;

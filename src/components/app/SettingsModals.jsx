@@ -1,7 +1,7 @@
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
 import { SettingsModal } from '../modals/SettingsModal.jsx';
 
-export function SettingsModals({ plan, view, handlers, _t }) {
+export function SettingsModals({ plan, view, handlers }) {
   const { data, meta, teams } = plan;
   const { editorDock, modal, setEditorDock, setModal, setShowTreeIds, setUiScale, showTreeIds, uiScale } = view;
   const { setD } = handlers;

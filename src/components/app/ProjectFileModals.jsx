@@ -10,16 +10,14 @@ import { detectJiraFieldId } from '../../utils/jiraSync.js';
 export function ProjectFileModals({ plan, view, handlers, exportHandlerProps }) {
   const { data, members, meta, scheduled, teams, tree } = plan;
   const { modal, setModal, setSel, setTab } = view;
-  const { applyJiraImport, resetHistory, setData, setSaved } = handlers;
+  const { applyJiraImport, showLoadedDocument } = handlers;
   return (
     <>
       {modal === 'new' && (
         <NewProjModal
           onClose={() => setModal(null)}
           onCreate={d => {
-            setData(d);
-            resetHistory();
-            setSaved(false);
+            showLoadedDocument(d);
             setModal(null);
             setTab('tree');
             setSel(d.tree?.[0] || null);
@@ -52,9 +50,7 @@ export function ProjectFileModals({ plan, view, handlers, exportHandlerProps }) 
               return;
             // Take a defensive snapshot of current state before restoring.
             if (data) pushSnapshot(data);
-            setData(snap.data);
-            resetHistory();
-            setSaved(false);
+            showLoadedDocument(snap.data);
             setModal(null);
           }}
           onExportJson={snap => {
