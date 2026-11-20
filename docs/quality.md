@@ -30,6 +30,13 @@ without a rule or a limit changing. Since then it only goes down.
 The coverage floor for lines moved for the same reason, from 74 to 72: the
 same tests cover the same code, counted over more lines.
 
+One more way the total can rise without the code getting worse: splitting a
+very long function. A component of several thousand lines is one finding for
+its length and one for its branching, however much is in it. Moved out piece
+by piece, each piece is measured on its own, and those over a limit each get
+an entry. The first cut of the Gantt view did that (328 to 334). Such entries
+are the list of what to split next, with tests first; they are not new debt.
+
 ## The baseline, and why the numbers only go down
 
 The rules were switched on over an existing codebase. Fixing everything first

@@ -1,15 +1,42 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback, memo } from 'react';
 import { useCapacityAt } from '../../utils/capacityLens.js';
 import { isOnScreen } from '../../utils/onScreen.js';
-import { PersonChip } from '../shared/PersonChip.jsx';
-import { Icon } from '../shared/Icon.jsx';
+import { GanttFooter } from './gantt/GanttFooter.jsx';
+import { LinkDragOverlay } from './gantt/LinkDragOverlay.jsx';
+import { GanttSelectionBar } from './gantt/GanttSelectionBar.jsx';
+import { GanttHeader } from './gantt/GanttHeader.jsx';
+import { GanttLabelColumn } from './gantt/GanttLabelColumn.jsx';
+import { DepLinesSvg } from './gantt/DepLinesSvg.jsx';
+import { GanttFlagStrip } from './gantt/GanttFlagStrip.jsx';
+import { GanttGridLayer } from './gantt/GanttGridLayer.jsx';
+import { computeRowLayout } from '../../utils/gantt/rowLayout.js';
+import {
+  reorderSelectionInTime as reorderSelection,
+  adjustSelectionPrio as adjustPrio,
+  linkSelectedInOrder as linkSelected,
+  clearSelectedLinks as clearLinks,
+} from '../../utils/gantt/selectionEdits.js';
+import { buildDepLines, buildHoverLines } from '../../utils/gantt/depLines.js';
+import {
+  buildHolidayDays,
+  buildVacBands,
+  buildResourceLoad,
+  buildLoadRiskSummary,
+  buildLoadWeekSummary,
+  taskLoadCells as computeTaskLoadCells,
+} from '../../utils/gantt/loadModel.js';
+import { buildStructure } from '../../utils/gantt/structure.js';
+import { buildAllItems, buildSearchTextById, filterDisplayItems, buildChildrenByParent } from '../../utils/gantt/items.js';
+import {
+  createGeometry,
+  buildMonths,
+  monthHeaderLabel as monthHeaderLabelOf,
+  weekHeaderLabel as weekHeaderLabelOf,
+} from '../../utils/gantt/geometry.js';
 import { tipLines } from '../../utils/tipText.js';
-import { fixedFrame, toFixedPoint, usePortalRoot } from '../../utils/embedHost.js';
-import { WPX as DEFAULT_WPX, MDE } from '../../constants.js';
+import { usePortalRoot } from '../../utils/embedHost.js';
 import { iso, addD, localDate } from '../../utils/date.js';
-import { clampCompletedDate, normalizeCompletedWindows } from '../../utils/completion.js';
-import { deriveCap, memberAtDate } from '../../utils/capacity.js';
-import { resolveToLeafIds, isLeafNode, parentId, fixedDurationDays, leafProgress, scheduleEffort } from '../../utils/scheduler.js';
+import { resolveToLeafIds, isLeafNode, fixedDurationDays, leafProgress } from '../../utils/scheduler.js';
 import { treeOrderRank } from '../../utils/displayOrder.js';
 import { buildThreadStructure } from '../../utils/threads.js';
 import { deadlineStatus } from '../../utils/timeline.js';
@@ -17,10 +44,6 @@ import { normalizePhases, phaseWeightShares } from '../../utils/phases.js';
 import { chainShorts } from '../../utils/handoff.js';
 import { buildMemberShortMap } from '../../App.jsx';
 import { Tip } from '../shared/Tooltip.jsx';
-import { StatusIcon } from '../shared/StatusIcon.jsx';
-import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
-import { SelectionActionBar } from '../shared/SelectionActionBar.jsx';
-import { AssignModal } from '../modals/AssignModal.jsx';
 import { useT } from '../../i18n.jsx';
 import {
   NO_TEAM,
@@ -28,12 +51,8 @@ import {
   NO_PERSON,
   EMPTY_ARR,
   DAY_ZOOM,
-  MONTH_ZOOM,
   normalizeViewMode,
   fmtLoadDays,
-  personIdsOf,
-  typeColorOf,
-  loadHeatColor,
   loadHeatStroke,
   rowDrawsBar,
 } from '../../utils/gantt/helpers.js';
@@ -357,215 +376,41 @@ function GanttViewImpl({
   // Map a Date to its pixel X position on the Gantt body.
   // Each week = WPX px covering all 7 days (Mon–Sun) so weekends are visible
   // as grayed-out columns in day-mode. The DPX constant = pixels per day.
-  const DPX = WPX / 7;
-  function dateToX(date) {
-    if (!date) return 0;
-    const d = date instanceof Date ? date : new Date(date);
-    if (!weeks.length) return 0;
-    if (d < weeks[0].mon) return 0;
-    let wi = -1;
-    for (let i = 0; i < weeks.length; i++) {
-      if (d < addD(weeks[i].mon, 7)) {
-        wi = i;
-        break;
-      }
-    }
-    if (wi < 0) return weeks.length * WPX;
-    const dow = d.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-    const dayInWeek = dow === 0 ? 6 : dow - 1; // Mon=0 ... Sun=6
-    return wi * WPX + dayInWeek * DPX;
-  }
-  function weekIndexOfDate(date) {
-    if (!date || !weeks.length) return -1;
-    const d = date instanceof Date ? date : localDate(date);
-    const wi = weeks.findIndex(w => d < addD(w.mon, 7));
-    return wi >= 0 ? wi : weeks.length - 1;
-  }
-  function scheduledWorkDaysOf(s) {
-    const fixed = fixedDurationDays(s);
-    if (fixed) return fixed;
-    if (s?.workingDaysInWindow > 0) return Math.max(1, Math.ceil(s.workingDaysInWindow));
-    if (s?.startD && s?.endD) {
-      const start = s.startD instanceof Date ? s.startD : localDate(s.startD);
-      const end = s.endD instanceof Date ? s.endD : localDate(s.endD);
-      const count = weeks.reduce((sum, w) => sum + (w.wds || []).filter(d => d >= start && d <= end).length, 0);
-      if (count > 0) return count;
-    }
-    if (s?.startWi >= 0 && s?.endWi >= s.startWi) return Math.max(1, (s.endWi - s.startWi + 1) * 5);
-    return 1;
-  }
-  const months = useMemo(() => {
-    const ms = [];
-    let cm = null,
-      cc = 0,
-      cs = 0;
-    weeks.forEach((w, i) => {
-      const ym = `${w.mon.getFullYear()}-${w.mon.getMonth()}`;
-      if (ym !== cm) {
-        if (cm) ms.push({ ym: cm, count: cc, start: cs });
-        cm = ym;
-        cc = 1;
-        cs = i;
-      } else cc++;
-    });
-    if (cm) ms.push({ ym: cm, count: cc, start: cs });
-    return ms;
-  }, [weeks]);
-  const monthHeaderLabel = m => {
-    const [yearRaw, monthRaw] = m.ym.split('-');
-    const year = String(yearRaw);
-    const shortYear = year.slice(-2);
-    const month = +monthRaw;
-    const width = WPX * m.count;
-    const name = MDE[month] || '';
-    const shortName = name.slice(0, 3);
-    const isJanuary = month === 0;
-    if (zoomMode === 'month') {
-      if (width < 30) return isJanuary ? shortYear : '';
-      if (width < 44) return isJanuary ? shortYear : shortName;
-      return isJanuary ? `${shortName} ${shortYear}` : shortName;
-    }
-    if (width < 42) return isJanuary ? `'${year.slice(2)}` : '';
-    if (width < 58) return isJanuary ? shortYear : shortName;
-    return `${name} '${year.slice(2)}`;
-  };
-  const weekHeaderLabel = (w, i, isYB, isNow) => {
-    if (isNow) return w.kw;
-    const shortYear = String(w.mon.getFullYear()).slice(-2);
-    if (WPX < 14) return isYB ? shortYear : '';
-    if (WPX < 18) return isYB ? shortYear : i % 2 === 0 ? w.kw : '';
-    if (WPX < 24) return isYB ? shortYear : i % 2 === 0 ? w.kw : '';
-    return w.kw;
-  };
+  const { DPX, dateToX, weekIndexOfDate, scheduledWorkDaysOf } = createGeometry({ weeks, WPX });
+  const months = useMemo(() => buildMonths(weeks), [weeks]);
+  const monthHeaderLabel = m => monthHeaderLabelOf(m, { WPX, zoomMode });
+  const weekHeaderLabel = (w, i, isYB, isNow) => weekHeaderLabelOf(w, i, isYB, isNow, { WPX });
 
   // Build the fact base for this Gantt scope: scheduled items + unscheduled leaves,
   // filtered by root/team/person, but NOT by hideDone. Summary rows derive from this
   // full scoped set so their aggregates stay factually correct.
-  const allItems = useMemo(() => {
-    const sIdSet = new Set(scheduled.map(s => s.id));
-    const doneWindows = normalizeCompletedWindows(tree || [], { workDays });
-    const unscheduledLeaves = (tree || [])
-      .filter(r => leafIdSet.has(r.id) && !sIdSet.has(r.id) && r.status !== 'done')
-      .map(r => ({
-        id: r.id,
-        name: r.name,
-        team: r.team || '',
-        person: UNASSIGNED_LABEL,
-        personId: null,
-        assign: r.assign || [],
-        prio: r.prio,
-        seq: r.seq,
-        best: r.best || 0,
-        status: r.status,
-        note: r.note || '',
-        deps: (r.deps || []).join(', '),
-        startD: null,
-        endD: null,
-        startWi: -1,
-        endWi: -1,
-        weeks: 0,
-        calDays: 0,
-        capPct: 0,
-        vacDed: 0,
-        _unestimated: true,
-      }));
-    const doneLeaves = (tree || [])
-      .filter(r => leafIdSet.has(r.id) && !sIdSet.has(r.id) && r.status === 'done')
-      .map(r => {
-        const doneWindow = doneWindows.get(r.id);
-        const completedAt = clampCompletedDate(doneWindow?.end || r.completedAt || r.completedEnd || r.completedStart);
-        const endD = completedAt ? localDate(completedAt) : null;
-        let startD = doneWindow?.start ? localDate(doneWindow.start) : r.completedStart ? localDate(r.completedStart) : endD;
-        if (startD && endD && startD > endD) startD = new Date(endD);
-        const completedPersonId = r.completedPersonId || r.assign?.[0] || null;
-        const completedPerson =
-          r.completedPerson || (completedPersonId ? memberById[completedPersonId]?.name || completedPersonId : UNASSIGNED_LABEL);
-        return {
-          id: r.id,
-          name: r.name,
-          team: r.team || '',
-          person: completedPerson,
-          personId: completedPersonId,
-          assign: r.assign || [],
-          prio: r.prio,
-          seq: r.seq,
-          best: r.best || 0,
-          status: r.status,
-          note: r.note || '',
-          deps: (r.deps || []).join(', '),
-          startD,
-          endD,
-          startWi: startD ? weekIndexOfDate(startD) : -1,
-          endWi: endD ? weekIndexOfDate(endD) : -1,
-          weeks: startD && endD ? Math.max(1, weekIndexOfDate(endD) - weekIndexOfDate(startD) + 1) : 0,
-          calDays: startD && endD ? Math.max(1, Math.round((endD - startD) / 864e5) + 1) : 0,
-          capPct: 0,
-          vacDed: 0,
-          autoAssigned: !!r.completedAutoAssigned,
-          _completed: true,
-          _historyAdjusted: !!doneWindow?.adjusted,
-        };
-      });
-    let items = [...scheduled, ...doneLeaves, ...unscheduledLeaves];
-    if (rootFilter) items = items.filter(s => s.id.startsWith(rootFilter + '.') || s.id === rootFilter);
-    if (teamFilter) items = items.filter(s => (s.team || '') === teamFilter);
-    if (personFilter) items = items.filter(s => (s.assign || []).includes(personFilter) || s.personId === personFilter);
-    return items;
-  }, [scheduled, tree, leafIdSet, memberById, rootFilter, teamFilter, personFilter, workDays]);
+  const allItems = useMemo(
+    () =>
+      buildAllItems({
+        scheduled,
+        tree,
+        leafIdSet,
+        memberById,
+        rootFilter,
+        teamFilter,
+        personFilter,
+        workDays,
+        UNASSIGNED_LABEL,
+        weekIndexOfDate,
+      }),
+    // `weeks` because the week index of a date depends on the window, and
+    // the label because it changes with the language.
+    [scheduled, tree, leafIdSet, memberById, rootFilter, teamFilter, personFilter, workDays, weeks, UNASSIGNED_LABEL],
+  );
   // Determine root id of a task ('P1', 'D1.2.3' → 'D1')
   const iMap = useMemo(() => Object.fromEntries((tree || []).map(r => [r.id, r])), [tree]);
   const searchNeedle = useMemo(() => (search || '').trim().toLowerCase(), [search]);
-  const searchTextById = useMemo(() => {
-    const cache = {};
-    const textForId = id => {
-      if (!id) return '';
-      if (cache[id] != null) return cache[id];
-      const node = iMap[id];
-      if (!node) return (cache[id] = id.toLowerCase());
-      const pid = parentId(id);
-      const team = teamById[node.team]?.name || node.team || '';
-      const assignees = (node.assign || []).map(mid => memberById[mid]?.name || mid).join(' ');
-      const own = [
-        node.id,
-        node.name,
-        node.note,
-        node.description,
-        team,
-        assignees,
-        ...(node.deps || EMPTY_ARR),
-        ...(node.softDeps || EMPTY_ARR).map(dep => `~${dep}`),
-        ...Object.values(node.customValues || {}),
-      ]
-        .filter(Boolean)
-        .join(' ');
-      const parentText = pid ? textForId(pid) : '';
-      return (cache[id] = `${parentText} ${own}`.toLowerCase());
-    };
-    (tree || EMPTY_ARR).forEach(node => textForId(node.id));
-    return cache;
-  }, [tree, iMap, teamById, memberById]);
-  const displayItems = useMemo(() => {
-    const isChangedDoneInDiff = item => {
-      const taskId = item.treeId || item.id;
-      return _diffActive && item.status === 'done' && _diffChangedSet.has(taskId);
-    };
-    const items = hideDone ? allItems.filter(item => item.status !== 'done' || isChangedDoneInDiff(item)) : allItems;
-    if (!searchNeedle) return items;
-    return items.filter(item => {
-      const taskId = item.treeId || item.id;
-      const node = iMap[taskId] || item;
-      const team = teamById[item.team || node.team]?.name || item.team || node.team || '';
-      const people = [
-        item.person,
-        item.personId ? memberById[item.personId]?.name || item.personId : '',
-        ...(item.assign || node.assign || EMPTY_ARR).map(mid => memberById[mid]?.name || mid),
-      ]
-        .filter(Boolean)
-        .join(' ');
-      const text = [searchTextById[taskId], item.id, item.name, item.note, item.deps, team, people].filter(Boolean).join(' ').toLowerCase();
-      return text.includes(searchNeedle);
-    });
-  }, [allItems, hideDone, _diffActive, _diffChangedSet, searchNeedle, searchTextById, iMap, teamById, memberById]);
+  const searchTextById = useMemo(() => buildSearchTextById({ tree, iMap, teamById, memberById }), [tree, iMap, teamById, memberById]);
+  const displayItems = useMemo(
+    () =>
+      filterDisplayItems({ allItems, hideDone, _diffActive, _diffChangedSet, searchNeedle, searchTextById, iMap, teamById, memberById }),
+    [allItems, hideDone, _diffActive, _diffChangedSet, searchNeedle, searchTextById, iMap, teamById, memberById],
+  );
   const ordMap = useMemo(() => {
     const m = {};
     (tree || []).forEach((r, idx) => {
@@ -602,28 +447,7 @@ function GanttViewImpl({
     }
     return out;
   }, [tree, scheduled]);
-  const childrenByParent = useMemo(() => {
-    const map = {};
-    (tree || []).forEach(r => {
-      const pid = parentId(r.id);
-      if (!map[pid]) map[pid] = [];
-      map[pid].push(r.id);
-    });
-    // The tree's order, and nothing else. This sorted by earliest scheduled
-    // start first, with `displayOrder` as a fallback — so a project whose
-    // first task waits on another project sank to the bottom of a list the
-    // planner had deliberately arranged. Time is what the bars are for; the
-    // rows are the plan.
-    Object.values(map).forEach(ids =>
-      ids.sort((a, b) => {
-        const A = ordMap[a] || { idx: 0, ord: null },
-          B = ordMap[b] || { idx: 0, ord: null };
-        if (A.ord != null && B.ord != null && A.ord !== B.ord) return A.ord - B.ord;
-        return A.idx - B.idx;
-      }),
-    );
-    return map;
-  }, [tree, ordMap]);
+  const childrenByParent = useMemo(() => buildChildrenByParent({ tree, ordMap }), [tree, ordMap]);
   // treeOrder = flattened depth-first traversal so cross-parent ordering also follows displayOrder.
   const treeOrder = useMemo(() => {
     const out = {};
@@ -644,328 +468,43 @@ function GanttViewImpl({
     return buildThreadStructure({ groupBy, allItems, tree, iMap, scheduled });
   }, [groupBy, allItems, tree, iMap, scheduled]);
   const treeRank = useMemo(() => treeOrderRank(tree), [tree]);
-  const structure = useMemo(() => {
-    const defaultCollapsed = new Set();
-    // Also the tree's order. This led with priority, which is the same
-    // second ranking the scheduler carried until the tree became the order of
-    // the work: importance is not position.
-    const rankOfItem = it => {
-      const r = treeRank.get(it.treeId || it.id);
-      return r == null ? Number.MAX_SAFE_INTEGER : r;
-    };
-    const sortItems = arr =>
-      [...arr].sort((a, b) => rankOfItem(a) - rankOfItem(b) || (a.segmentIdx || 0) - (b.segmentIdx || 0) || a.id.localeCompare(b.id));
-    const buildScopeMeta = scopeItems => {
-      const byNode = {};
-      const itemById = {};
-      scopeItems.forEach(item => {
-        itemById[item.id] = item;
-        // Start the walk from the tree-facing id so handoff-shadow rows
-        // (`orig#N`) register under their primary's tree node.
-        let cid = item.treeId || item.id;
-        while (cid) {
-          if (!byNode[cid]) byNode[cid] = [];
-          byNode[cid].push(item);
-          cid = parentId(cid);
-        }
-      });
-      return { byNode, itemById };
-    };
-    const summaryProgress = scopeItems => {
-      let totalWeight = 0;
-      let totalProgress = 0;
-      scopeItems.forEach(item => {
-        const node = iMap[item.treeId || item.id];
-        const progress = node?.progress != null ? node.progress : item.status === 'done' ? 100 : item.status === 'wip' ? 50 : 0;
-        const weight = item.effort || Math.max(item.best || 0, 1);
-        totalWeight += weight;
-        totalProgress += progress * weight;
-      });
-      return totalWeight > 0 ? Math.round(totalProgress / totalWeight) : 0;
-    };
-    const buildSummaryItem = (node, scopeItems, scopeCtx = {}) => {
-      const dated = scopeItems.filter(item => !item._unestimated && item.startD && item.endD);
-      const doneCount = scopeItems.filter(item => item.status === 'done').length;
-      const wipCount = scopeItems.filter(item => item.status === 'wip').length;
-      const mix = { done: 0, committed: 0, estimated: 0, exploratory: 0 };
-      scopeItems.forEach(item => {
-        if (item.status === 'done') {
-          mix.done++;
-          return;
-        }
-        mix[confidence[item.id] || 'committed']++;
-      });
-      const best = scopeItems.reduce((sum, item) => sum + (item.best || 0), 0);
-      const effort = scopeItems.reduce(
-        (sum, item) => sum + (item.effort || (item.best || 0) * (iMap[item.treeId || item.id]?.factor || 1.5)),
-        0,
-      );
-      const startD = dated.length ? new Date(Math.min(...dated.map(item => +item.startD))) : null;
-      const endD = dated.length ? new Date(Math.max(...dated.map(item => +item.endD))) : null;
-      const status = doneCount === scopeItems.length ? 'done' : doneCount > 0 || wipCount > 0 ? 'wip' : 'open';
-      return {
-        ...node,
-        id: node.id,
-        name: node.name,
-        team: scopeCtx.teamId || node.team || '',
-        person: scopeCtx.personName || null,
-        assign: [],
-        deps: node.deps || [],
-        phases: node.phases || [],
-        best,
-        effort,
-        status,
-        progress: summaryProgress(scopeItems),
-        startD,
-        endD,
-        startWi: startD ? weekIndexOfDate(startD) : -1,
-        endWi: endD ? weekIndexOfDate(endD) : -1,
-        calDays: startD && endD ? Math.max(1, Math.round((endD - startD) / 864e5) + 1) : 0,
-        _summary: true,
-        _summaryCount: scopeItems.length,
-        _scheduledCount: dated.length,
-        _doneCount: doneCount,
-        _summaryMix: mix,
-        _barColor: scopeCtx.color || typeColorOf(node),
-      };
-    };
-    const buildNode = (nodeId, meta, visibleMeta, namespace, level, scopeCtx) => {
-      const node = iMap[nodeId];
-      const scopeItems = meta.byNode[nodeId] || EMPTY_ARR;
-      const visibleScopeItems = visibleMeta.byNode[nodeId] || EMPTY_ARR;
-      if (!node || !scopeItems.length || !visibleScopeItems.length) return null;
-      const childIds = (childrenByParent[nodeId] || EMPTY_ARR).filter(cid => (visibleMeta.byNode[cid] || EMPTY_ARR).length > 0);
-      if (isLeafNode(tree || [], nodeId) || !childIds.length) {
-        // Handoff-shadow rows share a tree node with their primary. Emit
-        // primary as a normal task row and each shadow as its own sibling row
-        // so filters/person-grouping see them as distinct work items.
-        const items = visibleScopeItems.filter(it => (it.treeId || it.id) === nodeId);
-        if (!items.length) return null;
-        const primary = items.find(it => !it.isHandoff) || items[0];
-        const handoffs = items.filter(it => it.isHandoff).sort((a, b) => (a.segmentIdx || 0) - (b.segmentIdx || 0));
-        if (!handoffs.length) {
-          return { type: 'task', key: `${namespace}::task:${nodeId}`, s: primary, node, level, groupKey: namespace };
-        }
-        // Multiple rows → wrap as a synthetic summary with the primary + each
-        // shadow as children so the Gantt renders one row per segment.
-        const allChildren = [primary, ...handoffs].map(item => ({
-          type: 'task',
-          key: `${namespace}::task:${item.id}`,
-          s: item,
-          node,
-          level: level + 1,
-          groupKey: namespace,
-        }));
-        const collapseKey = `${namespace}::collapse:${nodeId}`;
-        defaultCollapsed.add(collapseKey);
-        return {
-          type: 'summary',
-          key: `${namespace}::summary:${nodeId}`,
-          collapseKey,
-          s: buildSummaryItem(node, scopeItems, scopeCtx),
-          node,
-          level,
-          groupKey: namespace,
-          children: allChildren,
-        };
-      }
-      const children = childIds.map(cid => buildNode(cid, meta, visibleMeta, namespace, level + 1, scopeCtx)).filter(Boolean);
-      const collapseKey = `${namespace}::collapse:${nodeId}`;
-      if (children.length > 0 && children.every(child => child.type === 'task')) defaultCollapsed.add(collapseKey);
-      return {
-        type: 'summary',
-        key: `${namespace}::summary:${nodeId}`,
-        collapseKey,
-        s: buildSummaryItem(node, scopeItems, scopeCtx),
-        node,
-        level,
-        groupKey: namespace,
-        children,
-      };
-    };
-    const buildTreeNodes = (scopeItems, visibleScopeItems, namespace, baseLevel, scopeCtx = {}) => {
-      const meta = buildScopeMeta(sortItems(scopeItems));
-      const visibleMeta = buildScopeMeta(sortItems(visibleScopeItems));
-      return rootIds.map(rid => buildNode(rid, meta, visibleMeta, namespace, baseLevel, scopeCtx)).filter(Boolean);
-    };
-    const nodes = [];
-    if (groupBy === 'project') {
-      nodes.push(...buildTreeNodes(allItems, displayItems, 'project', 0));
-    } else if (groupBy === 'thread') {
-      threadStructure.forEach((thread, i) => {
-        const idSet = new Set(thread.ids);
-        const threadItems = allItems.filter(it => idSet.has(it.treeId || it.id));
-        const visibleThreadItems = displayItems.filter(it => idSet.has(it.treeId || it.id));
-        if (!visibleThreadItems.length) return;
-        const sortedItems = sortItems(threadItems);
-        const namespace = `thread:${thread.cid}`;
-        // Single-task threads render as a bare row — the "Solo · …" header is
-        // pure noise when there's only one child and the row itself already
-        // shows the task name.
-        if (thread.isSolo) {
-          for (const id of thread.ids) {
-            const items = visibleThreadItems.filter(it => (it.treeId || it.id) === id);
-            if (!items.length) continue;
-            const primary = items.find(it => !it.isHandoff) || items[0];
-            nodes.push({
-              type: 'task',
-              key: `solo:${primary.id}`,
-              s: primary,
-              node: iMap[id],
-              level: 0,
-              groupKey: null,
-            });
-            for (const ho of items.filter(it => it.isHandoff).sort((a, b) => (a.segmentIdx || 0) - (b.segmentIdx || 0))) {
-              nodes.push({
-                type: 'task',
-                key: `solo:${ho.id}`,
-                s: ho,
-                node: iMap[id],
-                level: 1,
-                groupKey: null,
-              });
-            }
-          }
-          return;
-        }
-        const label = `Thread ${i + 1} · ${thread.ids.length} Tasks`;
-        const color = 'var(--ac)';
-        const groupSummary = buildSummaryItem(
-          {
-            id: namespace,
-            name: label,
-            team: '',
-            deps: [],
-            phases: [],
-          },
-          sortedItems,
-          { color },
-        );
-        // Flat task rows in thread order (rank → startWi → id).
-        const children = [];
-        for (const id of thread.ids) {
-          const items = visibleThreadItems.filter(it => (it.treeId || it.id) === id);
-          if (!items.length) continue;
-          const primary = items.find(it => !it.isHandoff) || items[0];
-          children.push({
-            type: 'task',
-            key: `${namespace}::task:${primary.id}`,
-            s: primary,
-            node: iMap[id],
-            level: 1,
-            groupKey: namespace,
-          });
-          for (const ho of items.filter(it => it.isHandoff).sort((a, b) => (a.segmentIdx || 0) - (b.segmentIdx || 0))) {
-            children.push({
-              type: 'task',
-              key: `${namespace}::task:${ho.id}`,
-              s: ho,
-              node: iMap[id],
-              level: 2,
-              groupKey: namespace,
-            });
-          }
-        }
-        if (thread.isSolo) defaultCollapsed.add(namespace);
-        nodes.push({
-          type: 'group',
-          key: namespace,
-          collapseKey: namespace,
-          label,
-          color,
-          s: groupSummary,
-          count: visibleThreadItems.length,
-          level: 0,
-          children,
-        });
-      });
-    } else if (groupBy === 'team') {
-      const usedTeams = [...new Set(displayItems.map(item => item.team || NO_TEAM))];
-      const orderedTeams = [...new Set([...teams.map(team => team.id), ...usedTeams])].filter(id => usedTeams.includes(id));
-      orderedTeams.forEach(teamId => {
-        const scopeItems = sortItems(allItems.filter(item => (item.team || NO_TEAM) === teamId));
-        const visibleScopeItems = sortItems(displayItems.filter(item => (item.team || NO_TEAM) === teamId));
-        if (!visibleScopeItems.length) return;
-        const team = teams.find(entry => entry.id === teamId);
-        const label = teamId === NO_TEAM ? t('noTeam') : team?.name || teamId;
-        const color = teamId === NO_TEAM ? NO_TEAM_COLOR : team?.color || '#3b82f6';
-        const groupSummary = buildSummaryItem(
-          {
-            id: `team:${teamId}`,
-            name: label,
-            team: teamId === NO_TEAM ? '' : teamId,
-            deps: [],
-            phases: [],
-          },
-          scopeItems,
-          { teamId: teamId === NO_TEAM ? '' : teamId, color },
-        );
-        nodes.push({
-          type: 'group',
-          key: `team:${teamId}`,
-          collapseKey: `team:${teamId}`,
-          label,
-          color,
-          s: groupSummary,
-          count: visibleScopeItems.length,
-          level: 0,
-          children: buildTreeNodes(scopeItems, visibleScopeItems, `team:${teamId}`, 1, { teamId: teamId === NO_TEAM ? '' : teamId, color }),
-        });
-      });
-    } else {
-      const usedPeople = [...new Set(displayItems.flatMap(personIdsOf))];
-      if (displayItems.some(item => !personIdsOf(item).length)) usedPeople.push(NO_PERSON);
-      usedPeople
-        .sort((a, b) => {
-          if (a === NO_PERSON) return 1;
-          if (b === NO_PERSON) return -1;
-          const aLabel = memberById[a]?.name || a;
-          const bLabel = memberById[b]?.name || b;
-          return aLabel.localeCompare(bLabel);
-        })
-        .forEach(personId => {
-          const scopeItems = sortItems(
-            personId === NO_PERSON
-              ? allItems.filter(item => !personIdsOf(item).length)
-              : allItems.filter(item => personIdsOf(item).includes(personId)),
-          );
-          const visibleScopeItems = sortItems(
-            personId === NO_PERSON
-              ? displayItems.filter(item => !personIdsOf(item).length)
-              : displayItems.filter(item => personIdsOf(item).includes(personId)),
-          );
-          if (!visibleScopeItems.length) return;
-          const member = memberById[personId];
-          const label = personId === NO_PERSON ? UNASSIGNED_LABEL : member?.name || personId;
-          const color = personId === NO_PERSON ? NO_TEAM_COLOR : teamById[member?.team]?.color || 'var(--ac)';
-          const groupSummary = buildSummaryItem(
-            {
-              id: `resource:${personId}`,
-              name: label,
-              team: member?.team || '',
-              person: label,
-              deps: [],
-              phases: [],
-            },
-            scopeItems,
-            { personName: label, color },
-          );
-          nodes.push({
-            type: 'group',
-            key: `resource:${personId}`,
-            collapseKey: `resource:${personId}`,
-            label,
-            personId,
-            color,
-            s: groupSummary,
-            count: visibleScopeItems.length,
-            level: 0,
-            children: buildTreeNodes(scopeItems, visibleScopeItems, `resource:${personId}`, 1, { personName: label, color }),
-          });
-        });
-    }
-    return { nodes, defaultCollapsed: [...defaultCollapsed] };
-  }, [allItems, displayItems, groupBy, iMap, childrenByParent, rootIds, tree, teams, memberById, teamById, confidence, t, threadStructure]);
+  const structure = useMemo(
+    () =>
+      buildStructure({
+        treeRank,
+        iMap,
+        childrenByParent,
+        rootIds,
+        tree,
+        teams,
+        memberById,
+        teamById,
+        confidence,
+        t,
+        threadStructure,
+        allItems,
+        displayItems,
+        groupBy,
+        weekIndexOfDate,
+        UNASSIGNED_LABEL,
+      }),
+    [
+      allItems,
+      displayItems,
+      groupBy,
+      iMap,
+      childrenByParent,
+      rootIds,
+      tree,
+      teams,
+      memberById,
+      teamById,
+      confidence,
+      t,
+      threadStructure,
+      weeks,
+    ],
+  );
 
   const collapsed = useMemo(
     () => new Set(collapsedByMode[groupBy] || structure.defaultCollapsed),
@@ -1089,89 +628,10 @@ function GanttViewImpl({
   //
   // Everything vertical goes through here — the dependency arrows, the bar
   // rectangles, the two columns — so the two modes cannot drift apart.
-  // A lane fits a bar when the bar does not OVERLAP the last one in it. No
-  // clearance on top of that: two tasks the scheduler ran back to back end and
-  // start on the same x, so any positive gutter pushed the second one onto a
-  // lane of its own and re-drew the staircase inside the compact mode. The
-  // bars are already inset 2px each side, which is the gap the eye needs.
-  // The epsilon is float noise, not spacing.
-  const LANE_EPS = 0.5;
-  const rowLayout = useMemo(() => {
-    const tops = new Array(visibleRows.length).fill(0);
-    if (!compact) {
-      for (let i = 0; i < visibleRows.length; i++) tops[i] = i * RH;
-      return { tops, height: visibleRows.length * RH, lanes: null };
-    }
-    // The horizontal extent of a task row's bar, in the same units the
-    // renderer uses. A row with no bar takes no lane: there is nothing to
-    // pack and nothing to read.
-    const spanOf = row => {
-      if (row.type !== 'task' || !row.s || row.s._unestimated) return null;
-      const t = row.s;
-      if (t._completed && (!t.startD || !t.endD)) return null;
-      const left = t.startD && t.endD ? dateToX(t.startD) : t.startWi * WPX;
-      const right = t.startD && t.endD ? dateToX(t.endD) + DPX : (t.endWi + 1) * WPX;
-      if (!Number.isFinite(left) || !Number.isFinite(right)) return null;
-      return { left, right: Math.max(right, left + 6) };
-    };
-    // What a row IS in compact: the grouping's own containers, and nothing
-    // else. The pills already answer "per project / per team / per person /
-    // per thread"; compact takes them at their word and gives a row to those
-    // and to nobody below them.
-    //
-    // My first attempt kept the work-package rows too, each resetting the
-    // lanes. That is the hierarchy again by another name: a package with two
-    // tasks still cost a header row plus a lane, packages packed separately
-    // instead of together, and a group whose work was all filtered out kept a
-    // stack of empty headers. The staircase came back as a terrace.
-    let laneTop = 0;
-    let laneEnds = [];
-    const lanes = new Array(visibleRows.length).fill(0);
-    const groupBottom = () => laneTop + laneEnds.length * RH;
-    visibleRows.forEach((row, i) => {
-      // What gets a row of its own: the grouping's containers, and anything
-      // FOLDED. A folded package is one thing now — so it is one row, with a
-      // name in the left column and the chevron that opens it again. Without
-      // that it was a bar on a lane with no label and no way back.
-      const folded = row.type !== 'task' && !!row.children?.length && collapsed.has(row.collapseKey || row.key);
-      const isContainer = row.type !== 'task' && ((rowDepth.get(row) ?? 0) === 0 || folded);
-      if (isContainer) {
-        const y = groupBottom();
-        tops[i] = y;
-        laneTop = y + RH;
-        laneEnds = [];
-        return;
-      }
-      // A work package inside a group is not a row here — its bar is the
-      // union of its children's and would overlap every one of them, taking a
-      // lane of its own on every group.
-      //
-      // Unless it is folded, which is handled above: its children are not
-      // drawn at all, so its own bar is the only thing standing for them, and
-      // hiding it made a folded package with two hundred items under it
-      // vanish from the chart.
-      if (row.type !== 'task') {
-        tops[i] = laneTop;
-        lanes[i] = -1;
-        return;
-      }
-      const span = spanOf(row);
-      if (!span) {
-        tops[i] = laneTop;
-        lanes[i] = -1;
-        return;
-      }
-      let lane = laneEnds.findIndex(end => end <= span.left + LANE_EPS);
-      if (lane < 0) {
-        lane = laneEnds.length;
-        laneEnds.push(-Infinity);
-      }
-      laneEnds[lane] = span.right;
-      lanes[i] = lane;
-      tops[i] = laneTop + lane * RH;
-    });
-    return { tops, height: Math.max(groupBottom(), RH), lanes };
-  }, [visibleRows, rowDepth, collapsed, compact, WPX, DPX, zoom, weeks]);
+  const rowLayout = useMemo(
+    () => computeRowLayout({ visibleRows, compact, RH, dateToX, WPX, DPX, collapsed, rowDepth }),
+    [visibleRows, rowDepth, collapsed, compact, WPX, DPX, zoom, weeks],
+  );
   const rowTop = rowIndex => rowLayout.tops[rowIndex] ?? rowIndex * RH;
   // A task row that took no lane draws nothing in compact mode — it has no
   // bar, so a bordered empty strip would only sit on top of lane 0.
@@ -1355,93 +815,10 @@ function GanttViewImpl({
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [visibleTaskIds, cursorId, selectedIds, onReorderSibling, onBarClick]);
-  // Move the current selection earlier or later. One line of code now,
-  // because there is one order: the tree's.
-  //
-  // What stood here was a second ordering system — sort each team's leaves by
-  // `seq`, splice the selection in, rewrite `seq` in steps of five, and for
-  // The two order buttons also rewrite the selection's PRIORITY to match the destination
-  // neighbourhood, because (the comment said) "seq alone is only a tiebreak,
-  // prio dominates the sort". It did, and that was the bug: the plan you
-  // arranged in the tree and the plan the scheduler ran were two different
-  // plans. Changing importance to express order was the workaround for it.
-  //
-  // The cost, stated plainly: this moves an item among its siblings, so it
-  // cannot lift a task out of the middle of one project to the front of a
-  // team's queue while leaving it at the bottom of the tree. That was never a
-  // coherent thing to ask for — it is the disagreement itself.
-  const reorderSelectionInTime = dir => {
-    if (!onReorderSibling || selectedTaskIds.length === 0) return;
-    const ids = selectedTaskIds.filter(id => leafIdSet.has(id));
-    // Down/last runs bottom-up so the selection does not step over itself.
-    const ordered = dir === 'down' || dir === 'last' ? [...ids].reverse() : ids;
-    ordered.forEach(id => onReorderSibling(id, dir));
-  };
-  // Bulk prio nudge for the current selection. step = -1 → more urgent
-  // (lower number), +1 → less urgent. Clamped to 1..4. This is the real
-  // lever when z-order alone is not enough to push a group past competing
-  // work — prio dominates the scheduler sort.
-  const adjustSelectionPrio = step => {
-    if (!onTaskUpdate) return;
-    selectedTaskIds.forEach(id => {
-      const node = iMap[id];
-      if (!node) return;
-      const current = node.prio || 2;
-      const next = Math.max(1, Math.min(4, current + step));
-      if (next === current) return;
-      onTaskUpdate({ ...node, prio: next });
-    });
-  };
-  const linkSelectedInOrder = () => {
-    selectedTaskIds.forEach((id, index) => {
-      const prev = selectedTaskIds[index - 1];
-      if (prev && prev !== id) onAddDep?.(id, prev);
-    });
-  };
-  const clearSelectedLinks = (kind = 'all') => {
-    const selected = new Set(selectedTaskIds);
-    if (!onTaskUpdate && kind === 'all' && onRemoveDep) {
-      const pairs = new Set();
-      const scheduleRemove = (targetId, depId) => {
-        if (!targetId || !depId) return;
-        pairs.add(`${targetId}\u0000${depId}`);
-      };
-      selectedTaskIds.forEach(id => {
-        const node = iMap[id];
-        if (!node) return;
-        [...(node.deps || EMPTY_ARR), ...(node.softDeps || EMPTY_ARR)].forEach(depId => scheduleRemove(id, depId));
-      });
-      (tree || EMPTY_ARR).forEach(node => {
-        [...(node.deps || EMPTY_ARR), ...(node.softDeps || EMPTY_ARR)]
-          .filter(depId => selected.has(depId))
-          .forEach(depId => scheduleRemove(node.id, depId));
-      });
-      pairs.forEach(key => {
-        const [targetId, depId] = key.split('\u0000');
-        onRemoveDep(targetId, depId);
-      });
-      return;
-    }
-    const removeHard = kind === 'hard' || kind === 'all';
-    const removeSoft = kind === 'soft' || kind === 'all';
-    (tree || EMPTY_ARR).forEach(node => {
-      const isSelectedTarget = selected.has(node.id);
-      let deps = node.deps || EMPTY_ARR;
-      let softDeps = node.softDeps || EMPTY_ARR;
-      let changed = false;
-      if (removeHard) {
-        const next = deps.filter(depId => !(isSelectedTarget || selected.has(depId)));
-        changed = changed || next.length !== deps.length;
-        deps = next;
-      }
-      if (removeSoft) {
-        const next = softDeps.filter(depId => !(isSelectedTarget || selected.has(depId)));
-        changed = changed || next.length !== softDeps.length;
-        softDeps = next;
-      }
-      if (changed) onTaskUpdate?.({ ...node, deps, softDeps });
-    });
-  };
+  const reorderSelectionInTime = dir => reorderSelection({ selectedTaskIds, leafIdSet, onReorderSibling }, dir);
+  const adjustSelectionPrio = step => adjustPrio({ selectedTaskIds, iMap, onTaskUpdate }, step);
+  const linkSelectedInOrder = () => linkSelected({ selectedTaskIds, onAddDep });
+  const clearSelectedLinks = (kind = 'all') => clearLinks({ selectedTaskIds, iMap, tree, onTaskUpdate, onRemoveDep }, kind);
   const cpEdgeSet = useMemo(() => (cpEdges instanceof Set ? cpEdges : new Set(cpEdges || [])), [cpEdges]);
   // Per-person vacation blocks: Map<personId, [{from, to}]>
   const vacByPerson = useMemo(() => {
@@ -1457,320 +834,36 @@ function GanttViewImpl({
   // tints them only at day zoom; a person's own row shows them at every zoom,
   // next to that person's vacation, because together they are the days that
   // person is not there.
-  const holidayDays = useMemo(() => {
-    const out = [];
-    weeks.forEach((w, i) => {
-      const wds = new Set((w.wds || []).map(d => d.getTime()));
-      for (let d = 0; d < 7; d++) {
-        const date = addD(w.mon, d);
-        if (wdSet.has(date.getDay()) && !wds.has(date.getTime())) out.push({ x: i * WPX + d * DPX, iso: iso(date) });
-      }
-    });
-    return out;
-  }, [weeks, wdSet, WPX, DPX]);
-  const vacBandsByTaskId = useMemo(() => {
-    const bands = {};
-    allItems.forEach(s => {
-      const assigneeIds = [...new Set([...(s.assign || []), ...(s.personId ? [s.personId] : [])])];
-      if (!assigneeIds.length) return;
-      const slots = [];
-      assigneeIds.forEach(pid => {
-        const pvacs = vacByPerson[pid];
-        if (!pvacs?.length) return;
-        pvacs.forEach(v => {
-          const x1 = dateToX(localDate(v.from));
-          const x2 = dateToX(addD(localDate(v.to), 1));
-          if (x2 <= 0 || x1 >= tw) return;
-          slots.push({
-            pid,
-            personName: memberById[pid]?.name || pid,
-            note: v.note || '',
-            from: v.from,
-            to: v.to,
-            width: Math.max(x2 - x1, DPX),
-            x1,
-            x2,
-          });
-        });
-      });
-      if (!slots.length) return;
-      const personOrder = [...new Set(slots.map(sl => sl.pid))];
-      const personIndex = Object.fromEntries(personOrder.map((pid, idx) => [pid, idx]));
-      const nBands = personOrder.length;
-      bands[s.id] = slots.map((sl, idx) => {
-        // One strip per person away, stacked: `lane` is which strip, counted
-        // from the row's baseline upwards. It used to be a pixel band that
-        // split the row's full height between them, which is what made two
-        // people on holiday fill the row twice over.
-        const lane = personIndex[sl.pid] ?? 0;
-        return {
-          key: `vac-${sl.pid}-${idx}`,
-          personName: sl.personName,
-          firstName: sl.personName.split(' ')[0] || sl.personName,
-          note: sl.note,
-          from: sl.from,
-          to: sl.to,
-          nBands,
-          lane,
-          width: sl.width,
-          x1: sl.x1,
-        };
-      });
-    });
-    return bands;
-  }, [allItems, vacByPerson, memberById, tw, DPX, weeks, WPX]);
-  const resourceLoadByWeek = useMemo(() => {
-    const result = {};
-    const isActiveMemberDay = (member, date) => {
-      if (!member) return false;
-      const d = date instanceof Date ? date : localDate(date);
-      if (member.start && d < localDate(member.start)) return false;
-      if (member.end && d > localDate(member.end)) return false;
-      return true;
-    };
-    const onVacation = (personId, date) => {
-      const d = date instanceof Date ? date : localDate(date);
-      return (vacByPerson[personId] || EMPTY_ARR).some(v => d >= localDate(v.from) && d <= localDate(v.to));
-    };
-    const ensure = personId => {
-      if (result[personId]) return result[personId];
-      result[personId] = weeks.map((week, wi) => ({
-        wi,
-        kw: week.kw,
-        start: iso(week.mon),
-        end: iso(week.sun || (week.wds || EMPTY_ARR)[(week.wds || EMPTY_ARR).length - 1] || week.mon),
-        availability: 0,
-        load: 0,
-        taskCount: 0,
-        tasks: [],
-      }));
-      return result[personId];
-    };
-
-    for (const member of members || EMPTY_ARR) {
-      const rows = ensure(member.id);
-      weeks.forEach((week, wi) => {
-        let availability = 0;
-        (week.wds || EMPTY_ARR).forEach(date => {
-          if (!isActiveMemberDay(member, date) || onVacation(member.id, date)) return;
-          availability += Math.max(
-            0,
-            capacityAt?.(member.id, date) ?? deriveCap(memberAtDate(member, date), { plans: meetingPlans, teams }),
-          );
-        });
-        rows[wi].availability = availability;
-      });
-    }
-
-    for (const item of allItems || EMPTY_ARR) {
-      if (!item.startD || !item.endD || item._unestimated || (item.isHandoff && item.unscheduled)) continue;
-      const personIds = personIdsOf(item).filter(id => memberById[id]);
-      if (!personIds.length) continue;
-      const start = item.startD instanceof Date ? item.startD : localDate(item.startD);
-      const end = item.endD instanceof Date ? item.endD : localDate(item.endD);
-      const node = iMap[item.treeId || item.id] || item;
-      const effort = Math.max(0, item.effort || scheduleEffort(node) || scheduledWorkDaysOf(item));
-      // Distribute effort only over days the person actually works. Vacation
-      // and off-roster days stretch the calendar duration of the bar but do
-      // not contribute to load — otherwise a task spanning a vacation week
-      // would falsely flag the resource as over-booked.
-      personIds.forEach(personId => {
-        const rows = ensure(personId);
-        const member = memberById[personId];
-        const personSlots = [];
-        weeks.forEach((week, wi) => {
-          (week.wds || EMPTY_ARR).forEach(date => {
-            if (date < start || date > end) return;
-            if (!isActiveMemberDay(member, date)) return;
-            if (onVacation(personId, date)) return;
-            personSlots.push({ wi });
-          });
-        });
-        if (!personSlots.length) return;
-        const loadPerSlot = effort / personSlots.length;
-        const loadByWeek = new Map();
-        personSlots.forEach(({ wi }) => {
-          rows[wi].load += loadPerSlot;
-          loadByWeek.set(wi, (loadByWeek.get(wi) || 0) + loadPerSlot);
-        });
-        loadByWeek.forEach((load, wi) => {
-          const status = item.status || node?.status || '';
-          const startIso = item.startD ? iso(item.startD) : '';
-          const endIso = item.endD ? iso(item.endD) : '';
-          rows[wi].tasks.push({
-            id: item.treeId || item.id,
-            name: item.name || node?.name || item.id,
-            load,
-            status,
-            start: startIso,
-            end: endIso,
-            done: status === 'done',
-          });
-        });
-      });
-    }
-
-    Object.values(result).forEach(rows =>
-      rows.forEach(row => {
-        row.percent = row.availability > 0 ? Math.round((row.load / row.availability) * 100) : row.load > 0 ? 999 : 0;
-        row.tasks.sort((a, b) => b.load - a.load || a.id.localeCompare(b.id, undefined, { numeric: true }));
-        row.taskCount = row.tasks.length;
-        row.openTaskCount = row.tasks.filter(task => task.status !== 'done').length;
-        row.hasOpenWork = row.openTaskCount > 0;
-        row.historicalOnly = row.load > 0 && !row.hasOpenWork;
-        row.currentOrFuture = !row.end || row.end >= todayIso;
-        row.isPlanningRisk = row.load > 0 && row.hasOpenWork && row.currentOrFuture && row.percent >= 90;
+  const holidayDays = useMemo(() => buildHolidayDays({ weeks, wdSet, WPX, DPX }), [weeks, wdSet, WPX, DPX]);
+  const vacBandsByTaskId = useMemo(
+    () => buildVacBands({ allItems, vacByPerson, memberById, tw, DPX, dateToX }),
+    [allItems, vacByPerson, memberById, tw, DPX, weeks, WPX],
+  );
+  const resourceLoadByWeek = useMemo(
+    () =>
+      buildResourceLoad({
+        allItems,
+        iMap,
+        memberById,
+        members,
+        vacByPerson,
+        weeks,
+        meetingPlans,
+        teams,
+        todayIso,
+        capacityAt,
+        scheduledWorkDaysOf,
       }),
-    );
-    return result;
-  }, [allItems, iMap, memberById, members, vacByPerson, weeks, meetingPlans, teams, todayIso]);
-  const loadRiskSummary = useMemo(() => {
-    const risky = [];
-    const historical = [];
-    Object.entries(resourceLoadByWeek || {}).forEach(([personId, rows]) => {
-      const name = memberById[personId]?.name || personId;
-      (rows || EMPTY_ARR).forEach(row => {
-        if (!row || row.load <= 0 || row.percent < 90) return;
-        const entry = {
-          personId,
-          name,
-          kw: row.kw,
-          start: row.start,
-          load: row.load,
-          availability: row.availability,
-          percent: row.percent,
-          tasks: row.tasks || EMPTY_ARR,
-        };
-        if (row.isPlanningRisk) risky.push(entry);
-        else if (row.historicalOnly) historical.push(entry);
-      });
-    });
-    risky.sort((a, b) => b.percent - a.percent || b.load - a.load);
-    historical.sort((a, b) => b.percent - a.percent || b.load - a.load);
-    const over = risky.filter(r => r.percent > 110);
-    const full = risky.filter(r => r.percent >= 90 && r.percent <= 110);
-    const top = risky.slice(0, 6);
-    const histTop = historical.slice(0, Math.max(0, 6 - top.length));
-    const weekLine = (r, bold) =>
-      `${r.name} · KW ${r.kw} (${r.start}): ${bold ? `**${r.percent}%**` : `${r.percent}%`} · ${fmtLoadDays(r.load)} / ${fmtLoadDays(r.availability)}`;
-    const taskLines = (r, limit) =>
-      (r.tasks || EMPTY_ARR).slice(0, limit).map(task => `- ${task.id} ${task.name} · ${fmtLoadDays(task.load)}`);
-    const riskLines = top.flatMap(r => [weekLine(r, true), ...taskLines(r, 3)]);
-    const histLines = histTop.flatMap(r => [weekLine(r, false), ...taskLines(r, 2)]);
-    const tip =
-      top.length || histTop.length
-        ? tipLines(
-            `**${t('g.loadRiskTitle')}**`,
-            ...riskLines,
-            `__${riskLines.length ? t('g.loadRiskAction') : t('g.loadOkTip')}__`,
-            ...(histLines.length ? ['', `**${t('g.loadHistoryTitle')}**`, ...histLines, `__${t('g.loadHistoryNote')}__`] : []),
-          )
-        : t('g.loadOkTip');
-    return {
-      overCount: over.length,
-      fullCount: full.length,
-      maxPercent: risky[0]?.percent || 0,
-      historicalCount: historical.length,
-      tip,
-    };
-  }, [resourceLoadByWeek, memberById, t]);
-  const loadWeekSummary = useMemo(() => {
-    return weeks.map((week, wi) => {
-      const people = Object.entries(resourceLoadByWeek || {})
-        .map(([personId, rows]) => {
-          const row = rows?.[wi];
-          if (!row || row.load <= 0) return null;
-          return {
-            personId,
-            name: memberById[personId]?.name || personId,
-            percent: row.percent,
-            load: row.load,
-            availability: row.availability,
-            tasks: row.tasks || EMPTY_ARR,
-            hasOpenWork: row.hasOpenWork,
-            historicalOnly: row.historicalOnly,
-            isPlanningRisk: row.isPlanningRisk,
-          };
-        })
-        .filter(Boolean)
-        .sort((a, b) => b.percent - a.percent || b.load - a.load);
-      const planningPeople = people.filter(p => p.isPlanningRisk);
-      const totalLoad = people.reduce((sum, p) => sum + p.load, 0);
-      const totalAvailability = people.reduce((sum, p) => sum + p.availability, 0);
-      const maxPercent = planningPeople[0]?.percent || people[0]?.percent || 0;
-      const overCount = planningPeople.filter(p => p.percent > 110).length;
-      const historicalOnly = people.length > 0 && !planningPeople.length && people.every(p => p.historicalOnly);
-      const shownBase = planningPeople.length
-        ? planningPeople
-        : people.filter(p => p.percent >= 90).length
-          ? people.filter(p => p.percent >= 90)
-          : people;
-      const shown = shownBase.slice(0, 8);
-      const tip = people.length
-        ? tipLines(
-            `**${t('g.loadWeekTitle')} KW ${week.kw} · ${iso(week.mon)}**`,
-            `${t('g.loadWeekTotal')}: ${fmtLoadDays(totalLoad)} / ${fmtLoadDays(totalAvailability)} · max ${maxPercent}%`,
-            ...shown.flatMap(p => [
-              '',
-              `**${p.name}**: ${p.percent}% · ${fmtLoadDays(p.load)} / ${fmtLoadDays(p.availability)}`,
-              ...(p.tasks || EMPTY_ARR).slice(0, 4).map(task => `- ${task.id} ${task.name} · ${fmtLoadDays(task.load)}`),
-            ]),
-            '',
-            historicalOnly ? `__${t('g.loadHistoryNote')}__` : null,
-            `__${t('g.loadClickResource')}__`,
-          )
-        : t('g.loadNoWork');
-      return {
-        wi,
-        kw: week.kw,
-        maxPercent,
-        overCount,
-        totalLoad,
-        totalAvailability,
-        historicalOnly,
-        tip,
-      };
-    });
-  }, [weeks, resourceLoadByWeek, memberById, t]);
+    [allItems, iMap, memberById, members, vacByPerson, weeks, meetingPlans, teams, todayIso, capacityAt],
+  );
+  const loadRiskSummary = useMemo(() => buildLoadRiskSummary({ resourceLoadByWeek, memberById, t }), [resourceLoadByWeek, memberById, t]);
+  const loadWeekSummary = useMemo(
+    () => buildLoadWeekSummary({ weeks, resourceLoadByWeek, memberById, t }),
+    [weeks, resourceLoadByWeek, memberById, t],
+  );
 
-  const taskLoadCells = (s, barLeft, barWidth) => {
-    if (!showLoadHeatmap || !s || s._unestimated || !barWidth) return EMPTY_ARR;
-    const ids = personIdsOf(s).filter(id => resourceLoadByWeek[id]);
-    if (!ids.length) return EMPTY_ARR;
-    const barRight = barLeft + barWidth;
-    const cells = [];
-    weeks.forEach((week, wi) => {
-      const cellLeft = wi * WPX;
-      const cellRight = cellLeft + WPX;
-      if (cellRight <= barLeft || cellLeft >= barRight) return;
-      let load = 0;
-      let availability = 0;
-      let hasOpenWork = false;
-      let isPlanningRisk = false;
-      ids.forEach(id => {
-        const row = resourceLoadByWeek[id]?.[wi];
-        if (!row) return;
-        load += row.load || 0;
-        availability += row.availability || 0;
-        if (row.hasOpenWork) hasOpenWork = true;
-        if (row.isPlanningRisk) isPlanningRisk = true;
-      });
-      const percent = availability > 0 ? Math.round((load / availability) * 100) : load > 0 ? 999 : 0;
-      cells.push({
-        wi,
-        kw: week.kw,
-        percent,
-        load,
-        availability,
-        hasOpenWork,
-        isPlanningRisk,
-        historicalOnly: load > 0 && !hasOpenWork,
-        left: Math.max(0, cellLeft - barLeft),
-        width: Math.max(1, Math.min(cellRight, barRight) - Math.max(cellLeft, barLeft)),
-      });
-    });
-    return cells;
-  };
+  const taskLoadCells = (s, barLeft, barWidth) =>
+    computeTaskLoadCells({ showLoadHeatmap, resourceLoadByWeek, weeks, WPX }, s, barLeft, barWidth);
   const searchableItems = useMemo(
     () => displayItems.map(item => ({ id: item.id, text: `${item.id} ${item.name || ''}`.toLowerCase() })),
     [displayItems],
@@ -1778,134 +871,15 @@ function GanttViewImpl({
   function resD(id) {
     return resolveToLeafIds(tree || [], id);
   }
-  // ALL dep lines (always rendered, faint by default; hovered ones highlight)
-  // When a dep targets a parent node, draw ONE line from the latest-finishing child
-  // (that's the actual blocker), not individual lines from every leaf child.
-  const allDepLines = useMemo(() => {
-    if (!tree) return [];
-    const lines = [];
-    const processDep = (s, removeFromId, rawDep, isSoft) => {
-      const leafIds = resD(rawDep);
-      let latestId = null,
-        latestEnd = null;
-      leafIds.forEach(depId => {
-        const dep = sMap[depId];
-        if (!dep) return;
-        if (!latestEnd || dep.endD > latestEnd) {
-          latestEnd = dep.endD;
-          latestId = depId;
-        }
-      });
-      const addLine = (depId, keyPrefix, isCriticalEdge = false) => {
-        const dep = sMap[depId];
-        const srcRows = rowIdx[depId];
-        const tgtRows = rowIdx[s.id];
-        if (!dep || !srcRows?.length || !tgtRows?.length) return;
-        srcRows.forEach((srcRow, si) => {
-          tgtRows.forEach((tgtRow, ti) => {
-            lines.push({
-              key: `${keyPrefix}:${depId}@${si}->${s.id}@${ti}->${rawDep}`,
-              x1: depX1(dep),
-              y1: rowCenterY(srcRow),
-              x2: depX2(s),
-              y2: rowCenterY(tgtRow),
-              removeFromId,
-              removeDepId: rawDep,
-              srcId: depId,
-              tgtId: s.id,
-              isCp: isCriticalEdge,
-              isSoft,
-            });
-          });
-        });
-      };
-      if (latestId) addLine(latestId, isSoft ? 'sdep' : 'dep', cpEdgeSet.has(`${latestId}->${s.id}`));
-      leafIds.filter(depId => depId !== latestId && cpEdgeSet.has(`${depId}->${s.id}`)).forEach(depId => addLine(depId, 'cp', true));
-    };
-    allItems.forEach(s => {
-      if (!sMap[s.id]) return;
-      const node = iMap[s.treeId || s.id];
-      if (!node) return;
-      const removeFromId = node.id;
-      (node.deps || []).forEach(rawDep => processDep(s, removeFromId, rawDep, false));
-      (node.softDeps || []).forEach(rawDep => processDep(s, removeFromId, rawDep, true));
-    });
-    return lines;
-  }, [allItems, sMap, tree, visibleRows, rowIdx, cpEdgeSet, WPX, showDays, groupBy, dDelta, drag]);
+  const allDepLines = useMemo(
+    () => buildDepLines({ tree, allItems, sMap, iMap, rowIdx, cpEdgeSet, resD, depX1, depX2, rowCenterY }),
+    [allItems, sMap, tree, visibleRows, rowIdx, cpEdgeSet, WPX, showDays, groupBy, dDelta, drag],
+  );
 
-  // On hover: show ALL dependencies (incoming + outgoing) for the hovered task
-  const hoverLines = useMemo(() => {
-    if (!hoverDepId || !tree) return { lines: [], rowIds: new Set() };
-    const lines = [];
-    const rowIds = new Set([hoverDepId]);
-    const node = iMap[hoverDepId];
-    if (!node) return { lines, rowIds };
-    const target = sMap[hoverDepId];
-    // Outgoing: this task depends on these (deps must finish before this starts)
-    if (target) {
-      [...(node.deps || []), ...(node.softDeps || [])].forEach(rawDep => {
-        const leafIds = resD(rawDep);
-        let latestId = null,
-          latestEnd = null;
-        leafIds.forEach(depId => {
-          const dep = sMap[depId];
-          if (!dep) return;
-          if (!latestEnd || dep.endD > latestEnd) {
-            latestEnd = dep.endD;
-            latestId = depId;
-          }
-        });
-        if (!latestId) return;
-        const dep = sMap[latestId];
-        const srcRows = rowIdx[latestId],
-          tgtRows = rowIdx[hoverDepId];
-        if (!srcRows?.length || !tgtRows?.length) return;
-        rowIds.add(latestId);
-        srcRows.forEach(srcRow => {
-          tgtRows.forEach(tgtRow => {
-            lines.push({
-              x1: depX1(dep),
-              y1: rowCenterY(srcRow),
-              x2: depX2(target),
-              y2: rowCenterY(tgtRow),
-              kind: 'in',
-              removeFromId: hoverDepId,
-              removeDepId: rawDep,
-            });
-          });
-        });
-      });
-    }
-    // Incoming: which tasks depend on this one (this must finish before they start)
-    allItems.forEach(s => {
-      if (!sMap[s.id]) return;
-      const sNode = iMap[s.treeId || s.id];
-      if (!sNode) return;
-      [...(sNode.deps || []), ...(sNode.softDeps || [])].forEach(rawDep => {
-        const resolved = resD(rawDep);
-        if (!resolved.includes(hoverDepId)) return;
-        if (!target) return;
-        const srcRows = rowIdx[hoverDepId],
-          tgtRows = rowIdx[s.id];
-        if (!srcRows?.length || !tgtRows?.length) return;
-        rowIds.add(s.id);
-        srcRows.forEach(srcRow => {
-          tgtRows.forEach(tgtRow => {
-            lines.push({
-              x1: depX1(target),
-              y1: rowCenterY(srcRow),
-              x2: depX2(s),
-              y2: rowCenterY(tgtRow),
-              kind: 'out',
-              removeFromId: s.id,
-              removeDepId: rawDep,
-            });
-          });
-        });
-      });
-    });
-    return { lines, rowIds };
-  }, [hoverDepId, tree, allItems, sMap, visibleRows, WPX, showDays, dDelta, drag]);
+  const hoverLines = useMemo(
+    () => buildHoverLines({ hoverDepId, tree, allItems, sMap, iMap, rowIdx, resD, depX1, depX2, rowCenterY }),
+    [hoverDepId, tree, allItems, sMap, visibleRows, WPX, showDays, dDelta, drag],
+  );
 
   const rowKeyOf = row => row.key || `${row.groupKey || 'row'}::${row.s?.id || row.label}`;
   const rowColor = row => row?.s?._barColor || gTC(row?.s?.team || NO_TEAM);
@@ -2479,511 +1453,73 @@ function GanttViewImpl({
         }
       }}
     >
-      <div className="gantt-hdr">
-        <div
-          className="gh-fix"
-          style={{ flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 4, padding: '4px 10px' }}
-        >
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* group label removed — buttons are self-explanatory and the row was too wide */}
-            {/* The chips had no tooltips at all, so which question each grouping
-              answers — and that one of them is where a person's order is set —
-              was something you had to already know. */}
-            {[
-              ['project', t('g.project')],
-              ['team', t('g.team')],
-              ['resource', t('g.resource')],
-              ['thread', t('g.thread')],
-            ].map(([k, l]) => (
-              <button
-                key={k}
-                data-htip={t(`g.group.${k}Tip`)}
-                className={`btn btn-xs ${groupBy === k ? 'btn-pri' : 'btn-sec'}`}
-                onMouseDown={e => activateMode(e, () => setGB(k))}
-                onClick={e => {
-                  if (e.detail === 0) setGB(k);
-                }}
-                style={{ padding: '2px 7px', fontSize: 11 }}
-              >
-                {l}
-              </button>
-            ))}
-            <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
-            {/* Beside the grouping pills, because it answers the same kind of
-              question: the pills say what a row IS, this says how many rows
-              there are. */}
-            <button
-              className={`btn btn-xs ${compact ? 'btn-pri' : 'btn-sec'}`}
-              onClick={toggleCompact}
-              aria-pressed={compact}
-              data-testid="gantt-compact-toggle"
-              data-htip={compact ? t('g.classicTip') : t('g.compactTip')}
-              style={{ padding: '2px 7px', fontSize: 11 }}
-            >
-              {compact ? '●' : '○'} {t('g.compact')}
-            </button>
-            <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
-            {/* The overload figure used to be a badge of its own, standing in
-              the row of grouping pills — a number in a place that is
-              otherwise a set of choices, which is why it read as a control
-              and got looked at as neither. It lives on this toggle's tooltip
-              now: same detail, one hover away, at the switch that turns the
-              reading on. The count itself is still a filter chip under
-              Filter, where a number you might want to ACT on belongs. */}
-            <button
-              className={`btn btn-xs ${showLoadHeatmap ? 'btn-pri' : 'btn-sec'}`}
-              onClick={toggleLoadHeatmap}
-              aria-pressed={showLoadHeatmap}
-              data-htip={showLoadHeatmap ? loadRiskSummary.tip : t('g.loadHeatmapTip')}
-              data-testid="gantt-load-toggle"
-              style={{ padding: '2px 7px', fontSize: 11 }}
-            >
-              {showLoadHeatmap ? '●' : '○'} {t('g.loadHeatmap')}
-            </button>
-            {/* Overbooking now surfaces as a global quick-filter chip in the
-              app's subtoolbar so the same indicator works for every view. */}
-            {allCollapseKeys.length > 0 && (
-              <>
-                <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
-                <button
-                  className="btn btn-sec btn-xs"
-                  data-testid="gantt-expand-all"
-                  onClick={expandAll}
-                  style={{ padding: '2px 7px', fontSize: 11 }}
-                >
-                  {t('tv.expandAll')}
-                </button>
-                <button className="btn btn-sec btn-xs" onClick={collapseAll} style={{ padding: '2px 7px', fontSize: 11 }}>
-                  {t('tv.collapseAll')}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-        <div ref={hR} className="gh-scroll" onMouseDown={onTimelinePanStart}>
-          <div style={{ display: 'flex', borderBottom: '1px solid var(--b)', height: zoomMode === 'month' ? HH : HH / 2 }}>
-            {months.map((m, i) => {
-              const [y, mo] = m.ym.split('-');
-              const isYS = mo === '0';
-              const label = monthHeaderLabel(m);
-              const title = `${MDE[+mo]} '${y.slice(2)}`;
-              return (
-                <div
-                  key={i}
-                  style={{
-                    width: WPX * m.count,
-                    flexShrink: 0,
-                    borderRight: '1px solid var(--b2)',
-                    padding: zoomMode === 'month' ? '2px 4px' : '2px 5px',
-                    fontSize: zoomMode === 'month' ? 10 : 11,
-                    color: isYS ? 'var(--ac)' : 'var(--tx2)',
-                    fontFamily: 'var(--mono)',
-                    fontWeight: isYS ? 600 : 500,
-                    overflow: 'hidden',
-                    background: isYS ? 'var(--bg3)' : '',
-                    display: 'flex',
-                    alignItems: 'center',
-                    whiteSpace: 'nowrap',
-                    textOverflow: 'ellipsis',
-                  }}
-                  title={title}
-                >
-                  {label}
-                </div>
-              );
-            })}
-          </div>
-          {zoomMode !== 'month' && (
-            <div style={{ display: 'flex', height: HH / 2 }}>
-              {weeks.map((w, i) => {
-                const isYB = i > 0 && weeks[i - 1].mon.getFullYear() !== w.mon.getFullYear();
-                const isNow = todayWi >= 0 && i === todayWi;
-                const label = weekHeaderLabel(w, i, isYB, isNow);
-                return (
-                  <div
-                    key={i}
-                    className={isNow ? 'gw-now' : w.hasH ? 'gw-hol' : isYB ? 'gw-yb' : ''}
-                    style={{
-                      width: WPX,
-                      flexShrink: 0,
-                      borderRight: '1px solid var(--b)',
-                      borderLeft: isYB ? '2px solid var(--ac2)' : '',
-                      textAlign: 'center',
-                      fontSize: 11,
-                      color: isNow ? 'var(--gr)' : w.hasH ? 'var(--re)' : 'var(--tx3)',
-                      fontFamily: 'var(--mono)',
-                      fontWeight: isNow ? 700 : 400,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      lineHeight: `${HH / 2}px`,
-                    }}
-                  >
-                    {label}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {/* Day-level header row: all 7 days (Mon–Sun). Weekends grayed. */}
-          {showDays && (
-            <div style={{ display: 'flex', height: 14, borderTop: '1px solid var(--b2)' }}>
-              {weeks.map((w, i) => (
-                <div key={i} style={{ width: WPX, flexShrink: 0, display: 'flex' }}>
-                  {[0, 1, 2, 3, 4, 5, 6].map(d => {
-                    const date = addD(w.mon, d);
-                    const dow = date.getDay();
-                    const isWeekend = !wdSet.has(dow);
-                    const isToday = date.toDateString() === now.toDateString();
-                    return (
-                      <div
-                        key={d}
-                        style={{
-                          flex: 1,
-                          fontSize: 10,
-                          textAlign: 'center',
-                          color: isToday ? 'var(--gr)' : isWeekend ? 'var(--tx3)' : 'var(--tx2)',
-                          fontWeight: isToday ? 700 : 400,
-                          fontFamily: 'var(--mono)',
-                          borderRight: d < 6 ? '1px solid var(--b2)' : 'none',
-                          lineHeight: '14px',
-                          opacity: isWeekend ? 0.4 : 1,
-                          background: isWeekend ? 'rgba(127,127,127,.06)' : '',
-                        }}
-                      >
-                        {date.getDate()}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          )}
-          {/* Horizon color band: green(H1) → amber(H2) → gray(beyond) */}
-          {(() => {
-            const h1D = new Date(now);
-            h1D.setDate(h1D.getDate() + h1Weeks * 7);
-            const h2D = new Date(now);
-            h2D.setDate(h2D.getDate() + h2Weeks * 7);
-            const todX = dateToX(now),
-              h1X = dateToX(h1D),
-              h2X = dateToX(h2D);
-            return (
-              <div style={{ display: 'flex', height: 3, position: 'relative', overflow: 'hidden', width: tw }}>
-                {todX > 0 && <div style={{ position: 'absolute', left: 0, width: todX, height: '100%', background: 'var(--bg3)' }} />}
-                {h1X > todX && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      left: Math.max(todX, 0),
-                      width: h1X - Math.max(todX, 0),
-                      height: '100%',
-                      background: 'var(--gr)',
-                      opacity: 0.5,
-                    }}
-                    data-htip={t('g.h1BandTip', h1Weeks)}
-                  />
-                )}
-                {h2X > h1X && (
-                  <div
-                    style={{ position: 'absolute', left: h1X, width: h2X - h1X, height: '100%', background: 'var(--am)', opacity: 0.4 }}
-                    data-htip={t('g.h2BandTip', h2Weeks)}
-                  />
-                )}
-                <div
-                  style={{ position: 'absolute', left: h2X, right: 0, height: '100%', background: 'var(--tx3)', opacity: 0.15 }}
-                  data-htip={t('g.beyondH2BandTip')}
-                />
-              </div>
-            );
-          })()}
-        </div>
-      </div>
+      <GanttHeader
+        t={t}
+        groupBy={groupBy}
+        activateMode={activateMode}
+        setGB={setGB}
+        compact={compact}
+        toggleCompact={toggleCompact}
+        showLoadHeatmap={showLoadHeatmap}
+        toggleLoadHeatmap={toggleLoadHeatmap}
+        loadRiskSummary={loadRiskSummary}
+        allCollapseKeys={allCollapseKeys}
+        expandAll={expandAll}
+        collapseAll={collapseAll}
+        hR={hR}
+        onTimelinePanStart={onTimelinePanStart}
+        zoomMode={zoomMode}
+        HH={HH}
+        months={months}
+        monthHeaderLabel={monthHeaderLabel}
+        WPX={WPX}
+        weeks={weeks}
+        todayWi={todayWi}
+        weekHeaderLabel={weekHeaderLabel}
+        showDays={showDays}
+        wdSet={wdSet}
+        now={now}
+        h1Weeks={h1Weeks}
+        h2Weeks={h2Weeks}
+        dateToX={dateToX}
+        tw={tw}
+      />
       <div className="gantt-body">
-        <div ref={lR} className="gantt-left" style={{ overflowY: 'hidden' }} onScroll={syncL} onWheel={onLWheel}>
-          <div
-            style={{
-              position: 'sticky',
-              top: 0,
-              zIndex: 8,
-              height: FLAG_ROW_H,
-              borderBottom: '1px solid var(--b)',
-              background: 'var(--bg)',
-            }}
-          />
-          {(() => {
-            let _taskIdx = 0;
-            return visibleRows.map((row, _ri) => {
-              // In compact a row is a lane, so the only things that still own one
-              // are the grouping's own containers — the project, the team, the
-              // person, the thread, whichever the pills chose. Task rows and the
-              // work packages between them do not: several of them share a lane,
-              // and a label per task would name rows that no longer correspond to
-              // them. The names live on the bars there.
-              const _folded = row.type !== 'task' && !!row.children?.length && collapsed.has(row.collapseKey || row.key);
-              if (compact && (row.type === 'task' || ((rowDepth.get(row) ?? 0) > 0 && !_folded))) return null;
-              const _el = (() => {
-                if (row.type === 'group') {
-                  const isCol = collapsed.has(row.collapseKey || row.key);
-                  const isCp = rowIsCp(row);
-                  const dim = cpOnly && !rowRelevantToCp(row);
-                  return (
-                    <div
-                      key={row.key}
-                      className="gteam"
-                      style={{
-                        color: isCp ? 'var(--re)' : row.color,
-                        borderLeft: `3px solid ${isCp ? 'var(--re)' : row.color}`,
-                        background: isCp ? 'rgba(127,16,18,.06)' : 'var(--bg2)',
-                        paddingLeft: 6,
-                        height: RH,
-                        cursor: 'default',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4, // Sentence case. A group header is a person's or a project's NAME
-                        // — uppercase with letter-spacing is a label style, and on a
-                        // real plan it made every name both wider and harder to read
-                        // for no gain. The colour bar on the left already says "this
-                        // is a header".
-                        fontSize: 12.5,
-                        fontWeight: 600,
-                        letterSpacing: '.005em',
-                        opacity: dim ? 0.25 : 1,
-                      }}
-                    >
-                      <button
-                        type="button"
-                        aria-label={isCol ? t('tv.expandAll') : t('tv.collapseAll')}
-                        onClick={e => {
-                          e.stopPropagation();
-                          toggleCollapse(row.collapseKey || row.key);
-                        }}
-                        style={{
-                          appearance: 'none',
-                          background: 'transparent',
-                          border: 'none',
-                          padding: 0,
-                          color: 'var(--tx3)',
-                          width: 12,
-                          display: 'inline-flex',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <Icon name={isCol ? 'chevronRight' : 'chevronDown'} size={11} strokeWidth={2.2} />
-                      </button>
-                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</span>
-                      {/* Read-only, and worth the two words: this person's bars sit in
-                  an order they were given rather than the plan's, and without
-                  the note nothing on this screen would explain that. Changing
-                  it happens in the Work order view, which is flat — a queue
-                  shown as a project hierarchy is not a queue. */}
-                      {row.personId && personQueues?.[row.personId] && (
-                        <span
-                          data-testid={`queue-sorted-${row.personId}`}
-                          data-htip={t('g.queueSortedTip')}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            marginRight: 6,
-                            padding: '0 5px',
-                            fontSize: 10,
-                            fontWeight: 600,
-                            letterSpacing: 0,
-                            textTransform: 'none',
-                            color: 'var(--tx2)',
-                            background: 'var(--bg3)',
-                            border: '1px solid var(--b2)',
-                            borderRadius: 3,
-                          }}
-                        >
-                          {t('g.queueSorted')}
-                        </span>
-                      )}
-                      {/* What a group header is for: how much work is in it, how much
-                  of it is behind you, and how much effort it carries. The
-                  header used to say only its own name and a count, so reading
-                  "is this team ahead or behind" meant collapsing it and
-                  adding up. All three in mono, right-aligned, quiet — the
-                  name is what should still be the loudest thing in the row. */}
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          marginRight: 8,
-                          fontSize: 11,
-                          fontWeight: 400,
-                          fontFamily: 'var(--mono)',
-                          color: 'var(--tx3)',
-                          letterSpacing: 0,
-                        }}
-                      >
-                        {row.s?._doneCount != null && row.count > 0 && (
-                          <span data-htip={t('g.groupDoneTip')}>
-                            {row.s._doneCount}/{row.count}
-                          </span>
-                        )}
-                        {row.s?.effort > 0 && <span data-htip={t('g.groupEffortTip')}>{Math.round(row.s.effort)} PT</span>}
-                        {row.s?.progress > 0 && (
-                          <span style={{ color: row.s.progress >= 99.95 ? 'var(--st-done)' : 'var(--tx2)' }}>
-                            {Math.round(row.s.progress)}%
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  );
-                }
-                const s = row.s;
-                const isSummary = row.type === 'summary';
-                const isCp = rowIsCp(row);
-                const dim = cpOnly && !rowRelevantToCp(row);
-                const indent = row.level * 6;
-                const isHovDep = hoverDepId && hoverLines.rowIds.has(s.id) && s.id !== hoverDepId;
-                const isHov = hoverDepId === s.id;
-                const isMatchL = searchMatches?.has(s.id);
-                const isActiveMatchL = s.id === activeMatchId;
-                const searchDimmedL = searchMatches && searchMatches.size > 0 && !isMatchL;
-                const statusProgress = s.progress ?? row.node?.progress ?? (s.status === 'done' ? 100 : s.status === 'wip' ? 50 : 0);
-                const isCollapsed = !!row.collapseKey && collapsed.has(row.collapseKey);
-                const _alt = _taskIdx++ % 2 === 1;
-                return (
-                  <div
-                    key={rowKeyOf(row)}
-                    data-task-id={row.type === 'task' ? s.treeId || s.id : undefined}
-                    data-gantt-cursor={cursorId && (s.treeId || s.id) === cursorId ? '1' : undefined}
-                    className={`grow-l${isCp ? ' cp-row' : ''}${_alt ? ' alt' : ''}${cursorId && (s.treeId || s.id) === cursorId ? ' cursor-row' : ''}`}
-                    style={{
-                      height: RH,
-                      cursor: 'pointer',
-                      opacity: dim ? 0.25 : searchDimmedL ? 0.35 : s._unestimated ? 0.55 : 1,
-                      paddingLeft: 10 + indent,
-                      background: isActiveMatchL
-                        ? 'rgba(59,130,246,.15)'
-                        : isCp
-                          ? 'rgba(127,16,18,.06)'
-                          : isHov
-                            ? 'rgba(127,127,127,.10)'
-                            : isHovDep
-                              ? 'rgba(127,127,127,.05)'
-                              : '',
-                    }}
-                    onMouseEnter={e => {
-                      if (dragRef.current || drag || linkDrag) return;
-                      showRowTip(row, e, !isSummary);
-                    }}
-                    onMouseLeave={() => hideRowTip(row, !isSummary)}
-                    onClick={e => {
-                      if (row.type === 'task' && handleSelectClick(e, s.treeId || s.id)) return;
-                      openRowItem(row);
-                    }}
-                  >
-                    {isSummary && (
-                      <button
-                        type="button"
-                        aria-label={isCollapsed ? t('tv.expandAll') : t('tv.collapseAll')}
-                        onClick={e => {
-                          e.stopPropagation();
-                          toggleCollapse(row.collapseKey);
-                        }}
-                        style={{
-                          appearance: 'none',
-                          background: 'transparent',
-                          border: 'none',
-                          padding: 0,
-                          color: 'var(--tx3)',
-                          width: 12,
-                          display: 'inline-flex',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          flexShrink: 0,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <Icon name={isCollapsed ? 'chevronRight' : 'chevronDown'} size={11} strokeWidth={2.2} />
-                      </button>
-                    )}
-                    <StatusIcon status={s.status} progress={statusProgress} style={{ flexShrink: 0 }} />
-                    {isCp && <CriticalPathBadge id={s.id} labels={cpLabels} compact style={{ flexShrink: 0 }} />}
-                    <span
-                      style={{
-                        fontSize: 12,
-                        fontWeight: isSummary ? 600 : 400,
-                        color: isSummary ? 'var(--tx)' : 'var(--tx2)',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        textDecoration: s.status === 'done' ? 'line-through' : 'none',
-                        flex: 1,
-                        minWidth: 0,
-                      }}
-                    >
-                      {s.name}
-                    </span>
-                    {/* "kein Aufwand" used to be a full amber badge on every such row.
-                On the real plan that is nine identical pills down one group,
-                shouting the same thing nine times and drowning out the names
-                beside them. The count is already on the footer bar and in the
-                quick filters; here it only has to mark the row, so it is a
-                mark. */}
-                    {!isSummary &&
-                      (s._unestimated ? (
-                        <span
-                          data-htip={t('g.noEstimate')}
-                          style={{
-                            marginLeft: 'auto',
-                            flexShrink: 0,
-                            fontFamily: 'var(--mono)',
-                            fontSize: 11,
-                            color: 'var(--st-wip)',
-                            letterSpacing: '.08em',
-                          }}
-                        >
-                          —
-                        </span>
-                      ) : s.autoAssigned ? (
-                        <PersonChip
-                          auto
-                          short={snAll(s)}
-                          title={`${t('aa.suggestion')} ${s.person || ''}`}
-                          style={{ flexShrink: 0, marginLeft: 'auto' }}
-                        />
-                      ) : (
-                        <PersonChip
-                          short={snAll(s)}
-                          style={{ flexShrink: 0, marginLeft: 'auto' }}
-                          title={(s.assign || []).map(id => members.find(m => m.id === id)?.name || id).join(', ') || s.person}
-                        />
-                      ))}
-                  </div>
-                );
-              })();
-              if (!compact || !_el) return _el;
-              // Next row that gets a label of its own; everything between is a
-              // lane and its height belongs to this block.
-              //
-              // "Everything between" has to mean every row compact hides, and that
-              // is not only the tasks: the work packages inside a group are hidden
-              // too. Skipping only the tasks made this stop at the first package,
-              // whose top is the top of the group's lane area — so the block was
-              // one row tall, every label after it slid up, and the two columns
-              // came apart by a little more with each group.
-              const _hidden = r =>
-                r.type === 'task' ||
-                ((rowDepth.get(r) ?? 0) > 0 && !(r.type !== 'task' && !!r.children?.length && collapsed.has(r.collapseKey || r.key)));
-              let _next = _ri + 1;
-              while (_next < visibleRows.length && _hidden(visibleRows[_next])) _next++;
-              const _h = (_next < visibleRows.length ? rowLayout.tops[_next] : rowLayout.height) - rowLayout.tops[_ri];
-              return (
-                <div key={`lane-block-${_ri}`} style={{ height: Math.max(RH, _h), overflow: 'hidden' }}>
-                  {_el}
-                </div>
-              );
-            });
-          })()}
-          {bodyScrollbarH > 0 && <div style={{ height: bodyScrollbarH, borderTop: '1px solid var(--b)', background: 'var(--bg)' }} />}
-        </div>
+        <GanttLabelColumn
+          lR={lR}
+          syncL={syncL}
+          onLWheel={onLWheel}
+          FLAG_ROW_H={FLAG_ROW_H}
+          visibleRows={visibleRows}
+          collapsed={collapsed}
+          compact={compact}
+          rowDepth={rowDepth}
+          rowIsCp={rowIsCp}
+          cpOnly={cpOnly}
+          rowRelevantToCp={rowRelevantToCp}
+          RH={RH}
+          t={t}
+          toggleCollapse={toggleCollapse}
+          personQueues={personQueues}
+          hoverDepId={hoverDepId}
+          hoverLines={hoverLines}
+          searchMatches={searchMatches}
+          activeMatchId={activeMatchId}
+          rowKeyOf={rowKeyOf}
+          cursorId={cursorId}
+          dragRef={dragRef}
+          drag={drag}
+          linkDrag={linkDrag}
+          showRowTip={showRowTip}
+          hideRowTip={hideRowTip}
+          handleSelectClick={handleSelectClick}
+          openRowItem={openRowItem}
+          cpLabels={cpLabels}
+          snAll={snAll}
+          members={members}
+          rowLayout={rowLayout}
+          bodyScrollbarH={bodyScrollbarH}
+        />
         <div ref={bR} data-testid="gantt-timeline" style={{ flex: 1, overflow: 'auto' }} onScroll={syncS} onMouseDown={onTimelinePanStart}>
           <div
             style={{
@@ -2993,237 +1529,22 @@ function GanttViewImpl({
               height: compact ? FLAG_ROW_H + rowLayout.height : undefined,
             }}
           >
-            <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: tw, pointerEvents: 'none', zIndex: 0 }}>
-              {/* Week columns. When the day grid is visible we don't tint the whole week red —
-                individual holiday days get tinted below instead. */}
-              {weeks.map((w, i) => (
-                <div
-                  key={i}
-                  style={{
-                    position: 'absolute',
-                    left: i * WPX,
-                    top: 0,
-                    width: WPX,
-                    height: '100%',
-                    borderRight: '1px solid var(--b)',
-                    background: !showDays && w.hasH ? 'rgba(244,63,94,.10)' : '',
-                  }}
-                />
-              ))}
-              {/* Day-level overlays: all 7 days. Weekends grayed, holidays red-tinted, separators. */}
-              {showDays &&
-                weeks.map((w, i) => {
-                  const wdsByTime = new Set(w.wds.map(d => d.getTime()));
-                  return [0, 1, 2, 3, 4, 5, 6].map(d => {
-                    const date = addD(w.mon, d);
-                    const dow = date.getDay();
-                    const isWeekend = !wdSet.has(dow);
-                    const isHoliday = !isWeekend && !wdsByTime.has(date.getTime());
-                    return (
-                      <React.Fragment key={`d-${i}-${d}`}>
-                        {isWeekend && (
-                          <div
-                            style={{
-                              position: 'absolute',
-                              left: i * WPX + d * DPX,
-                              top: 0,
-                              width: DPX,
-                              height: '100%',
-                              background: 'rgba(127,127,127,.10)',
-                            }}
-                          />
-                        )}
-                        {isHoliday && (
-                          <div
-                            style={{
-                              position: 'absolute',
-                              left: i * WPX + d * DPX,
-                              top: 0,
-                              width: DPX,
-                              height: '100%',
-                              background: 'rgba(244,63,94,.14)',
-                            }}
-                          />
-                        )}
-                        {d > 0 && (
-                          <div
-                            style={{
-                              position: 'absolute',
-                              left: i * WPX + d * DPX,
-                              top: 0,
-                              width: 1,
-                              height: '100%',
-                              background: isWeekend ? 'var(--b2)' : 'var(--b2)',
-                              opacity: isWeekend ? 0.2 : 0.35,
-                            }}
-                          />
-                        )}
-                      </React.Fragment>
-                    );
-                  });
-                })}
-              {/* Pre-planStart zone: striped overlay for the rendering area before the scheduling horizon */}
-              {(() => {
-                const psX = planStart ? dateToX(new Date(planStart)) : 0;
-                return psX > 0 ? (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      left: 0,
-                      top: 0,
-                      width: psX,
-                      height: '100%',
-                      background:
-                        'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(127,127,127,.06) 4px, rgba(127,127,127,.06) 8px)',
-                      pointerEvents: 'none',
-                      zIndex: 1,
-                    }}
-                    data-htip={t('g.prePlanStartTip')}
-                  />
-                ) : null;
-              })()}
-              {/* Past zone: subtle dim overlay for everything before today */}
-              {todayX > 0 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: 0,
-                    top: 0,
-                    width: todayX,
-                    height: '100%',
-                    background: 'rgba(0,0,0,.06)',
-                    pointerEvents: 'none',
-                    zIndex: 1,
-                  }}
-                />
-              )}
-              {/* Today marker — always day-accurate */}
-              {todayX >= 0 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: todayX,
-                    top: 0,
-                    width: 2,
-                    height: '100%',
-                    background: 'var(--gr)',
-                    opacity: 0.7,
-                    zIndex: 5,
-                  }}
-                />
-              )}
-              {/* Horizon lines: H1 (committed boundary) and H2 (estimated boundary) */}
-              {(() => {
-                const h1Date = new Date(now);
-                h1Date.setDate(h1Date.getDate() + h1Weeks * 7);
-                const h2Date = new Date(now);
-                h2Date.setDate(h2Date.getDate() + h2Weeks * 7);
-                const h1X = dateToX(h1Date);
-                const h2X = dateToX(h2Date);
-                return (
-                  <>
-                    {h1X > 0 && h1X < tw && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          left: h1X,
-                          top: 0,
-                          width: 0,
-                          height: '100%',
-                          borderLeft: '2px dashed var(--ac)',
-                          opacity: 0.35,
-                          zIndex: 3,
-                        }}
-                        data-htip={t('g.h1LineTip', h1Weeks)}
-                      />
-                    )}
-                    {h1X > 0 && h1X < tw && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          left: h1X + 4,
-                          top: 2,
-                          fontSize: 10,
-                          color: 'var(--ac)',
-                          opacity: 0.5,
-                          fontFamily: 'var(--mono)',
-                          zIndex: 4,
-                          whiteSpace: 'nowrap',
-                          pointerEvents: 'none',
-                        }}
-                      >
-                        H1 · {h1Weeks}w
-                      </div>
-                    )}
-                    {h2X > 0 && h2X < tw && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          left: h2X,
-                          top: 0,
-                          width: 0,
-                          height: '100%',
-                          borderLeft: '2px dashed var(--am)',
-                          opacity: 0.3,
-                          zIndex: 3,
-                        }}
-                        data-htip={t('g.h2LineTip', h2Weeks)}
-                      />
-                    )}
-                    {h2X > 0 && h2X < tw && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          left: h2X + 4,
-                          top: 2,
-                          fontSize: 10,
-                          color: 'var(--am)',
-                          opacity: 0.5,
-                          fontFamily: 'var(--mono)',
-                          zIndex: 4,
-                          whiteSpace: 'nowrap',
-                          pointerEvents: 'none',
-                        }}
-                      >
-                        H2 · {h2Weeks}w
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
-              {dlL.map(dl => {
-                const x = dl.x;
-                const col = dl.severity === 'critical' ? 'var(--re)' : 'var(--am)';
-                // Backfill: gentle gradient fading from the deadline mast to the left, so the eye
-                // naturally traces the runway leading up to the date. Capped at 8 weeks.
-                const backfillW = Math.min(x, 8 * WPX);
-                const titleStr = `${dl.name} ${dl.date}${dl.isLate ? ` — ${t('s.atRisk')}` : ''}`;
-                return (
-                  <React.Fragment key={dl.id}>
-                    {backfillW > 0 && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          left: x - backfillW,
-                          top: 0,
-                          width: backfillW,
-                          height: '100%',
-                          background: `linear-gradient(to right, transparent, ${dl.severity === 'critical' ? 'rgba(244,63,94,.14)' : 'rgba(245,158,11,.14)'})`,
-                          pointerEvents: 'none',
-                          zIndex: 3,
-                        }}
-                        data-htip={titleStr}
-                      />
-                    )}
-                    {/* Mast: vertical line at the exact deadline date */}
-                    <div
-                      style={{ position: 'absolute', left: x, top: 0, width: 2, height: '100%', background: col, opacity: 0.7, zIndex: 4 }}
-                      data-htip={titleStr}
-                    />
-                  </React.Fragment>
-                );
-              })}
-            </div>
+            <GanttGridLayer
+              tw={tw}
+              weeks={weeks}
+              WPX={WPX}
+              showDays={showDays}
+              wdSet={wdSet}
+              DPX={DPX}
+              planStart={planStart}
+              dateToX={dateToX}
+              t={t}
+              todayX={todayX}
+              now={now}
+              h1Weeks={h1Weeks}
+              h2Weeks={h2Weeks}
+              dlL={dlL}
+            />
             {selectRect &&
               (() => {
                 const x = Math.min(selectRect.x1, selectRect.x2);
@@ -3248,99 +1569,15 @@ function GanttViewImpl({
                   />
                 );
               })()}
-            <div
-              style={{
-                position: 'sticky',
-                top: 0,
-                zIndex: 8,
-                height: FLAG_ROW_H,
-                borderBottom: '1px solid var(--b)',
-                background: 'var(--bg)',
-                boxShadow: '0 1px 0 var(--b)',
-              }}
-            >
-              {showLoadHeatmap &&
-                loadWeekSummary.map(cell => {
-                  const pct = cell.maxPercent || 0;
-                  const isRisk = pct >= 90 && !cell.historicalOnly;
-                  const h = isRisk ? FLAG_ROW_H : 5;
-                  const top = isRisk ? 0 : FLAG_ROW_H - h;
-                  return (
-                    <div
-                      key={`load-strip-${cell.wi}`}
-                      data-htip={cell.tip}
-                      onClick={() => setGB('resource')}
-                      style={{
-                        position: 'absolute',
-                        left: cell.wi * WPX,
-                        top,
-                        width: WPX,
-                        height: h,
-                        background: pct > 0 ? loadHeatColor(pct, cell) : 'transparent',
-                        borderBottom: pct > 0 ? `2px solid ${loadHeatStroke(pct, cell)}` : 'none',
-                        opacity: pct > 0 ? (isRisk ? 0.88 : 0.62) : 0,
-                        cursor: pct > 0 ? 'pointer' : 'default',
-                        zIndex: 0,
-                        pointerEvents: pct > 0 ? 'auto' : 'none',
-                      }}
-                    />
-                  );
-                })}
-              {dlL.map(dl => {
-                const x = dl.x;
-                const col = dl.severity === 'critical' ? 'var(--re)' : 'var(--am)';
-                const titleStr = `${dl.name} ${dl.date}${dl.isLate ? ` — ${t('s.atRisk')}` : ''}`;
-                return (
-                  <React.Fragment key={`flag-${dl.id}`}>
-                    <div
-                      style={{
-                        position: 'absolute',
-                        left: x,
-                        top: 0,
-                        width: 2,
-                        height: FLAG_ROW_H,
-                        background: col,
-                        opacity: 0.8,
-                        zIndex: 2,
-                      }}
-                    />
-                    <div
-                      style={{
-                        position: 'absolute',
-                        left: x,
-                        top: 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        maxWidth: 120,
-                        pointerEvents: 'auto',
-                        zIndex: 3,
-                      }}
-                      data-htip={titleStr}
-                    >
-                      <div
-                        style={{
-                          background: col,
-                          color: '#fff',
-                          fontSize: 10,
-                          fontWeight: 700,
-                          fontFamily: 'var(--mono)',
-                          padding: '2px 6px 2px 8px',
-                          letterSpacing: '.02em',
-                          clipPath: 'polygon(6px 0, 100% 0, calc(100% - 4px) 50%, 100% 100%, 6px 100%, 0 50%)',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          maxWidth: 118,
-                        }}
-                      >
-                        {dl.isLate ? '! ' : ''}
-                        {dl.name}
-                      </div>
-                    </div>
-                  </React.Fragment>
-                );
-              })}
-            </div>
+            <GanttFlagStrip
+              FLAG_ROW_H={FLAG_ROW_H}
+              showLoadHeatmap={showLoadHeatmap}
+              loadWeekSummary={loadWeekSummary}
+              setGB={setGB}
+              WPX={WPX}
+              dlL={dlL}
+              t={t}
+            />
             {visibleRows.map((row, _ri) => {
               // Compact stacks several rows onto one lane, so a row cannot sit
               // in normal flow any more — it is placed at the top its lane was
@@ -4353,491 +2590,62 @@ function GanttViewImpl({
                   : {}),
               });
             })}
-            {renderedDepLines.length > 0 && (
-              <svg
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: tw,
-                  height: FLAG_ROW_H + rowLayout.height,
-                  zIndex: 3,
-                  pointerEvents: 'none',
-                }}
-              >
-                <defs>
-                  <marker id="gar" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="5" markerHeight="5" orient="auto">
-                    <path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--re)" />
-                  </marker>
-                  <marker id="garH" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="6" markerHeight="6" orient="auto">
-                    <path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--ac)" />
-                  </marker>
-                  <marker id="garN" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="5" markerHeight="5" orient="auto">
-                    <path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--tx3)" />
-                  </marker>
-                </defs>
-                {(() => {
-                  // Gantt-style orthogonal routing (MS-Project FS arrow): right-stub
-                  // out of source → vertical drop → horizontal into target. Backward
-                  // arrows (cycle/violation) use a 5-segment S-loop that exits the
-                  // source on the right, loops over/under, and re-enters the target
-                  // from the left so the arrowhead direction stays consistent.
-                  const STUB = 12;
-                  const buildPathParts = l => {
-                    const isForward = l.x2 > l.x1 + STUB * 2;
-                    if (isForward) {
-                      // L-shape with source-side stub: (x1,y1) → (sx,y1) → (sx,y2) → (x2,y2).
-                      // The vertical drop sits right next to the source so the FIRST knick
-                      // is always reachable next to the bar the link originates from.
-                      const sx = l.x1 + STUB;
-                      const sxS = Math.round(sx) + 0.5;
-                      return {
-                        d: `M${l.x1},${l.y1} L${sxS},${l.y1} L${sxS},${l.y2} L${l.x2 - 1},${l.y2}`,
-                        // Bend point = source-side knick.
-                        bendX: sxS,
-                        bendY: l.y1,
-                      };
-                    }
-                    // Backward: 5-segment S-loop. Exit right of source, loop horizontally
-                    // halfway between rows, re-enter target from left.
-                    const sx = l.x1 + STUB;
-                    const tx = l.x2 - STUB;
-                    const my = (l.y1 + l.y2) / 2;
-                    return {
-                      d: `M${l.x1},${l.y1} L${sx},${l.y1} L${sx},${my} L${tx},${my} L${tx},${l.y2} L${l.x2 - 1},${l.y2}`,
-                      // Bend point = FIRST knick from source side.
-                      bendX: sx,
-                      bendY: l.y1,
-                    };
-                  };
-                  // Render hovered/pinned line LAST so its × badge always sits on
-                  // top of overlapping neighbour lines (SVG has no z-index — paint
-                  // order wins).
-                  const topKey = pinnedLineKey || hoverLineKey;
-                  const orderedLines = topKey
-                    ? [...renderedDepLines.filter(l => l.key !== topKey), ...renderedDepLines.filter(l => l.key === topKey)]
-                    : renderedDepLines;
-                  return orderedLines.map(l => {
-                    const parts = buildPathParts(l);
-                    const path = parts.d;
-                    const isHovered = hoverLineKey === l.key;
-                    const isPinned = pinnedLineKey === l.key;
-                    const isHoveredTask = hoverDepId && (hoverDepId === l.srcId || hoverDepId === l.tgtId);
-                    const emphasized = isHovered || isPinned || isHoveredTask;
-                    const col = l.isCp ? 'var(--re)' : emphasized ? 'var(--ac)' : 'var(--tx3)';
-                    const marker = l.isCp ? 'url(#gar)' : emphasized ? 'url(#garH)' : 'url(#garN)';
-                    // All links are hard deps now — uniform solid stroke. CP path
-                    // still gets its red emphasis.
-                    const opacity = emphasized ? 0.95 : l.isCp ? 0.75 : 0.7;
-                    const strokeWidth = emphasized ? 1.8 : 1.4;
-                    const dash = undefined;
-                    // × badge sits at the SECOND bend (vertical-segment midpoint of
-                    // the L) so it lands in the whitespace between source and target
-                    // rows — clear of either bar. For straight same-row arrows there
-                    // is no vertical segment, fall back to a fixed 18 px source-side
-                    // offset on the row.
-                    const midX = parts.bendX;
-                    const midY = Math.abs(l.y2 - l.y1) > 4 ? (l.y1 + l.y2) / 2 : l.y1;
-                    // Hover persists for 80ms after the cursor leaves the line so the
-                    // user has time to move onto the × badge without it vanishing.
-                    const enterLine = () => {
-                      if (hoverClearTimerRef.current) {
-                        clearTimeout(hoverClearTimerRef.current);
-                        hoverClearTimerRef.current = null;
-                      }
-                      dismissTooltip(true);
-                      setHoverLineKey(l.key);
-                    };
-                    const leaveLine = () => {
-                      if (hoverClearTimerRef.current) clearTimeout(hoverClearTimerRef.current);
-                      hoverClearTimerRef.current = setTimeout(() => {
-                        setHoverLineKey(k => (k === l.key ? null : k));
-                        hoverClearTimerRef.current = null;
-                      }, 120);
-                    };
-                    return (
-                      <g key={l.key}>
-                        <path
-                          d={path}
-                          fill="none"
-                          stroke={col}
-                          strokeWidth={isPinned ? 2.4 : strokeWidth}
-                          opacity={opacity}
-                          strokeLinejoin="round"
-                          strokeLinecap="round"
-                          markerEnd={marker}
-                          strokeDasharray={dash}
-                          style={{ pointerEvents: 'none' }}
-                        />
-                        {/* Wide invisible hit zone — hover highlights; click pins the
-                      arrow so it stays selected after the cursor leaves. */}
-                        <path
-                          d={path}
-                          fill="none"
-                          stroke="transparent"
-                          strokeWidth={14}
-                          style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
-                          onMouseEnter={enterLine}
-                          onMouseLeave={leaveLine}
-                          onClick={e => {
-                            e.stopPropagation();
-                            setPinnedLineKey(k => (k === l.key ? null : l.key));
-                          }}
-                        >
-                          <title>{`${t('qe.predecessors')}: ${l.removeDepId} → ${l.removeFromId} — Click to pin`}</title>
-                        </path>
-                        {/* × delete badge — shown while hovered OR pinned. */}
-                        {(isHovered || isPinned) &&
-                          onRemoveDep &&
-                          (() => {
-                            const handleClick = e => {
-                              e.stopPropagation();
-                              onRemoveDep(l.removeFromId, l.removeDepId);
-                              setHoverLineKey(null);
-                              setPinnedLineKey(null);
-                            };
-                            return (
-                              <g style={{ cursor: 'pointer' }} onMouseEnter={enterLine} onMouseLeave={leaveLine} onClick={handleClick}>
-                                <title>{`Remove dep: ${l.removeDepId} → ${l.removeFromId}`}</title>
-                                {/* `pointerEvents="all"` is critical: an SVG element with
-                          fill="transparent" does NOT receive clicks under the
-                          default `visiblePainted` pointer-events mode. Without
-                          this, clicks landing in the enlarged hit zone (between
-                          r=10 and r=18) silently missed. */}
-                                <circle cx={midX} cy={midY} r={18} fill="transparent" pointerEvents="all" style={{ cursor: 'pointer' }} />
-                                <circle
-                                  cx={midX}
-                                  cy={midY}
-                                  r={8}
-                                  fill="var(--re)"
-                                  stroke="rgba(255,255,255,.75)"
-                                  strokeWidth={1}
-                                  style={{
-                                    cursor: 'pointer',
-                                    filter: 'drop-shadow(0 1px 4px rgba(0,0,0,.45)) drop-shadow(0 0 0 rgba(0,0,0,.15))',
-                                  }}
-                                />
-                                <path
-                                  d={`M${midX - 3.8},${midY - 3.8} L${midX + 3.8},${midY + 3.8} M${midX + 3.8},${midY - 3.8} L${midX - 3.8},${midY + 3.8}`}
-                                  stroke="#fff"
-                                  strokeWidth={1.8}
-                                  strokeLinecap="round"
-                                />
-                              </g>
-                            );
-                          })()}
-                      </g>
-                    );
-                  });
-                })()}
-              </svg>
-            )}
+            <DepLinesSvg
+              renderedDepLines={renderedDepLines}
+              tw={tw}
+              FLAG_ROW_H={FLAG_ROW_H}
+              rowLayout={rowLayout}
+              pinnedLineKey={pinnedLineKey}
+              hoverLineKey={hoverLineKey}
+              hoverDepId={hoverDepId}
+              hoverClearTimerRef={hoverClearTimerRef}
+              dismissTooltip={dismissTooltip}
+              setHoverLineKey={setHoverLineKey}
+              setPinnedLineKey={setPinnedLineKey}
+              t={t}
+              onRemoveDep={onRemoveDep}
+            />
           </div>
         </div>
       </div>
-      <div className="gantt-footer">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} data-htip={t('g.zoomFooterTip', Math.round(WPX))}>
-          <span style={{ fontSize: 10, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.07em', marginRight: 2 }}>
-            {t('g.zoom')}
-          </span>
-          <button
-            className={`btn btn-xs ${zoomMode === 'month' ? 'btn-pri' : 'btn-sec'}`}
-            onClick={() => setZ(MONTH_ZOOM)}
-            style={{ padding: '2px 7px', fontSize: 11 }}
-          >
-            {t('g.month')}
-          </button>
-          <button
-            className={`btn btn-xs ${zoomMode === 'week' ? 'btn-pri' : 'btn-sec'}`}
-            onClick={() => setZ(DEFAULT_WPX)}
-            style={{ padding: '2px 7px', fontSize: 11 }}
-          >
-            {t('g.week')}
-          </button>
-          <button
-            className={`btn btn-xs ${zoomMode === 'day' ? 'btn-pri' : 'btn-sec'}`}
-            onClick={() => setZ(DAY_ZOOM)}
-            style={{ padding: '2px 7px', fontSize: 11 }}
-          >
-            {t('g.day')}
-          </button>
-          <button
-            className="btn btn-sec btn-xs"
-            onClick={() => setZ(WPX * 0.8)}
-            data-htip={t('g.zoomOutTip')}
-            style={{ padding: '2px 7px', fontSize: 11 }}
-          >
-            −
-          </button>
-          <button
-            className="btn btn-sec btn-xs"
-            onClick={() => setZ(WPX * 1.25)}
-            data-htip={t('g.zoomInTip')}
-            style={{ padding: '2px 7px', fontSize: 11 }}
-          >
-            +
-          </button>
-          <span style={{ width: 1, height: 14, background: 'var(--b2)', margin: '0 2px' }} />
-          <button className="btn btn-sec btn-xs" onClick={scrollToToday} style={{ padding: '2px 7px', fontSize: 11 }}>
-            {t('g.today')}
-          </button>
-        </div>
-        {searchMatches && (
-          <span style={{ fontSize: 11, color: searchMatches.size ? 'var(--am)' : 'var(--re)', fontFamily: 'var(--mono)' }}>
-            {searchMatchList.length
-              ? `${(((searchIdx % searchMatchList.length) + searchMatchList.length) % searchMatchList.length) + 1} / ${searchMatchList.length}`
-              : `0 ${t('g.matches')}`}
-          </span>
-        )}
-        {selectedTaskIds.length > 0 && (
-          <span
-            data-testid="gantt-selection-count"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--ac)', fontFamily: 'var(--mono)' }}
-          >
-            <span>{t('g.selectedTasks', selectedTaskIds.length)}</span>
-            <button
-              data-testid="gantt-clear-selection"
-              className="btn btn-xs btn-sec"
-              onClick={() => setSelectedIds(new Set())}
-              style={{ padding: '2px 7px', fontSize: 11 }}
-            >
-              {t('g.clearSelection')}
-            </button>
-          </span>
-        )}
-        <span style={{ width: 1, height: 14, background: 'var(--b2)' }} />
-        {dlL.map(dl => {
-          const suffix = dl.isLate
-            ? ` ${t('s.atRisk')}`
-            : dl.dlState === 'doneLate'
-              ? ` ${t('s.deadlineDoneLate')}`
-              : dl.dlState === 'done'
-                ? ` ${t('s.deadlineDone')}`
-                : dl.maxEnd
-                  ? ` ${t('s.onTrack')}`
-                  : '';
-          const cls = dl.isLate ? 'bc' : dl.dlState === 'doneLate' ? 'bh' : dl.maxEnd ? 'bd' : dl.severity === 'critical' ? 'bc' : 'bh';
-          return (
-            <span key={dl.id} className={`badge ${cls}`}>
-              {dl.isLate ? '! ' : ''}
-              {dl.name} {dl.date}
-              {suffix}
-            </span>
-          );
-        })}
-        {cpSet?.size > 0 && (
-          <button
-            className={`badge b-cp${cpOnly ? '' : ''}`}
-            style={{
-              cursor: 'pointer',
-              border: cpOnly ? '1px solid var(--re)' : '',
-              background: cpOnly ? 'var(--re)' : '',
-              color: cpOnly ? '#000' : '',
-            }}
-            data-htip={cpOnly ? t('g.cpShowAllTip') : t('g.cpShowOnlyTip')}
-            onClick={() => setCpOnly(v => !v)}
-          >
-            {cpOnly ? '◉ ' : '○ '}Critical path: {visibleCriticalCount}
-          </button>
-        )}
-        {unestimatedCount > 0 && (
-          <span className="badge bw" data-htip={t('g.noEstimateTip')}>
-            {unestimatedCount} {t('g.noEstimate')}
-          </span>
-        )}
-        {/* Confidence legend */}
-        {(() => {
-          const counts = { committed: 0, estimated: 0, exploratory: 0 };
-          allItems.forEach(s => {
-            if (s.status !== 'done') counts[confidence[s.id] || 'committed']++;
-          });
-          return counts.estimated > 0 || counts.exploratory > 0 ? (
-            <span
-              style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 10, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}
-            >
-              <span data-htip={t('g.confCommittedTip')}>● {counts.committed}</span>
-              <span style={{ color: 'var(--am)' }} data-htip={t('g.confEstimatedTip')}>
-                ◐ {counts.estimated}
-              </span>
-              <span data-htip={t('g.confExploratoryTip')}>○ {counts.exploratory}</span>
-            </span>
-          ) : null;
-        })()}
-        {linkDrag && <span style={{ fontSize: 12, color: 'var(--ac)', marginLeft: 'auto' }}>↗ {t('g.linkDrop')}</span>}
-      </div>
-      <SelectionActionBar count={selectedTaskIds.length} onClear={() => setSelectedIds(new Set())} testId="gantt-selection-actionbar">
-        {selectedTaskIds.length > 1 && (
-          <button
-            data-testid="gantt-link-selected"
-            className="btn btn-pri"
-            onClick={linkSelectedInOrder}
-            data-htip={t('g.linkSelectedTip')}
-          >
-            {t('g.linkSelected')}
-          </button>
-        )}
-        {/* Z-order style reorder: shifts the whole selection in the scheduler
-          processing order (writes seq). Mirrors media-player jump controls. */}
-        <span style={{ display: 'inline-flex', gap: 2 }}>
-          <button
-            type="button"
-            className="btn btn-sec"
-            onClick={() => reorderSelectionInTime('first')}
-            data-htip={t('g.reorderFirstTip')}
-            aria-label={t('g.reorderFirstTip')}
-            style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 6px' }}
-          >
-            <Icon name="skipBack" size={13} />
-          </button>
-          <button
-            type="button"
-            className="btn btn-sec"
-            onClick={() => reorderSelectionInTime('up')}
-            data-htip={t('g.reorderUpTip')}
-            aria-label={t('g.reorderUpTip')}
-            style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 6px' }}
-          >
-            <Icon name="chevronLeft" size={13} />
-          </button>
-          <button
-            type="button"
-            className="btn btn-sec"
-            onClick={() => reorderSelectionInTime('down')}
-            data-htip={t('g.reorderDownTip')}
-            aria-label={t('g.reorderDownTip')}
-            style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 6px' }}
-          >
-            <Icon name="chevronRight" size={13} />
-          </button>
-          <button
-            type="button"
-            className="btn btn-sec"
-            onClick={() => reorderSelectionInTime('last')}
-            data-htip={t('g.reorderLastTip')}
-            aria-label={t('g.reorderLastTip')}
-            style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 6px' }}
-          >
-            <Icon name="skipForward" size={13} />
-          </button>
-        </span>
-        <span style={{ display: 'inline-flex', gap: 2 }}>
-          <button
-            type="button"
-            className="btn btn-sec"
-            onClick={() => adjustSelectionPrio(-1)}
-            data-htip={t('g.prioUpTip')}
-            aria-label={t('g.prioUpTip')}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
-          >
-            Prio
-            <Icon name="chevronUp" size={12} />
-          </button>
-          <button
-            type="button"
-            className="btn btn-sec"
-            onClick={() => adjustSelectionPrio(1)}
-            data-htip={t('g.prioDownTip')}
-            aria-label={t('g.prioDownTip')}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
-          >
-            Prio
-            <Icon name="chevronDown" size={12} />
-          </button>
-        </span>
-        <button
-          type="button"
-          className="sab-assign-trigger"
-          onClick={() => onOpenBulkEdit?.(selectedTaskIds)}
-          data-htip={t('g.bulkEditTip')}
-          data-testid="gantt-bulk-edit-trigger"
-        >
-          <span className="sab-icon">
-            <Icon name="checkSquare" size={13} />
-          </span>
-          <span>{t('g.bulkEdit')}</span>
-        </button>
-        <span className="sab-divider" />
-        <button
-          data-testid="gantt-clear-selected-links"
-          className="btn btn-sec"
-          onClick={() => clearSelectedLinks('all')}
-          data-htip={t('g.clearSelectedLinksTip')}
-        >
-          {t('g.clearSelectedLinks')}
-        </button>
-      </SelectionActionBar>
-      {showAssignModal && (
-        <AssignModal
-          count={selectedTaskIds.length}
-          teams={teams}
-          members={members}
-          onClose={() => setShowAssignModal(false)}
-          onApply={({ team, persons }) => {
-            const sel = new Set(selectedTaskIds);
-            (tree || []).forEach(node => {
-              if (!sel.has(node.id) || !onTaskUpdate) return;
-              const patch = { ...node };
-              let changed = false;
-              if (team !== null && team !== undefined && (node.team || '') !== (team || '')) {
-                patch.team = team || '';
-                changed = true;
-              }
-              if (Array.isArray(persons)) {
-                const cur = (node.assign || []).slice().sort().join(',');
-                const nxt = persons.slice().sort().join(',');
-                if (cur !== nxt) {
-                  patch.assign = persons.slice();
-                  changed = true;
-                }
-              }
-              if (changed) onTaskUpdate(patch);
-            });
-          }}
-        />
-      )}
-      {/* Viewport overlay for the live drag-to-link line */}
-      {linkDrag && (
-        <svg className="layer-drag" style={{ position: 'fixed', inset: 0, pointerEvents: 'none' }}>
-          <defs>
-            <marker id="ldArr" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="6" markerHeight="6" orient="auto">
-              <path d="M0,0.5 L6,3 L0,5.5 Z" fill="var(--ac)" />
-            </marker>
-          </defs>
-          {(() => {
-            const el = document.querySelector(`[data-link-from="${linkDrag.fromId}"]`);
-            const rect = el?.getBoundingClientRect();
-            // Everything here is in viewport coordinates; the overlay is fixed and
-            // spans its containing block, which is the viewport only when nothing
-            // is embedding us. See utils/embedHost.js.
-            const frame = fixedFrame(portalRoot);
-            const from = toFixedPoint(rect ? rect.right : linkDrag.mouseX, rect ? rect.top + rect.height / 2 : linkDrag.mouseY, frame);
-            const to = toFixedPoint(linkDrag.mouseX, linkDrag.mouseY, frame);
-            const x1 = from.x,
-              y1 = from.y;
-            const x2 = to.x,
-              y2 = to.y;
-            const stub = 10;
-            const sx = x1 + stub;
-            const tx = x2 - stub;
-            const dx = Math.max(Math.abs(tx - sx) * 0.5, 30);
-            const c1x = sx + dx,
-              c2x = tx - dx;
-            const d = `M${x1},${y1} L${sx},${y1} C${c1x},${y1} ${c2x},${y2} ${tx},${y2} L${x2 - 1},${y2}`;
-            return (
-              <path
-                d={d}
-                stroke="var(--ac)"
-                strokeWidth={2}
-                fill="none"
-                strokeDasharray="4 3"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-                markerEnd="url(#ldArr)"
-              />
-            );
-          })()}
-        </svg>
-      )}
+      <GanttFooter
+        t={t}
+        WPX={WPX}
+        zoomMode={zoomMode}
+        setZ={setZ}
+        scrollToToday={scrollToToday}
+        searchMatches={searchMatches}
+        searchMatchList={searchMatchList}
+        searchIdx={searchIdx}
+        selectedTaskIds={selectedTaskIds}
+        setSelectedIds={setSelectedIds}
+        dlL={dlL}
+        cpSet={cpSet}
+        cpOnly={cpOnly}
+        setCpOnly={setCpOnly}
+        visibleCriticalCount={visibleCriticalCount}
+        unestimatedCount={unestimatedCount}
+        allItems={allItems}
+        confidence={confidence}
+        linkDrag={linkDrag}
+      />
+      <GanttSelectionBar
+        selectedTaskIds={selectedTaskIds}
+        setSelectedIds={setSelectedIds}
+        linkSelectedInOrder={linkSelectedInOrder}
+        t={t}
+        reorderSelectionInTime={reorderSelectionInTime}
+        adjustSelectionPrio={adjustSelectionPrio}
+        onOpenBulkEdit={onOpenBulkEdit}
+        clearSelectedLinks={clearSelectedLinks}
+        showAssignModal={showAssignModal}
+        teams={teams}
+        members={members}
+        setShowAssignModal={setShowAssignModal}
+        tree={tree}
+        onTaskUpdate={onTaskUpdate}
+      />
+      <LinkDragOverlay linkDrag={linkDrag} portalRoot={portalRoot} />
       {/* Hover tooltip on left-panel task names — same Tip component as NetGraph */}
       {tip && (
         <Tip

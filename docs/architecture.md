@@ -528,3 +528,15 @@ it:
 A hook there takes what it needs as arguments and returns what `App` uses. The
 memos and effects that call the derivations stayed where they were, with their
 dependency lists, so the order in which things run did not change.
+
+### The Gantt view's parts
+
+`src/components/views/GanttView.jsx` holds the view's state, its hooks and the
+rows. Pure code it calls from its memos is under `src/utils/gantt/` (geometry,
+items, structure, row layout, the load model, dependency lines, edits on the
+selection), each with unit tests. Stateless parts of the markup are under
+`src/components/views/gantt/` (header and axis, label column, grid layer,
+dependency lines, flag strip, selection bar, footer). The functions that were
+over the limits moved as they stood. The components still take the view's
+locals one prop each, under the view's own short names: that is the state
+after a move, not the cut to aim for.
