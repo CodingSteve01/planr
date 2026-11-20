@@ -10,3 +10,16 @@ export function bindActions(ctx, defs) {
   }
   return bound;
 }
+
+// Several objects of named functions as one. A name that two of them carry is
+// a mistake, not a preference for the later one.
+export function mergeNamed(...parts) {
+  const out = {};
+  for (const part of parts) {
+    for (const name of Object.keys(part)) {
+      if (name in out) throw new Error(`two actions are called "${name}"`);
+      out[name] = part[name];
+    }
+  }
+  return out;
+}

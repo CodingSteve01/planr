@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useDeferredValue, useCallback } from 'react';
 import { useStableCallback } from './app/useStableCallback.js';
 import { useNodeActions } from './app/actions/useNodeActions.js';
+import { mergeNamed } from './app/actions/bindActions.js';
 import { useTreeEditorActions } from './app/actions/useTreeEditorActions.js';
 import { useQueueActions } from './app/actions/useQueueActions.js';
 import { useResourceActions } from './app/actions/useResourceActions.js';
@@ -2847,11 +2848,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     resetHistory();
     setSaved(false);
   };
-  const handlers = {
-    ...act,
-    ...treeEditor,
-    ...queueActions,
-    ...resActions,
+  // One object for the components, built so that the same name twice is an
+  // error on the first render instead of one action silently replacing another.
+  const handlers = mergeNamed(act, treeEditor, queueActions, resActions, {
     closeTour,
     dismissNewFeat,
     exportScenarioPDF,
@@ -2873,7 +2872,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     pickEffDate,
     reloadFromFile,
     reschedule,
-    resetHistory,
     saveToFile,
     scenarioApply,
     scenarioCreate,
@@ -2885,7 +2883,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     showLoadedDocument,
     startTour,
     syncTabFades,
-  };
+  });
 
   return (
     <>
