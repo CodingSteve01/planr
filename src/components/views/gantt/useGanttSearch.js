@@ -7,8 +7,10 @@ export function useGanttSearch({ displayItems, searchNeedle, visibleRows, search
     [displayItems],
   );
 
-  // Search acts as a real Gantt filter. Matching uses each task plus its
-  // ancestor path so searching a work-package name keeps its leaf bars visible.
+  // Search acts as a real Gantt filter. The filtering itself happens where
+  // the display items are built (utils/gantt/items.js `filterDisplayItems`,
+  // which matches a task and its ancestor path); what is left here is the
+  // set of what survived it.
   const searchMatches = useMemo(() => {
     if (!searchNeedle) return null;
     return new Set(searchableItems.map(item => item.id));

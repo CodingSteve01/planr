@@ -211,7 +211,7 @@ function GanttViewImpl({
     _diffChangedSet,
     search,
   });
-  const { childrenByParent, rootIds } = useGanttTree({ tree, scheduled });
+  const { childrenByParent, rootIds } = useGanttTree({ tree });
   const { structure } = useGanttStructure({
     groupBy,
     allItems,

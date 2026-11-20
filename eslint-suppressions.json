@@ -401,11 +401,6 @@
       "count": 1
     }
   },
-  "src/components/views/gantt/useGanttTree.js": {
-    "complexity": {
-      "count": 1
-    }
-  },
   "src/utils/__tests__/phaseWalk.test.js": {
     "no-useless-assignment": {
       "count": 1
