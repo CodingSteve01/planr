@@ -212,10 +212,7 @@
   },
   "src/components/views/GanttView.jsx": {
     "complexity": {
-      "count": 7
-    },
-    "max-depth": {
-      "count": 1
+      "count": 2
     },
     "max-lines": {
       "count": 1
@@ -381,6 +378,17 @@
     },
     "max-lines-per-function": {
       "count": 1
+    }
+  },
+  "src/components/views/gantt/useGanttDrag.js": {
+    "complexity": {
+      "count": 5
+    },
+    "max-depth": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 2
     }
   },
   "src/components/views/gantt/useGanttPrefs.js": {
