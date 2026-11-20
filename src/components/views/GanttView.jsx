@@ -10,6 +10,7 @@ import { GanttFlagStrip } from './gantt/GanttFlagStrip.jsx';
 import { GanttGridLayer } from './gantt/GanttGridLayer.jsx';
 import { useGanttPrefs } from './gantt/useGanttPrefs.js';
 import { useGanttSelection } from './gantt/useGanttSelection.js';
+import { useGanttScrollTo } from './gantt/useGanttScrollTo.js';
 import { useGanttZoom } from './gantt/useGanttZoom.js';
 import { GanttTaskBarRow } from './gantt/GanttTaskBarRow.jsx';
 import { GanttGroupBarRow } from './gantt/GanttGroupBarRow.jsx';
@@ -161,7 +162,6 @@ function GanttViewImpl({
     action();
   };
   const hoverClearTimerRef = useRef(null);
-  const [bodyScrollbarH, setBodyScrollbarH] = useState(0);
   // Guard flag: when true, syncL won't feed bR.scrollTop back (prevents
   // the syncS→syncL loop from killing smooth programmatic scrolls on bR).
   const scrollLock = useRef(false);
@@ -617,20 +617,6 @@ function GanttViewImpl({
 
   const rowKeyOf = row => row.key || `${row.groupKey || 'row'}::${row.s?.id || row.label}`;
   const rowColor = row => row?.s?._barColor || gTC(row?.s?.team || NO_TEAM);
-  useEffect(() => {
-    const measureScrollbar = () => {
-      if (!bR.current) return;
-      const next = Math.max(0, bR.current.offsetHeight - bR.current.clientHeight);
-      setBodyScrollbarH(prev => (prev === next ? prev : next));
-    };
-    measureScrollbar();
-    window.addEventListener('resize', measureScrollbar);
-    const id = window.setTimeout(measureScrollbar, 0);
-    return () => {
-      window.removeEventListener('resize', measureScrollbar);
-      window.clearTimeout(id);
-    };
-  }, [visibleRows.length, tw, showDays]);
   const visibleCriticalCount = useMemo(() => {
     if (!cpSet?.size) return 0;
     return new Set(rows.filter(row => row.type === 'task' && cpSet.has(row.s.id)).map(row => row.s.id)).size;
@@ -672,38 +658,7 @@ function GanttViewImpl({
     ? searchMatchList[((searchIdx % searchMatchList.length) + searchMatchList.length) % searchMatchList.length]
     : null;
 
-  // Scroll to the active match (driven by search text + searchIdx for prev/next cycling).
-  // Only programmatically scrolls bR — syncS keeps lR + hR in sync automatically.
-  useEffect(() => {
-    if (!activeMatchId || !bR.current) return;
-    const id = setTimeout(() => {
-      const rowIndex = visibleRows.findIndex(r => r.type === 'task' && r.s?.id === activeMatchId);
-      if (rowIndex < 0 || !bR.current) return;
-      const targetY = rowIndex * RH;
-      const s = visibleRows[rowIndex].s;
-      const targetX = s._unestimated ? undefined : Math.max(0, (showDays && s?.startD ? dateToX(s.startD) : (s?.startWi ?? 0) * WPX) - 80);
-      const scrollTop = Math.max(0, targetY - bR.current.clientHeight / 2 + RH);
-      bR.current.scrollTo({ top: scrollTop, left: targetX ?? bR.current.scrollLeft, behavior: 'smooth' });
-    }, 50);
-    return () => clearTimeout(id);
-  }, [activeMatchId, visibleRows, showDays, WPX]);
-
-  // Scroll to today on first render so the user lands on the current time window.
-  const didScrollToToday = useRef(false);
-  useEffect(() => {
-    if (didScrollToToday.current || todayX < 0 || !bR.current) return;
-    didScrollToToday.current = true;
-    // Delay so the DOM has its final layout before we measure clientWidth.
-    const id = setTimeout(() => {
-      if (!bR.current) return;
-      bR.current.scrollTo({ left: Math.max(0, todayX - 40), behavior: 'auto' });
-    }, 150);
-    return () => clearTimeout(id);
-  }, [todayX]);
-
-  function scrollToToday() {
-    if (todayX >= 0 && bR.current) bR.current.scrollTo({ left: Math.max(0, todayX - 40), behavior: 'smooth' });
-  }
+  const { bodyScrollbarH, scrollToToday } = useGanttScrollTo({ bR, visibleRows, tw, showDays, WPX, RH, dateToX, todayX, activeMatchId });
 
   // dragRef mirrors the latest drag state synchronously so onMU can read it
   // without waiting for React's batched state commit — same pattern as NetGraph's
