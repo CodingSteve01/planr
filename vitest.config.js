@@ -46,7 +46,7 @@ export default defineConfig({
       include: ['src/**', 'obsidian/src/**'],
       exclude: ['**/__tests__/**', 'src/utils/pdfFonts.js'],
       reporter: ['text-summary'],
-      thresholds: { lines: 74, statements: 69, functions: 63, branches: 60 },
+      thresholds: { lines: 72, statements: 69, functions: 63, branches: 60 },
     },
   },
   resolve: {

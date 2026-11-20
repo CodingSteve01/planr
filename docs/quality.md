@@ -27,6 +27,8 @@ long lines made 35 functions and files longer than their limit that were under
 it before (343 findings instead of 308, all of the difference in the two
 length rules). That is the one time the baseline went up, and it went up
 without a rule or a limit changing. Since then it only goes down.
+The coverage floor for lines moved for the same reason, from 74 to 72: the
+same tests cover the same code, counted over more lines.
 
 ## The baseline, and why the numbers only go down
 
@@ -53,7 +55,7 @@ with the longest entry is the one to split next.
 | Function length | 80 lines (`.js`), 200 (`.jsx`) | a component carries its markup, a utility does not |
 | File length | 800 lines | beyond that a file has more than one job |
 | Duplicated code | 1.5 % of lines | measured by jscpd, clones of 8 lines or more |
-| Coverage | lines 74 %, statements 69 %, functions 63 %, branches 60 % | a floor under the totals: it catches the suite sliding, not one untested change |
+| Coverage | lines 72 %, statements 69 %, functions 63 %, branches 60 % | a floor under the totals: it catches the suite sliding, not one untested change |
 
 Correctness rules (ESLint's recommended set, `eqeqeq`, `no-unused-vars`,
 `react-hooks/rules-of-hooks`, no duplicate imports or dictionary keys) apply to
