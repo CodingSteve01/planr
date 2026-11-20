@@ -1339,15 +1339,11 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     exportScenarioPDF,
   });
 
-  // What the render layer reads, in three bundles. They are rebuilt every render on
+  // What the render layer reads, in three bundles. Each is merged by name, so
+  // two sources carrying the same name is an error on the first render. They are rebuilt every render on
   // purpose: the components below hold no state and are not memoised, so a stable
   // identity would buy nothing, and the inner views get their members one by one.
-  const plan = {
-    ...planModel,
-    ...reviewDiff,
-    ...visible,
-    ...scenarioView,
-    ...lensDates,
+  const plan = mergeNamed(planModel, reviewDiff, visible, scenarioView, lensDates, {
     activeScenario,
     data,
     effContext,
@@ -1367,12 +1363,9 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     vacations,
     viewCpEdges,
     viewCpSet,
-  };
+  });
 
-  const view = {
-    ...uiPrefs,
-    ...fileSyncState,
-    ...filterChips,
+  const view = mergeNamed(uiPrefs, fileSyncState, filterChips, {
     archiveDays,
     autoSave,
     bulkEditModalOpen,
@@ -1421,7 +1414,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     tabFades,
     teamFilter,
     tourStep,
-  };
+  });
   // The two raw writes a component may ask for, by name. `mutate`, `setData`
   // and `setSaved` themselves stay in here: a component that held them could
   // write past undo without anybody noticing.
