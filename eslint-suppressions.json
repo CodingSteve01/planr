@@ -334,6 +334,11 @@
       "count": 3
     }
   },
+  "src/components/views/gantt/GanttFooter.jsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
   "src/utils/__tests__/phaseWalk.test.js": {
     "no-useless-assignment": {
       "count": 1
