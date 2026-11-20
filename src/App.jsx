@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useDeferredValue, useCallback } from 'react';
+import { useState, useMemo, useRef, useEffect, useDeferredValue } from 'react';
 import { useStableCallback } from './app/useStableCallback.js';
 import { useNodeActions } from './app/actions/useNodeActions.js';
 import { mergeNamed } from './app/actions/bindActions.js';
@@ -10,9 +10,13 @@ import { useViewFilters } from './app/useViewFilters.js';
 import { useRoadmapFocus, useUiPrefs } from './app/useUiPrefs.js';
 import { TOUR_DONE_KEY, useTour } from './app/useTour.js';
 import { useReviewWindow } from './app/useReviewWindow.js';
-import { migratedAutoHolidays, trimmedToHorizon, withDerivedTeamsAndStatuses } from './app/planRepairs.js';
-import { futureProgressByRoot } from './app/futureProgress.js';
-import { overbookedIds, scheduleFiltered, scopeFiltered, withReviewedDone, withoutDone } from './app/viewTree.js';
+import { usePlanModel } from './app/derived/usePlanModel.js';
+import { useVisibleTree } from './app/derived/useVisibleTree.js';
+import { useFilterChips } from './app/derived/useFilterChips.js';
+import { useResourceLoad, useResourceLens } from './app/derived/useResourceLoad.js';
+import { useScenarioView } from './app/derived/useScenarioView.js';
+import { useReviewDiff } from './app/derived/useReviewDiff.js';
+import { migratedAutoHolidays, withDerivedTeamsAndStatuses } from './app/planRepairs.js';
 import { pushSnapshot } from './app/snapshots.js';
 import { TopBarFile } from './components/app/TopBarFile.jsx';
 import { ExternalChangeBanner } from './components/app/ExternalChangeBanner.jsx';
@@ -81,32 +85,16 @@ import {
   uniqueScenarioName,
   withScenarioPatch,
 } from './utils/scenario.js';
-import { baselineWindows, compareScenario, schedulePlanData } from './utils/scenarioCompare.js';
 import { exportScenarioComparePDF } from './utils/scenarioReport.js';
-import { changeDates, compileMembers, dropChange, resourcesAsOf } from './utils/effective.js';
-import { CapacityProvider, capacityLookup } from './utils/capacityLens.js';
+import { dropChange } from './utils/effective.js';
+import { CapacityProvider } from './utils/capacityLens.js';
 import { leafSnapshot, diffSnapshots, supersededByBackdate, stampPendingDates, withoutPendingDates } from './utils/history.js';
-import { computeDiff, parseSinceValue } from './utils/diff.js';
 import { createHistory, push as pushHistory, undo as undoHistory, redo as redoHistory, canUndo, canRedo } from './utils/undo.js';
-import { buildHMap } from './utils/holidays.js';
-import { parseHorizonValue, horizonScopedIds } from './utils/horizon.js';
-import { inferGanttViewStart } from './utils/viewWindow.js';
-import { scanArchive, stripArchivedRoots, stripArchivedMembers, isArchivedId } from './utils/archive.js';
 import { buildExportCtx } from './utils/exportCtx.js';
-import { projectWaits } from './utils/projectWaits.js';
-import {
-  schedule,
-  treeStats,
-  enrichParentSchedules,
-  leafNodes,
-  isLeafNode,
-  computeConfidence,
-  derivePhaseStatus,
-} from './utils/scheduler.js';
+import { isLeafNode, derivePhaseStatus } from './utils/scheduler.js';
 import { sortTree } from './utils/treeEdit.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId, statusChangePatch } from './utils/completion.js';
 import { instantiateTemplatePhases } from './utils/phases.js';
-import { rootCpm, goalCpm, criticalPathLabelMap } from './utils/cpm.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from './utils/deadlines.js';
 import {
   clearMountedFileHandle,
@@ -118,7 +106,6 @@ import {
 import { TAB_IDS } from './utils/modes.js';
 import { usePortalRoot } from './utils/embedHost.js';
 import { filePickerAvailable, pickFileToOpen, pickFileToSave } from './utils/filePickers.js';
-import { buildResourceLoadMatrix } from './components/shared/ResourceLoadMatrix.jsx';
 import { Frozen } from './components/shared/Frozen.jsx';
 import { HolView } from './components/views/HolView.jsx';
 import { Onboard } from './components/views/Onboard.jsx';
@@ -990,51 +977,129 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   });
 
   const { members = [], teams = [], vacations = [], meta = {} } = data || {};
-  // One order, everywhere.
-  //
-  // Reported after a long afternoon rearranging the tree: the work order
-  // queues showed something else entirely. They did — `displayOrder` is a
-  // number written onto the rows, and nothing ever reordered the ARRAY, so
-  // every surface that simply walked `data.tree` was reading the order the
-  // rows happened to be stored in. That was the tree's order once, before the
-  // first reorder; after an afternoon of them the two had nothing to do with
-  // each other (measured on the plan reported: 171 of 181 positions differed).
-  // Only the tree view and the Gantt sorted; the queues, the resource views,
-  // the report and every PDF did not, and each of them was presenting itself
-  // as the plan's order.
-  //
-  // So the array carries the order. Sorting once here rather than in nine
-  // places is also the only version that stays true — a new view cannot
-  // forget to do it. The tree view still sorts its own rows, which is now a
-  // no-op, and the scheduler still ranks by the same comparator.
-  const tree = useMemo(() => sortTree(data?.tree || []), [data?.tree]);
+  const {
+    tree,
+    goals,
+    hm,
+    planStart,
+    planEnd,
+    workDays,
+    capacityAt,
+    personQueues,
+    scheduled,
+    weeks,
+    reschedule,
+    projectWaitsOf,
+    stats,
+    cpData,
+    cpSet,
+    cpLabels,
+    goalPaths,
+    leaves,
+    droppedCount,
+    confidence,
+    confReasons,
+  } = usePlanModel({ data, members, vacations, meta, past });
   // Derive selected node from tree — always fresh after any tree mutation.
   const selected = useMemo(() => (selId ? tree.find(r => r.id === selId) || null : null), [tree, selId]);
-  // ── Archive layer ────────────────────────────────────────────────────────
-  // Long-finished projects and long-gone people are dropped from what the
-  // views render, but NOT from `tree` / `stats` / `scheduled`. The headline
-  // percentage and PT totals keep counting them — archiving a finished
-  // project must never make the project look less finished.
-  const archive = useMemo(() => scanArchive({ tree, members, days: archiveDays }), [tree, members, archiveDays]);
-  const activeTree = useMemo(
-    () => (showArchived ? tree : stripArchivedRoots(tree, archive.rootIds)),
-    [tree, showArchived, archive.rootIds],
-  );
-  const activeMembers = useMemo(
-    () => (showArchived ? members : stripArchivedMembers(members, archive.memberIds)),
-    [members, showArchived, archive.memberIds],
-  );
-  const visibleTree = useMemo(() => {
-    // Archive first, then hide-done: both are display filters over the same
-    // tree, and the archive set is the coarser of the two.
-    return hideDone ? withoutDone(activeTree) : activeTree;
-  }, [activeTree, hideDone]);
-  const rootItems = useMemo(() => visibleTree.filter(r => !r.id.includes('.')), [visibleTree]);
-  const netRootOptions = useMemo(() => rootItems.map(r => ({ id: r.id, label: r.name || r.id })), [rootItems]);
-  const netTree = useMemo(
-    () => scopeFiltered(visibleTree, { rootFilter, teamFilter, personFilter, onlyUnestimated }),
-    [visibleTree, rootFilter, teamFilter, personFilter, onlyUnestimated],
-  );
+  const { overbookedTaskIds } = useResourceLoad({ data, members, teams, vacations, scheduled, weeks, capacityAt });
+  const {
+    sinceDays,
+    persistSince,
+    diffOnlyChanged,
+    setDiffOnlyChanged,
+    persistDiffOnlyChanged,
+    horizonDays,
+    persistHorizon,
+    horizonOnlyPlanned,
+    setHorizonOnlyPlanned,
+    persistHorizonOnly,
+  } = useReviewWindow();
+  const {
+    sinceDate,
+    horizonEnd,
+    horizonIds,
+    futureProgressByRootId,
+    diff,
+    diffDoneSet,
+    diffChangedSet,
+    diffProgressedSet,
+    horizonFilterSet,
+    diffFilterSet,
+    diffVisibleSet,
+  } = useReviewDiff({
+    data,
+    scn,
+    tree,
+    scheduled,
+    members,
+    vacations,
+    hm,
+    workDays,
+    sinceDays,
+    horizonDays,
+    horizonOnlyPlanned,
+    diffOnlyChanged,
+  });
+  const {
+    archive,
+    activeTree,
+    activeMembers,
+    activeScheduled,
+    rootItems,
+    netRootOptions,
+    visibleTreeForViews,
+    visibleViewIdSet,
+    viewScheduled,
+    viewGoals,
+    viewStats,
+  } = useVisibleTree({
+    tree,
+    members,
+    scheduled,
+    stats,
+    archiveDays,
+    showArchived,
+    hideDone,
+    rootFilter,
+    teamFilter,
+    personFilter,
+    onlyUnestimated,
+    onlyAutoAssigned,
+    onlyOverdue,
+    onlyOverbooked,
+    overbookedTaskIds,
+    sinceDate,
+    diffChangedSet,
+  });
+  const { quickFilters, activeQuickFilters, scopeFields, activeScopeChips } = useFilterChips({
+    _t,
+    teams,
+    archive,
+    activeMembers,
+    netRootOptions,
+    overbookedTaskIds,
+    hideDone,
+    setHideDone,
+    showArchived,
+    setShowArchived,
+    onlyAutoAssigned,
+    setOnlyAutoAssigned,
+    onlyOverdue,
+    setOnlyOverdue,
+    onlyUnestimated,
+    setOnlyUnestimated,
+    onlyOverbooked,
+    setOnlyOverbooked,
+    rootFilter,
+    setRootFilter,
+    teamFilter,
+    setTeamFilter,
+    personFilter,
+    setPersonFilter,
+    setSearchIdx,
+  });
+  const { scnComparison, scnBaseline, scnShifts, scnChangedIds } = useScenarioView({ scn, data, scheduled, scnChanges });
   useEffect(() => {
     if (rootFilter && !rootItems.some(r => r.id === rootFilter)) setRootFilter('');
   }, [rootItems, rootFilter]);
@@ -1085,35 +1150,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       return { ...rest, tree: updated };
     });
   }, []);
-  const goals = useMemo(() => tree.filter(r => !r.id.includes('.') && r.type), [tree]);
-  const hm = useMemo(() => buildHMap(data?.holidays || []), [data?.holidays]);
-  const planStart = meta.planStart || iso(new Date());
-  // viewStart = rendering start. Can be earlier than planStart for pre-started tasks.
-  // planStart = scheduling start. New/unstarted tasks begin here.
-  const viewStart = useMemo(() => inferGanttViewStart(tree, planStart, meta.viewStart, 14), [tree, planStart, meta.viewStart]);
-  // Headroom horizon for the scheduler — +10 years so even long migrations
-  // fit. After scheduling we trim the resulting `weeks` array back to the
-  // latest scheduled endD + padding so the Gantt / Roadmap don't render
-  // empty decades. Plans with an explicit `End` in the Plan table honour
-  // that exactly.
-  const GANTT_WINDOW_PADDING_DAYS = 14;
-  const SCHEDULER_HEADROOM_END = iso(new Date(new Date().getFullYear() + 10, 11, 31));
-  const planEnd = meta.planEnd || SCHEDULER_HEADROOM_END;
-  const workDays = meta.workDays || [1, 2, 3, 4, 5]; // Mon–Fri default
-  // Enrich members with effective meetings (team-inherited plans + member
-  // plans + individual) so the scheduler's deriveCap() sees the same capacity
-  // picture as Gantt/Resource load.
-  //
-  // And over time: everything that changes on a date (utils/effective.js) is
-  // flattened per person here, with each meeting plan resolved, because the
-  // scheduler has no catalogue to look a plan up in.
-  const enrichedMembers = useMemo(
-    () => compileMembers({ members, teams: data?.teams || [], meetingPlans: data?.meetingPlans || [], changes: data?.changes || [] }),
-    [members, data?.meetingPlans, data?.teams, data?.changes],
-  );
-  // The one answer to "how much of this person is there on that day", for
-  // everything that draws availability (utils/capacityLens.js).
-  const capacityAt = useMemo(() => capacityLookup(enrichedMembers), [enrichedMembers]);
   // ── The day you are working on ───────────────────────────────────────────
   // Empty = today. Set, the Resources view shows people, teams and meeting
   // plans as they will be on that day, and what is edited there goes into the
@@ -1121,9 +1157,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // persisted: like backdating, a date you forgot about would quietly send
   // every later edit to the wrong place.
   const [effDate, setEffDate] = useState('');
-  const resLens = useMemo(() => resourcesAsOf(data, effDate || new Date()), [data, effDate]);
-  const effDates = useMemo(() => changeDates(data), [data?.changes]);
-  const effCount = effDates.find(d => d.from === effDate)?.count || 0;
+  const { resLens, effDates, effCount } = useResourceLens({ data, effDate });
   // A day before today is a look at the plan as it was (and a place to
   // correct it from then on); a day after today is where capacity changes.
   // The same plan, whatever a save added to its logs in between.
@@ -1180,38 +1214,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     }),
     [effDate, data?.changes, past?.day, scn?.id],
   );
-  // A person's own order of work, when they have one. The plan's order is the
-  // tree's; this is the single override, and it only permutes the slots that
-  // person's work already holds (utils/personQueue.js).
-  const personQueues = data?.personQueues || null;
-  const { results: scheduled, weeks } = useMemo(() => {
-    if (!data) return { results: [], weeks: [] };
-    const out = schedule(tree, enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart, {
-      personQueues,
-      ...(past ? { now: past.day } : {}),
-    });
-    if (meta.planEnd) return out; // explicit user choice — leave alone
-    return trimmedToHorizon(out, GANTT_WINDOW_PADDING_DAYS);
-  }, [data, tree, enrichedMembers, vacations, viewStart, planStart, planEnd, hm, workDays, meta.planEnd, personQueues, past?.day]);
-  // The same schedule for a different tree: what-if runs for "what is this
-  // project waiting on?" (utils/projectWaits.js). Answers are cached until
-  // the plan changes and computed only when a view asks for a project.
-  const reschedule = useCallback(
-    nextTree =>
-      schedule(nextTree, enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart, {
-        personQueues,
-        ...(past ? { now: past.day } : {}),
-      }).results,
-    [enrichedMembers, vacations, viewStart, planEnd, hm, workDays, planStart, personQueues, past?.day],
-  );
-  const projectWaitsOf = useMemo(() => {
-    const cache = new Map();
-    return rootId => {
-      if (!rootId) return null;
-      if (!cache.has(rootId)) cache.set(rootId, projectWaits({ tree, scheduled, rootId, reschedule, members: enrichedMembers }));
-      return cache.get(rootId);
-    };
-  }, [tree, scheduled, reschedule, enrichedMembers]);
 
   // Persist the last visible schedule window for completed tasks so they stay visible
   // in the Gantt after being marked done, without reintroducing them into future planning.
@@ -1343,21 +1345,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     setSaved(false);
   }, [tree, scheduled, members, vacations, hm, workDays, planStart]);
 
-  const stats = useMemo(() => {
-    const s = treeStats(tree);
-    enrichParentSchedules(s, tree, scheduled);
-    return s;
-  }, [tree, scheduled]);
-  // ── Scenario against plan ────────────────────────────────────────────────
-  // The plan is scheduled a second time, once per visit to a scenario, so the
-  // two can be laid side by side. Same scheduler, same day, same inputs but
-  // for the scenario's changes — which is what makes the difference theirs.
-  const baseScheduled = useMemo(() => (scn ? schedulePlanData(scn.base) : null), [scn]);
-  const scnComparison = useMemo(
-    () => (scn && data ? compareScenario({ base: scn.base, work: data, baseScheduled, workScheduled: scheduled }) : null),
-    [scn, data, baseScheduled, scheduled],
-  );
-  const scnBaseline = useMemo(() => (scnComparison ? baselineWindows(scnComparison) : null), [scnComparison]);
   // The comparison as a PDF. The model is built where the dialog is (one set
   // of figures and words for both); null while no scenario is on screen.
   const scnReport = useScenarioReport({
@@ -1384,208 +1371,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
         }
       }
     : null;
-  // What the scenario moves, per task, for the views that mark it: calendar
-  // days later (+) or earlier (−); `null` for a task that is new, gone or no
-  // longer scheduled — affected, with no shift to put a number on.
-  const scnShifts = useMemo(() => {
-    if (!scnComparison) return null;
-    const out = new Map();
-    for (const it of scnComparison.items) {
-      if (it.presence !== 'both') {
-        out.set(it.id, null);
-        continue;
-      }
-      const days = it.endShift || it.startShift;
-      if (days) out.set(it.id, days);
-    }
-    return out;
-  }, [scnComparison]);
-  // Rows the scenario itself changed (not the ones that merely moved because
-  // of it): marked in the tree, where they are edited.
-  const scnChangedIds = useMemo(
-    () => (scn ? new Set(scnChanges.filter(c => c.kind === 'item' && c.op !== 'remove').map(c => c.id)) : null),
-    [scn, scnChanges],
-  );
-  const {
-    sinceDays,
-    persistSince,
-    diffOnlyChanged,
-    setDiffOnlyChanged,
-    persistDiffOnlyChanged,
-    horizonDays,
-    persistHorizon,
-    horizonOnlyPlanned,
-    setHorizonOnlyPlanned,
-    persistHorizonOnly,
-  } = useReviewWindow();
-  // Paused while a scenario is on screen. Two overlays at once is how amber
-  // rows for "progressed since the 5th" came to be read as "moved by the
-  // scenario". The window is not forgotten — `sinceDays` stays as it is and
-  // the filter says it is paused — it just does not paint while the question
-  // on screen is a different one (principles.md: overlays belong to a
-  // moment, never two at once).
-  const sinceDate = useMemo(() => (scn ? null : parseSinceValue(sinceDays)), [sinceDays, scn]);
-  const horizonEnd = useMemo(() => parseHorizonValue(horizonDays), [horizonDays]);
-  const horizonIds = useMemo(() => horizonScopedIds({ tree, scheduled, horizonEnd }), [tree, scheduled, horizonEnd]);
-  const futureProgressByRootId = useMemo(() => futureProgressByRoot(tree, scheduled, horizonEnd), [tree, scheduled, horizonEnd]);
-  const diff = useMemo(
-    () =>
-      computeDiff({
-        tree,
-        historyEvents: data?.historyEvents || [],
-        sinceDate,
-        members,
-        vacations,
-        holidays: hm,
-        workDays,
-      }),
-    [tree, data?.historyEvents, sinceDate, members, vacations, hm, workDays],
-  );
-  const diffDoneSet = useMemo(() => new Set(diff?.doneInWindowIds || []), [diff]);
-  const diffChangedSet = useMemo(() => new Set(diff?.changedInWindowIds || []), [diff]);
-  const diffProgressedSet = useMemo(() => new Set(diff?.progressedInWindowIds || []), [diff]);
-  // Effective filter sets: pass to views only when they actually carry
-  // entries. Critical: an empty Set is truthy, so consumers like Plan /
-  // Briefing / Queues would `if (diffChangedIds)` and filter EVERYTHING
-  // out the moment the toggle was on without a matching diff/horizon
-  // configured. Null when inactive → consumer skips the filter cleanly.
-  const horizonFilterSet = horizonOnlyPlanned && horizonIds && horizonIds.size > 0 ? horizonIds : null;
-  const diffFilterSet = diffOnlyChanged && diffChangedSet.size > 0 ? diffChangedSet : null;
-  const diffVisibleSet = sinceDate && diffChangedSet.size > 0 ? diffChangedSet : null;
-  const cpData = useMemo(() => rootCpm(tree), [tree]);
-  const cpSet = cpData.critical;
-  const cpLabels = useMemo(() => criticalPathLabelMap(cpData.rootPaths), [cpData.rootPaths]);
-  const goalPaths = useMemo(() => goalCpm(tree), [tree]);
-  // Global resource-load + overbooked task ids — shared by the quick-filter
-  // chip and any view that wants to flag overbookings (vs each view rolling
-  // its own load matrix and drifting out of sync).
-  const resourceLoadByWeek = useMemo(
-    () => buildResourceLoadMatrix({ members, teams, vacations, meetingPlans: data?.meetingPlans || [], scheduled, weeks, capacityAt }),
-    [members, teams, vacations, data?.meetingPlans, scheduled, weeks],
-  );
-  const overbookedTaskIds = useMemo(() => overbookedIds(scheduled, weeks, resourceLoadByWeek), [scheduled, weeks, resourceLoadByWeek]);
-
-  // The quick filters as data, so the sub-toolbar and the filter popup show
-  // the same set without either of them owning it. Two of them only exist
-  // when they have something to filter: an archive toggle on a plan with
-  // nothing archived, or an overbooked toggle with nobody overbooked, is a
-  // control that can only disappoint.
-  const quickFilters = useMemo(
-    () =>
-      [
-        { id: 'hideDone', label: _t('chip.hideDone'), tip: _t('chip.hideDoneTip'), active: hideDone, onToggle: () => setHideDone(v => !v) },
-        archive.count > 0
-          ? {
-              id: 'archived',
-              label: _t('arch.pill', archive.count),
-              tip: _t('arch.chipTip'),
-              active: showArchived,
-              onToggle: () => setShowArchived(v => !v),
-            }
-          : null,
-        {
-          id: 'auto',
-          label: _t('chip.auto'),
-          tip: _t('chip.autoTip'),
-          active: onlyAutoAssigned,
-          onToggle: () => setOnlyAutoAssigned(v => !v),
-        },
-        {
-          id: 'overdue',
-          label: _t('chip.overdue'),
-          tip: _t('chip.overdueTip'),
-          active: onlyOverdue,
-          onToggle: () => setOnlyOverdue(v => !v),
-        },
-        {
-          id: 'unestimated',
-          label: _t('chip.unestimated'),
-          tip: _t('chip.unestimatedTip'),
-          active: onlyUnestimated,
-          onToggle: () => setOnlyUnestimated(v => !v),
-        },
-        overbookedTaskIds.size > 0
-          ? {
-              id: 'overbooked',
-              label: _t('chip.overbooked', overbookedTaskIds.size),
-              tip: _t('chip.overbookedTip'),
-              active: onlyOverbooked,
-              onToggle: () => setOnlyOverbooked(v => !v),
-            }
-          : null,
-      ].filter(Boolean),
-    [_t, hideDone, archive.count, showArchived, onlyAutoAssigned, onlyOverdue, onlyUnestimated, overbookedTaskIds.size, onlyOverbooked],
-  );
-  const activeQuickFilters = useMemo(() => quickFilters.filter(f => f.active), [quickFilters]);
-
-  // Scope lives in the filter popup and comes back out as a chip the moment
-  // one is set — a narrowed view has to say so (principles.md, "a view is
-  // never the truth"), an unnarrowed one has nothing to say. The chip clears
-  // the filter, which is the only thing you want from it once you see it.
-  const scopeFields = useMemo(
-    () => [
-      {
-        id: 'root',
-        value: rootFilter,
-        options: netRootOptions,
-        showIds: true,
-        placeholder: _t('tv.allRoots'),
-        onSelect: v => {
-          setRootFilter(v);
-          setSearchIdx(0);
-        },
-      },
-      {
-        id: 'team',
-        value: teamFilter,
-        options: teams.map(t => ({ id: t.id, label: t.name || t.id })),
-        placeholder: _t('tv.allTeams'),
-        onSelect: v => {
-          setTeamFilter(v);
-          setSearchIdx(0);
-        },
-      },
-      {
-        id: 'person',
-        value: personFilter,
-        options: activeMembers.map(m => ({ id: m.id, label: m.name || m.id })),
-        placeholder: _t('tv.allPeople'),
-        onSelect: v => {
-          setPersonFilter(v);
-          setSearchIdx(0);
-        },
-      },
-    ],
-    [rootFilter, teamFilter, personFilter, netRootOptions, teams, activeMembers, _t],
-  );
-
-  const activeScopeChips = useMemo(
-    () =>
-      scopeFields
-        .filter(f => f.value)
-        .map(f => ({
-          id: `scope-${f.id}`,
-          label: f.options.find(o => o.id === f.value)?.label || f.value,
-          onToggle: () => f.onSelect(''),
-        })),
-    [scopeFields],
-  );
-
-  // Handoff segments have synthetic ids like `${treeId}#N` and live alongside
-  // their primary in scheduled[]. Match either id or treeId so all segments
-  // pass through view-filters together with their tree node.
-  // Quick-filter chips that depend on the scheduler output (auto-assigned,
-  // overdue, overbooked). Applied to netTree downstream so all views share
-  // the same view.
-  const quickFilteredNetTree = useMemo(
-    () => scheduleFiltered(netTree, scheduled, { onlyAutoAssigned, onlyOverdue, onlyOverbooked, overbookedTaskIds }),
-    [netTree, onlyAutoAssigned, onlyOverdue, onlyOverbooked, scheduled, overbookedTaskIds],
-  );
-  const visibleTreeForViews = useMemo(() => {
-    if (!hideDone || !sinceDate || diffChangedSet.size === 0) return quickFilteredNetTree;
-    return withReviewedDone(quickFilteredNetTree, activeTree, diffChangedSet);
-  }, [hideDone, sinceDate, diffChangedSet, quickFilteredNetTree, activeTree]);
-  const visibleViewIdSet = useMemo(() => new Set(visibleTreeForViews.map(r => r.id)), [visibleTreeForViews]);
   // Don't keep the cursor on a row nobody can see.
   //
   // This used to consult `visibleIdSet` — the hide-done list — while the tree
@@ -1603,30 +1388,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       return next.size === prev.size ? prev : next;
     });
   }, [hideDone, selId, visibleViewIdSet]);
-  const viewScheduled = useMemo(
-    () => scheduled.filter(s => visibleViewIdSet.has(s.id) || (s.treeId && visibleViewIdSet.has(s.treeId))),
-    [scheduled, visibleViewIdSet],
-  );
-  const viewGoals = useMemo(() => visibleTreeForViews.filter(r => !r.id.includes('.') && r.type), [visibleTreeForViews]);
-  const viewStats = useMemo(() => {
-    if (!hideDone) return stats;
-    const s = treeStats(visibleTreeForViews);
-    enrichParentSchedules(s, visibleTreeForViews, viewScheduled);
-    return s;
-  }, [hideDone, stats, visibleTreeForViews, viewScheduled]);
-  // Gantt reads `scheduled` directly (not the view tree), so it needs its own
-  // archive-filtered copy — same reason the tree gets one.
-  const activeScheduled = useMemo(
-    () => (showArchived || !archive.rootIds.size ? scheduled : scheduled.filter(s => !isArchivedId(archive.rootIds, s.id))),
-    [scheduled, showArchived, archive.rootIds],
-  );
   const viewCpSet = cpData.critical;
   const viewCpEdges = cpData.edges;
-  const leaves = useMemo(() => leafNodes(tree), [tree]);
-  // Dropped work leaves every count, which would make it invisible; say how
-  // much of it there is, so the denominator is explicable.
-  const droppedCount = useMemo(() => tree.filter(r => r.dropped).length, [tree]);
-  const { confidence, reasons: confReasons } = useMemo(() => computeConfidence(tree, members), [tree, members]);
 
   // One-shot migration: prior builds wrote auto holidays using a UTC-shifted iso(),
   // so NRW dates landed a day early in the file. Detect that and rewrite them
