@@ -59,7 +59,6 @@ import {
   exportTodoPDF,
   exportWhatWhenPDF,
 } from './utils/exports.js';
-
 import { mergeRoadmapAssignment } from './utils/roadmap.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { parseMdToProject } from './utils/markdownParse.js';
@@ -81,7 +80,6 @@ import {
 import { baselineWindows, compareScenario, schedulePlanData } from './utils/scenarioCompare.js';
 import { exportScenarioComparePDF } from './utils/scenarioReport.js';
 import { addDays, changeDates, compileMembers, dropChange, foldEdit, pruneChanges, resourcesAsOf } from './utils/effective.js';
-
 import { CapacityProvider, capacityLookup } from './utils/capacityLens.js';
 import { leafSnapshot, diffSnapshots, supersededByBackdate, pendingDate, stampPendingDates, withoutPendingDates } from './utils/history.js';
 import { computeDisplayOrder, applyDisplayOrder } from './utils/displayOrder.js';
@@ -120,31 +118,22 @@ import {
   requestHandlePermission,
 } from './utils/fileHandleStore.js';
 import { TAB_IDS } from './utils/modes.js';
-
 import { usePortalRoot } from './utils/embedHost.js';
 import { filePickerAvailable, pickFileToOpen, pickFileToSave } from './utils/filePickers.js';
-
 import { buildResourceLoadMatrix } from './components/shared/ResourceLoadMatrix.jsx';
-
 import { Frozen } from './components/shared/Frozen.jsx';
 import { HolView } from './components/views/HolView.jsx';
-
 import { Onboard } from './components/views/Onboard.jsx';
-
 import { NewProjModal } from './components/modals/NewProjModal.jsx';
-
 import { JiraImportModal } from './components/modals/JiraImportModal.jsx';
 import { buildImportedProject } from './utils/jiraImport.js';
-
 import { SearchSelect } from './components/shared/SearchSelect.jsx';
 import { LazyInput } from './components/shared/LazyInput.jsx';
 import { HoverTipProvider } from './components/shared/HoverTip.jsx';
 import { CommandPalette } from './components/shared/CommandPalette.jsx';
 import { KeyboardMap } from './components/shared/KeyboardMap.jsx';
-
 import { useScenarioReport } from './components/shared/Scenario.jsx';
 import { ReportView } from './components/views/ReportView.jsx';
-
 import { withoutTeam, teamForAssignment } from './utils/memberTeams.js';
 
 // Lives in utils/memberShort.js; re-exported because that is where callers look.
