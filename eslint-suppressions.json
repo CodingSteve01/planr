@@ -212,7 +212,7 @@
   },
   "src/components/views/GanttView.jsx": {
     "complexity": {
-      "count": 16
+      "count": 15
     },
     "max-depth": {
       "count": 1
@@ -396,6 +396,11 @@
       "count": 4
     },
     "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/utils/gantt/items.js": {
+    "complexity": {
       "count": 1
     }
   },
