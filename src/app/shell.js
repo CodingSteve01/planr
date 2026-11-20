@@ -52,8 +52,7 @@ export function activateOnPress(e, action) {
 // the way: 360px of editor against what is left of a work tree.
 export const SIDE_DOCK_MIN_WIDTH = 1180;
 
-// Glyphs for the `/` palette. Kept here beside TAB_IDS so a new tab is an
-// obvious two-line change; an unlisted id falls back to a neutral marker
+// Glyphs for the `/` palette, for the tabs listed in utils/modes.js (TAB_IDS); an unlisted id falls back to a neutral marker
 // rather than leaving a ragged gap in the column.
 export const TAB_ICONS = {
   summary: 'target',
@@ -68,7 +67,7 @@ export const TAB_ICONS = {
   holidays: 'beach',
   report: 'doc',
 };
-// Tabs that still carry the one-time "New!" badge (see NEW_FEATURES below).
+// Tabs that still carry the one-time "New!" badge (see NEW_FEATURES in App.jsx).
 export const NEW_BADGE_TAB_IDS = new Set(['summary', 'plan', 'gantt']);
 // Views that answer to scope / quick filters / the review window / the
 // archive. Resources, Holidays and Report are inputs and outputs — nothing in

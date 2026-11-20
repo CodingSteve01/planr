@@ -53,7 +53,7 @@ export function withDerivedTeamsAndStatuses(d, members) {
   }
   // 2. Derive parent statuses — must run on the (possibly team-fixed) tree
   // Only treeStats is needed here (for _autoStatus); enrichParentSchedules
-  // is display-only and already runs in the useMemo above.
+  // is display-only and runs in the component's own memo.
   const st = treeStats(t);
   const t2 = deriveParentStatuses(t, st);
   if (t2.some((r, i) => r.status !== t[i].status)) {

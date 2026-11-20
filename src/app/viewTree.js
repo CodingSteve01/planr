@@ -104,7 +104,7 @@ export function overbookedIds(scheduled, weeks, resourceLoadByWeek) {
 // The quick filters that depend on the scheduler's output (auto-assigned,
 // overdue, overbooked).
 export function scheduleFiltered(netTree, scheduled, { onlyAutoAssigned, onlyOverdue, onlyOverbooked, overbookedTaskIds }) {
-  if (!onlyAutoAssigned && !onlyOverdue) return netTree;
+  if (!onlyAutoAssigned && !onlyOverdue && !onlyOverbooked) return netTree;
   let items = netTree;
   if (onlyAutoAssigned) {
     const autoIds = new Set((scheduled || []).filter(s => s.autoAssigned).map(s => s.treeId || s.id));
