@@ -4,6 +4,7 @@ import { useT } from '../../i18n.jsx';
 import { usePortalRoot } from '../../utils/embedHost.js';
 import { describeChanges } from '../../utils/scenario.js';
 import { projectDiffers, teamDiffers, teamStory } from '../../utils/scenarioCompare.js';
+import { SCENARIO_NEW_EVENT } from '../../utils/events.js';
 
 // The surface of scenarios: where you are (the switch), that you are not in
 // the plan (the bar), what just happened (the notice), and what the
@@ -18,7 +19,6 @@ import { projectDiffers, teamDiffers, teamStory } from '../../utils/scenarioComp
 // own colour, which nothing else in Planr uses.
 
 const MENU_WIDTH = 300;
-export const SCENARIO_NEW_EVENT = 'planr:scenario-new';
 
 // ── formatting ──────────────────────────────────────────────────────────────
 

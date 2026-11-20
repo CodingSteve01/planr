@@ -3,6 +3,7 @@ import { Icon } from './Icon.jsx';
 import { useT } from '../../i18n.jsx';
 import { usePortalRoot } from '../../utils/embedHost.js';
 import { addDays, dayOf, monthAgo } from '../../utils/effective.js';
+import { EFFECTIVE_OPEN_EVENT } from '../../utils/events.js';
 
 // "From which day on?" — the surface of dated changes.
 //
@@ -255,8 +256,6 @@ export function EffectiveSwitch({ date, dates, onPick, onDropDate, travel = fals
     </span>
   );
 }
-
-export const EFFECTIVE_OPEN_EVENT = 'planr:effective-open';
 
 // ── the bar ─────────────────────────────────────────────────────────────────
 

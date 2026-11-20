@@ -29,10 +29,10 @@ import { RoadmapPane } from './components/app/RoadmapPane.jsx';
 import { NetPane } from './components/app/NetPane.jsx';
 import { OrderPane } from './components/app/OrderPane.jsx';
 import { ResourcesPane } from './components/app/ResourcesPane.jsx';
-import { EditModals } from './components/app/EditModals.jsx';
+import { ItemModals } from './components/app/ItemModals.jsx';
 import { ScenarioModals } from './components/app/ScenarioModals.jsx';
-import { ConfigModals } from './components/app/ConfigModals.jsx';
-import { ProjectModals } from './components/app/ProjectModals.jsx';
+import { SettingsModals } from './components/app/SettingsModals.jsx';
+import { ProjectFileModals } from './components/app/ProjectFileModals.jsx';
 import { OnboardingModals } from './components/app/OnboardingModals.jsx';
 import { buildPaletteCommands } from './app/paletteCommands.js';
 import {
@@ -2929,10 +2929,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
               </div>
             )}
           </div>
-          <EditModals plan={plan} view={view} handlers={handlers} />
+          <ItemModals plan={plan} view={view} handlers={handlers} _t={_t} renderBulkEditBody={renderBulkEditBody} />
           <ScenarioModals plan={plan} view={view} handlers={handlers} />
-          <ConfigModals plan={plan} view={view} handlers={handlers} _t={_t} renderBulkEditBody={renderBulkEditBody} />
-          <ProjectModals plan={plan} view={view} handlers={handlers} exportHandlerProps={exportHandlerProps} />
+          <SettingsModals plan={plan} view={view} handlers={handlers} />
+          <ProjectFileModals plan={plan} view={view} handlers={handlers} exportHandlerProps={exportHandlerProps} />
 
           <OnboardingModals view={view} handlers={handlers} NEW_FEATURES={NEW_FEATURES} TOUR_STEPS={TOUR_STEPS} _t={_t} />
         </div>

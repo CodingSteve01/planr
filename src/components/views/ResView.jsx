@@ -8,6 +8,7 @@ import { iso } from '../../utils/date.js';
 import { Icon } from '../shared/Icon.jsx';
 import { PlannedChanges, useDescribeChange, useEffective, useDayFormat } from '../shared/Effective.jsx';
 import { inTeam, memberTeams, realisedTeamShares, withTeams } from '../../utils/memberTeams.js';
+import { RES_JOB_EVENT } from '../../utils/events.js';
 
 /* ─── helpers ─────────────────────────────────────────────────────────── */
 function initials(name) {
@@ -792,7 +793,6 @@ function MemberReadRow({ member, teams, shortMap, meetingPlans = [], scheduled =
 }
 
 /* ─── Main component ──────────────────────────────────────────────────── */
-export const RES_JOB_EVENT = 'planr:resources:job';
 
 function ResViewImpl({
   members,

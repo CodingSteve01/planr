@@ -1,4 +1,5 @@
-import { EFFECTIVE_OPEN_EVENT, EffectiveSwitch } from '../shared/Effective.jsx';
+import { EffectiveSwitch } from '../shared/Effective.jsx';
+import { EFFECTIVE_OPEN_EVENT } from '../../utils/events.js';
 import { FileMenu } from '../shared/FileMenu.jsx';
 import { Icon } from '../shared/Icon.jsx';
 import { PALETTE_OPEN_EVENT } from '../shared/CommandPalette.jsx';

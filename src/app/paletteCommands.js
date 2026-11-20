@@ -1,10 +1,6 @@
 import { TAB_IDS } from '../utils/modes.js';
 import { TAB_ICONS } from './shell.js';
-import { BRIEFING_JOB_EVENT } from '../components/views/BriefingView.jsx';
-import { RES_JOB_EVENT } from '../components/views/ResView.jsx';
-import { KEYMAP_OPEN_EVENT } from '../components/shared/KeyboardMap.jsx';
-import { EFFECTIVE_OPEN_EVENT } from '../components/shared/Effective.jsx';
-import { SCENARIO_NEW_EVENT } from '../components/shared/Scenario.jsx';
+import { BRIEFING_JOB_EVENT, EFFECTIVE_OPEN_EVENT, KEYMAP_OPEN_EVENT, RES_JOB_EVENT, SCENARIO_NEW_EVENT } from '../utils/events.js';
 
 // `keywords` are the words you reach for when the label is in the other
 // language, or is a sentence where your head holds one noun.

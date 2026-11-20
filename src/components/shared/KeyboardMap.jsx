@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Icon } from './Icon.jsx';
 import { useT } from '../../i18n.jsx';
 import { shortcutsByScope, formatKey } from '../../utils/shortcuts.js';
+import { KEYMAP_OPEN_EVENT } from '../../utils/events.js';
 
 // The app-wide keyboard reference, one keypress away (`?`).
 //
@@ -9,7 +10,6 @@ import { shortcutsByScope, formatKey } from '../../utils/shortcuts.js';
 // CommandPalette uses — so a button anywhere can open it without a prop
 // being drilled through App.jsx, and there is exactly one answer to "is it
 // open".
-export const KEYMAP_OPEN_EVENT = 'planr:keymap:open';
 
 function isEditableTarget(el) {
   if (!el) return false;
