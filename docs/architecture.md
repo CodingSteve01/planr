@@ -450,9 +450,28 @@ version, no `v` prefix. Full story in [obsidian-plugin.md](obsidian-plugin.md).
 
 ## Where the app component's parts live
 
-`src/App.jsx` holds the state that is intertwined: the document, undo,
-scenarios, the earlier-day view and the save path with its history and day
-log. What does not depend on those sits beside it:
+`src/App.jsx` holds the document itself (`data`, `saved`, the tab) and the
+order in which the hooks are called. What does not depend on those sits beside
+it:
+
+- `src/app/useDocumentState.js`: undo (`history`, `mutate`, undo and redo), the
+  open scenario's `scn`, the earlier day's `past` and `effDate`, and the
+  baselines the history log is measured against. It also returns
+  `resetDocumentState()`; `App` wraps it as `resetHistory`, which first clears
+  the three session refs. The wrapper stays in `App` because the mount-restore
+  effect holds the first render's copy of it.
+- `src/app/useScenarios.js`: the file-shaped document (`fileData`), putting a
+  scenario or the plan on screen (`showDocument`) and the `scenario*` actions.
+- `src/app/useEarlierDay.js`: picking another day (`pickEffDate`), and the
+  context the Resources view reads. The jump from the list of planned changes
+  (`effContext.onGo`) reads the latest render's context through a ref, so the
+  undo stack it sets aside is the current one.
+- `src/app/logWriters.js`, `dayLogWrite.js`: what a save writes into the
+  history log and the day log, and what it leaves behind in the document. The
+  file layer is set up before `tree` and `isMdFile` exist, so `App` hands it
+  wrappers that call whatever the latest render of `buildLogWriters` returned.
+- `src/app/fileLoaders.js`: `loadFile`, `newProject`, `restoreMountedFile`.
+  `restoreMountedFile` is not the same as `restoreMounted` in `useFileSession`.
 
 - `src/app/`: hooks for self-contained state (`useViewFilters`, `useUiPrefs`,
   `useReviewWindow`, `useTour`, `useTabBar`), pure derivations the component

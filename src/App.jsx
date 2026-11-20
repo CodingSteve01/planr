@@ -12,6 +12,11 @@ import { useTour } from './app/useTour.js';
 import { useReviewWindow } from './app/useReviewWindow.js';
 import { useFileSession } from './app/useFileSession.js';
 import { useFileSync, SAVE_DEBOUNCE_MS } from './app/useFileSync.js';
+import { useDocumentState } from './app/useDocumentState.js';
+import { useScenarios } from './app/useScenarios.js';
+import { buildLogWriters } from './app/logWriters.js';
+import { useEarlierDay } from './app/useEarlierDay.js';
+import { fileLoaders } from './app/fileLoaders.js';
 import { usePlanModel } from './app/derived/usePlanModel.js';
 import { useVisibleTree } from './app/derived/useVisibleTree.js';
 import { useFilterChips } from './app/derived/useFilterChips.js';
@@ -43,39 +48,21 @@ import { OnboardingModals } from './components/app/OnboardingModals.jsx';
 import { buildPaletteCommands } from './app/paletteCommands.js';
 import { buildTabs, buildTourSteps, buildNewFeatures } from './app/shellContent.js';
 import { buildExportHandlerProps } from './app/exportHandlerProps.js';
-import { initialShell, loadLocalProject, isValidProjectData, SEARCH_TABS, MATCH_STEP_TABS } from './app/shell.js';
+import { initialShell, loadLocalProject, SEARCH_TABS, MATCH_STEP_TABS } from './app/shell.js';
 import { flushSync } from 'react-dom';
 import { GT_MARKS } from './constants.js';
 import { iso } from './utils/date.js';
 import { useT } from './i18n.jsx';
-import { normalizeLoadedData } from './utils/loadedData.js';
 import { exportSprintMarkdown } from './utils/exports.js';
-import { parseMdToProject } from './utils/markdownParse.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { buildMemberShortMap } from './utils/memberShort.js';
-import { applyPastEdit, localDay, logStart, planOn, recordToday } from './utils/dayLog.js';
-import {
-  applyPatch,
-  isEmptyPatch,
-  carryScenarioList,
-  deepEqual,
-  describeChanges,
-  diffPlan,
-  newScenarioId,
-  revertChange,
-  uniqueScenarioName,
-  withScenarioPatch,
-} from './utils/scenario.js';
 import { exportScenarioComparePDF } from './utils/scenarioReport.js';
-import { dropChange } from './utils/effective.js';
 import { CapacityProvider } from './utils/capacityLens.js';
-import { leafSnapshot, diffSnapshots, supersededByBackdate, stampPendingDates, withoutPendingDates } from './utils/history.js';
-import { createHistory, push as pushHistory, undo as undoHistory, redo as redoHistory, canUndo, canRedo } from './utils/undo.js';
+import { leafSnapshot } from './utils/history.js';
 import { buildExportCtx } from './utils/exportCtx.js';
 import { isLeafNode } from './utils/scheduler.js';
 import { sortTree } from './utils/treeEdit.js';
 import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
-import { requestHandlePermission } from './utils/fileHandleStore.js';
 import { TAB_IDS } from './utils/modes.js';
 import { usePortalRoot } from './utils/embedHost.js';
 import { Frozen } from './components/shared/Frozen.jsx';
@@ -91,7 +78,6 @@ import { ReportView } from './components/views/ReportView.jsx';
 // Lives in utils/memberShort.js; re-exported because that is where callers look.
 export { buildMemberShortMap };
 
-const NO_SCENARIOS = [];
 // Every tab the shell knows about, in bar order — declared in utils/modes.js
 // and re-exported here because that is where the rest of the app looks for it.
 export { TAB_IDS };
@@ -159,242 +145,82 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   } = useViewFilters();
   const [bulkEditModalOpen, setBulkEditModalOpen] = useState(false);
   const [saved, setSaved] = useState(true);
-  // ── Undo/redo ────────────────────────────────────────────────────────────
-  // `history` holds only past/future — the present lives in `data` itself.
-  // `mutate` is the single gateway every USER-initiated edit routes through
-  // (see utils/undo.js for the coalescing/redo-clearing rules). Automatic
-  // writes — parent-status derivation, completion-metadata sync, roadmap-
-  // assignment merge, autosave, migrations — stay on plain setData so they
-  // never show up as an undo step. Loading a different document (file open,
-  // new project, snapshot restore) calls resetHistory() instead.
-  const [history, setHistory] = useState(() => createHistory({ limit: 100 }));
+  const {
+    history,
+    setHistory,
+    scn,
+    setScn,
+    scnRef,
+    past,
+    setPast,
+    pastRef,
+    effDate,
+    setEffDate,
+    lastSavedPlanRef,
+    dayUndoRef,
+    planHistoryRef,
+    lastSavedLeavesRef,
+    leafBaselineStaleRef,
+    scnNotice,
+    setScnNotice,
+    resetDocumentState,
+    dataRef,
+    mutate,
+    handleUndo,
+    handleRedo,
+  } = useDocumentState({ data, setData, setSaved });
   // A different document is on screen: its undo stack is gone, and so is any
   // scenario that was open over the previous one.
   function resetHistory() {
     diskTextRef.current = null;
     busyRoundsRef.current = 0;
     clearTimeout(saveRetryTimerRef.current);
-    setEffDate('');
-    setPast(null);
-    lastSavedPlanRef.current = null;
-    dayUndoRef.current = null;
-    setHistory(createHistory({ limit: 100 }));
-    setScn(null);
-    planHistoryRef.current = null;
-    setScnNotice(null);
-    leafBaselineStaleRef.current = true;
+    resetDocumentState();
   }
-  // ── Scenarios ────────────────────────────────────────────────────────────
-  // While a scenario is on screen, `data` IS the scenario — the plan with the
-  // scenario's changes applied — and every view, edit, undo and export works
-  // on it exactly as it does on the plan. The plan itself waits in `scn.base`.
-  // The file always holds the plan plus, per scenario, what differs
-  // (`fileData` below); nothing a scenario does reaches the plan until it is
-  // applied. See utils/scenario.js and docs/scenarios.md.
-  const [scn, setScn] = useState(null); // { id, base, conflicts } | null
-  const scnRef = useRef(scn);
-  scnRef.current = scn;
-  // ── An earlier day ───────────────────────────────────────────────────
-  // The same arrangement for time: while an earlier day is chosen, `data` IS
-  // the plan as it stood on that day, and every view and edit works on it as
-  // always. The real plan waits in `past.base`; what belongs in the file is
-  // that plan with what was edited on screen applied from the chosen day on
-  // (`fileData`, utils/dayLog.js). Not available inside a scenario.
-  const [past, setPast] = useState(null); // { day, base, baseScreen } | null
-  const pastRef = useRef(past);
-  pastRef.current = past;
-  // The plan as the last save (or the load) left it: what today's log entry
-  // is measured against.
-  const lastSavedPlanRef = useRef(null);
-  // The plan's undo stack, set aside while an earlier day is on screen. It
-  // comes back when the visit changed nothing; a visit that did change the
-  // plan starts a new stack, because the old snapshots no longer lead to it.
-  const dayUndoRef = useRef(null); // { history, real }
-  // The plan's undo stack, set aside while a scenario is on screen, so that a
-  // look at a what-if does not cost the plan its history.
-  const planHistoryRef = useRef(null); // { history, ids }
   // Which tab of the comparison was open: kept for the app's lifetime so a
   // jump to a task and back lands where it left.
   const scnCompareMemory = useRef({ tab: 'projects', onlyMoved: true });
-  // What just happened to a scenario — applied, deleted — said out loud for a
-  // moment, with the way back. Leaving a mode must not look like nothing.
-  const [scnNotice, setScnNotice] = useState(null); // { kind, name, changes }
-  useEffect(() => {
-    if (!scnNotice) return undefined;
-    const timer = setTimeout(() => setScnNotice(null), 12000);
-    return () => clearTimeout(timer);
-  }, [scnNotice]);
-  // Always the data of the latest completed render — see mutate() below.
-  const dataRef = useRef(data);
-  dataRef.current = data;
-  // The snapshot comes from a ref, not from the render closure. This file's
-  // mutation helpers are deliberately written as functional updaters because
-  // callbacks fired in rapid succession would otherwise see a stale `data`
-  // (see the comments on updateNode / removeDep) — and a stale SNAPSHOT is
-  // the same bug wearing a different hat: ⌘Z would jump back further than the
-  // one edit the user just made. Coalescing hides it most of the time, which
-  // is exactly what would make it hard to find later.
-  function mutate(updater) {
-    // The notice offers "undo" for the apply or delete it reports; after
-    // another edit that button would undo the edit instead.
-    setScnNotice(null);
-    setHistory(h => pushHistory(h, dataRef.current, { coalesceMs: 300 }));
-    setData(updater);
-    setSaved(false);
-  }
-  function handleUndo() {
-    if (!canUndo(history)) return;
-    const { history: nextHistory, snapshot } = undoHistory(history, data);
-    if (snapshot === undefined) return;
-    setHistory(nextHistory);
-    setData(snapshot);
-    setSaved(false);
-    setScnNotice(null);
-  }
-  function handleRedo() {
-    if (!canRedo(history)) return;
-    const { history: nextHistory, snapshot } = redoHistory(history, data);
-    if (snapshot === undefined) return;
-    setHistory(nextHistory);
-    setData(snapshot);
-    setSaved(false);
-    setScnNotice(null);
-  }
-  const scnPatch = useMemo(() => (scn && data ? diffPlan(scn.base, data) : null), [scn, data]);
-  const scnChanges = useMemo(() => (scn && data ? describeChanges(scn.base, data, scnPatch) : NO_SCENARIOS), [scn, data, scnPatch]);
-  // What belongs in the file: the plan, and each scenario as its patch.
-  const fileData = useMemo(() => {
-    if (past && data) return applyPastEdit(past.base, past.baseScreen, data, past.day);
-    if (!scn || !data) return data;
-    // Nothing changed in this visit: the entry keeps its stored patch, its
-    // count of changes that no longer fit, and its date. Opening a scenario
-    // whose plan has moved on would otherwise save the shortened patch on
-    // sight and lose the record that something was left out.
-    if (deepEqual(scnPatch, scn.entryPatch)) return { ...scn.base, scenarios: data.scenarios || [] };
-    return { ...scn.base, scenarios: withScenarioPatch(data.scenarios || [], scn.id, scnPatch, scnChanges.length) };
-  }, [scn, past, data, scnPatch, scnChanges]);
-  const fileDataRef = useRef(fileData);
-  fileDataRef.current = fileData;
-  // Put a document on screen: the plan (`scenarioId` null) or one of its
-  // scenarios. `fd` is always file-shaped — the plan with its scenario list.
-  // `undoTo`, when given, becomes the one step ⌘Z can take back: used where
-  // leaving a scenario also changes the plan (apply) or drops it (discard).
-  function showDocument(fd, scenarioId, undoTo = null) {
-    const target = scenarioId ? (fd.scenarios || []).find(s => s.id === scenarioId) : null;
-    if (target) {
-      const { data: work, conflicts } = applyPatch(fd, target.patch);
-      // `entryPatch` is what the scenario amounts to as it was opened. While
-      // the visit has not changed that, the stored entry is left exactly as
-      // it is (see fileData) — looking at a scenario must not rewrite it.
-      setScn({ id: target.id, base: fd, conflicts: conflicts.length + (target.lost || 0), entryPatch: diffPlan(fd, work) });
-      setData(work);
-    } else {
-      setScn(null);
-      setData(fd);
-    }
-    // Undo. A scenario starts each visit with an empty stack — its earlier
-    // snapshots were measured against a plan that may have moved since. The
-    // plan gets its own stack back, with the scenario list in every snapshot
-    // brought up to date (carryScenarioList), so ⌘Z after a visit undoes the
-    // last edit to the plan and nothing that was done in the scenario.
-    const wasInPlan = !scnRef.current;
-    let next = createHistory({ limit: 100 });
-    if (target) {
-      if (wasInPlan) planHistoryRef.current = { history, ids: new Set((dataRef.current?.scenarios || []).map(s => s.id)) };
-    } else {
-      const kept = planHistoryRef.current;
-      planHistoryRef.current = null;
-      if (wasInPlan) next = history;
-      else if (kept) {
-        const list = (undoTo || fd).scenarios || [];
-        next = {
-          ...kept.history,
-          past: kept.history.past.map(snap => carryScenarioList(snap, list, kept.ids)),
-          future: [],
-          lastPushAt: null,
-        };
-      }
-      if (undoTo) next = pushHistory({ ...next, lastPushAt: null }, undoTo, { coalesceMs: 0 });
-    }
-    setHistory(next);
-    setMultiSel(new Set());
-    setScnNotice(null);
-  }
-  const scenarioList = data?.scenarios || NO_SCENARIOS;
-  const activeScenario = scn ? scenarioList.find(s => s.id === scn.id) || null : null;
-  function scenarioSwitch(id) {
-    if (pastRef.current) return;
-    if ((scn?.id || null) === (id || null)) return;
-    showDocument(fileDataRef.current, id || null);
-  }
-  function scenarioCreate(name, { copyOf = null } = {}) {
-    const fd = fileDataRef.current;
-    if (!fd || pastRef.current) return null;
-    const list = fd.scenarios || [];
-    const source = copyOf ? list.find(s => s.id === copyOf) : null;
-    const id = newScenarioId(list);
-    const fallback = source ? _t('scn.copyName', source.name) : _t('scn.defaultName', list.length + 1);
-    const entry = {
-      id,
-      name: uniqueScenarioName((name || '').trim() || fallback, list),
-      createdAt: new Date().toISOString(),
-      patch: source?.patch || null,
-    };
-    showDocument({ ...fd, scenarios: [...list, entry] }, id);
-    setSaved(false);
-    return id;
-  }
-  function scenarioRename(id, name) {
-    const clean = (name || '').trim();
-    if (!clean) return;
-    mutate(d => ({
-      ...d,
-      scenarios: (d.scenarios || []).map(s => (s.id === id ? { ...s, name: uniqueScenarioName(clean, d.scenarios || [], id) } : s)),
-    }));
-  }
-  // Deleting the scenario on screen leaves it for the plan; ⌘Z brings it back.
-  function scenarioDelete(id) {
-    if (scn?.id === id) {
-      const fd = fileDataRef.current;
-      const gone = (fd.scenarios || []).find(s => s.id === id);
-      const rest = { ...fd, scenarios: (fd.scenarios || []).filter(s => s.id !== id) };
-      if (!rest.scenarios.length) delete rest.scenarios;
-      showDocument(rest, null, fd);
-      setScnNotice({ kind: 'deleted', name: gone?.name || '', changes: scnChanges.length });
-      setSaved(false);
-      return;
-    }
-    mutate(d => ({ ...d, scenarios: (d.scenarios || []).filter(s => s.id !== id) }));
-  }
-  // The scenario becomes the plan. Everything else in the list stays, and now
-  // measures against the new plan. One ⌘Z takes it back, scenario included.
-  function scenarioApply() {
-    if (!scn || !data) return;
-    const before = fileDataRef.current;
-    const plan = { ...data, scenarios: (data.scenarios || []).filter(s => s.id !== scn.id) };
-    if (!plan.scenarios.length) delete plan.scenarios;
-    const name = activeScenario?.name || '';
-    const changes = scnChanges.length;
-    showDocument(plan, null, before);
-    setScnNotice({ kind: 'applied', name, changes });
-    setSaved(false);
-    setModal(m => (m === 'scenario' ? null : m));
-  }
-  function scenarioRevertChange(change) {
-    if (!scn) return;
-    const { data: work } = applyPatch(scn.base, revertChange(scnPatch, change));
-    mutate(d => ({ ...work, scenarios: d.scenarios, historyEvents: d.historyEvents, roadmapAssignment: d.roadmapAssignment }));
-  }
+  const {
+    scnChanges,
+    fileDataRef,
+    scenarioList,
+    activeScenario,
+    scenarioSwitch,
+    scenarioCreate,
+    scenarioRename,
+    scenarioDelete,
+    scenarioApply,
+    scenarioRevertChange,
+  } = useScenarios({
+    data,
+    setData,
+    setSaved,
+    setMultiSel,
+    setModal,
+    _t,
+    mutate,
+    history,
+    setHistory,
+    scn,
+    setScn,
+    scnRef,
+    past,
+    pastRef,
+    dataRef,
+    planHistoryRef,
+    setScnNotice,
+  });
   const fRef = useRef(null);
   const searchRef = useRef(null);
   const prevTreeRef = useRef([]);
   const prevScheduledRef = useRef([]);
-  // Leaf-state snapshot at the moment of the last successful persist (load or
-  // save). Drives the history-event diff: every save compares the current tree
-  // to this snapshot and appends only the changes. Reseeded on file load so
-  // we don't emit fake "added" events for the whole tree.
-  const lastSavedLeavesRef = useRef(null);
-  const leafBaselineStaleRef = useRef(true);
+  // The three functions that write the history log are defined further down,
+  // where `tree` and `isMdFile` exist. The file layer is set up before that, so
+  // it gets these wrappers, which call whatever the latest render defined.
+  const logWritersRef = useRef(null);
+  const composeFileForSave = () => logWritersRef.current.composeFileForSave();
+  const recordHistoryForLocalSave = () => logWritersRef.current.recordHistoryForLocalSave();
+  const commitSaveSideEffects = args => logWritersRef.current.commitSaveSideEffects(args);
   const { appRef, ...uiPrefs } = useUiPrefs(portalRoot);
   const fileSession = useFileSession({
     data,
@@ -708,64 +534,28 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // change at that date instead of into the plan as it always was. Not
   // persisted: like backdating, a date you forgot about would quietly send
   // every later edit to the wrong place.
-  const [effDate, setEffDate] = useState('');
   const { resLens, ...lensDates } = useResourceLens({ data, effDate });
-  // A day before today is a look at the plan as it was (and a place to
-  // correct it from then on); a day after today is where capacity changes.
-  // The same plan, whatever a save added to its logs in between.
-  const sameDocument = (a, b) => a === b || isEmptyPatch(diffPlan(a, b));
-  const pickEffDate = day => {
-    const wanted = day || '';
-    const goPast = !!wanted && wanted < localDay() && !scnRef.current;
-    const from = pastRef.current;
-    if (from || goPast) {
-      // Back to the real plan first, with whatever was edited on that day.
-      let real = from ? fileDataRef.current : recordToday(lastSavedPlanRef.current, dataRef.current);
-      if (!real) return;
-      // What was changed today and not saved yet is written to the history
-      // now, as of today: once the earlier day is on screen, every entry a
-      // save finds counts for that day.
-      if (!from && lastSavedLeavesRef.current) {
-        const snapshot = leafSnapshot(sortTree(real.tree || []));
-        const ts = new Date().toISOString();
-        const events = stampPendingDates(diffSnapshots(lastSavedLeavesRef.current, snapshot, ts, null), real.asOfPending, snapshot, ts);
-        lastSavedLeavesRef.current = snapshot;
-        real = recordSavedEvents(real, events, real.asOfPending || null);
-      }
-      lastSavedPlanRef.current = real;
-      if (goPast) {
-        const screen = planOn(real, wanted);
-        setPast({ day: wanted, base: real, baseScreen: screen });
-        setData(screen);
-      } else {
-        setPast(null);
-        setData(real);
-      }
-      // Snapshots of one day are not edits of another.
-      if (!from) dayUndoRef.current = { history, real };
-      const kept = dayUndoRef.current;
-      const untouched = !goPast && kept && sameDocument(kept.real, real);
-      if (!goPast) dayUndoRef.current = null;
-      setHistory(untouched ? kept.history : createHistory({ limit: 100 }));
-      if (from && !untouched) setSaved(false);
-    }
-    setEffDate(wanted);
-    if (wanted && !goPast) setTab('resources');
-  };
-  // On an earlier day the screen already is that day: an edit there is an
-  // ordinary edit, and the day log carries it forward.
-  const effFold = past ? null : effDate || null;
-  const pastStart = useMemo(() => (past ? logStart(past.base) : null), [past]);
-  const effDropDate = from => mutate(d => dropChange(d, from));
-  const effContext = useMemo(
-    () => ({
-      date: effDate,
-      changes: data?.changes || [],
-      onGo: day => pickEffDate(day || ''),
-      onDrop: (from, kind, id) => mutate(d => dropChange(d, from, kind, id)),
-    }),
-    [effDate, data?.changes, past?.day, scn?.id],
-  );
+  const { pickEffDate, effFold, pastStart, effDropDate, effContext } = useEarlierDay({
+    data,
+    history,
+    setHistory,
+    setData,
+    setSaved,
+    setTab,
+    setPast,
+    setEffDate,
+    mutate,
+    scn,
+    past,
+    effDate,
+    scnRef,
+    pastRef,
+    dataRef,
+    fileDataRef,
+    lastSavedPlanRef,
+    lastSavedLeavesRef,
+    dayUndoRef,
+  });
 
   // Persist the last visible schedule window for completed tasks so they stay visible
   // in the Gantt after being marked done, without reintroducing them into future planning.
@@ -1034,161 +824,34 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       projectWaitsOf,
     });
   const isMdFile = fileName?.endsWith('.md');
-  // Build the file content together with any new history events. The events
-  // capture the delta between the leaf state at the last successful persist
-  // (`lastSavedLeavesRef`) and the current tree. Returns { content, newEvents,
-  // snapshot } so the caller can commit the ref+state after a successful write.
-  function composeFileForSave() {
-    // A scenario on screen: the file gets the plan it rests on plus the
-    // scenario's patch, and no history — nothing in a what-if has happened.
-    if (scnRef.current) {
-      const fd = fileDataRef.current;
-      const content = isMdFile
-        ? _buildMd({
-            tree: sortTree(fd.tree || []),
-            members: fd.members || [],
-            teams: fd.teams || [],
-            vacations: fd.vacations || [],
-            data: fd,
-            meta: fd.meta || {},
-          })
-        : JSON.stringify(fd, null, 2);
-      return { content, newEvents: [], snapshot: lastSavedLeavesRef.current };
-    }
-    // An earlier day on screen: the file gets the real plan, with what was
-    // edited here applied from that day on. Its history entries count for
-    // that day, and the day log was rebuilt with the edit (utils/dayLog.js).
-    const visit = pastRef.current;
-    const real = visit ? fileDataRef.current : recordToday(lastSavedPlanRef.current, data);
-    const realTree = visit ? sortTree(real.tree || []) : tree;
-    const ts = new Date().toISOString();
-    const currSnapshot = leafSnapshot(realTree);
-    let newEvents = [];
-    if (lastSavedLeavesRef.current) {
-      newEvents = stampPendingDates(
-        diffSnapshots(lastSavedLeavesRef.current, currSnapshot, ts, visit ? visit.day : null),
-        real?.asOfPending,
-        currSnapshot,
-        ts,
-      );
-    }
-    // A backdated entry supersedes the later ones it contradicts, or the
-    // replay walks done → wip → done and every review in between reports the
-    // wrong state (utils/history.js).
-    const { kept } = supersededByBackdate(real?.historyEvents || [], newEvents);
-    const eventsForFile = newEvents.length ? [...kept, ...newEvents] : kept;
-    const plain = withoutPendingDates(real);
-    const dataForFile = eventsForFile.length ? { ...plain, historyEvents: eventsForFile } : plain;
-    const content = isMdFile
-      ? _buildMd({
-          tree: realTree,
-          members: real.members || [],
-          teams: real.teams || [],
-          vacations: real.vacations || [],
-          data: dataForFile,
-          meta: real.meta || {},
-        })
-      : JSON.stringify(dataForFile, null, 2);
-    return {
-      content,
-      newEvents,
-      snapshot: currSnapshot,
-      pendingRead: real?.asOfPending || null,
-      savedPlan: real,
-      visit: visit ? { day: visit.day, screen: data } : null,
-    };
-  }
-  // The same diff the file-save path takes, for when there is no file. Kept
-  // separate because composeFileForSave also serialises the whole project,
-  // which this does not need.
-  function recordHistoryForLocalSave() {
-    // An earlier day on screen: recorded once the visit is over, from the
-    // real plan (its dated entries wait in `asOfPending`).
-    if (!Array.isArray(tree) || scnRef.current || pastRef.current) return;
-    const snapshot = leafSnapshot(tree);
-    if (!lastSavedLeavesRef.current) {
-      lastSavedLeavesRef.current = snapshot;
-      return;
-    }
-    const pendingRead = data?.asOfPending || null;
-    const ts = new Date().toISOString();
-    const newEvents = stampPendingDates(diffSnapshots(lastSavedLeavesRef.current, snapshot, ts, null), pendingRead, snapshot, ts);
-    lastSavedLeavesRef.current = snapshot;
-    const savedPlan = recordToday(lastSavedPlanRef.current, data);
-    lastSavedPlanRef.current = savedPlan;
-    setData(d => withDayLog(recordSavedEvents(d, newEvents, pendingRead), savedPlan.dayLog));
-  }
-  // The document with the day log a save wrote; the same object when nothing
-  // differs, so that a save which changed nothing does not start another.
-  function withDayLog(next, log) {
-    if (deepEqual(next.dayLog || [], log || [])) return next;
-    if (!log || !log.length) {
-      const { dayLog, ...rest } = next;
-      return rest;
-    }
-    return { ...next, dayLog: log };
-  }
-  // What a finished save leaves in the document: its events, and none of the
-  // dates it read. A date set while the save was under way is another one and
-  // stays for the next save.
-  function recordSavedEvents(d, newEvents, pendingRead) {
-    const left = withoutPendingDates(d, pendingRead);
-    return newEvents && newEvents.length
-      ? { ...left, historyEvents: [...supersededByBackdate(left?.historyEvents || [], newEvents).kept, ...newEvents] }
-      : left;
-  }
-  function commitSaveSideEffects({ newEvents, snapshot, pendingRead, savedPlan, visit }) {
-    lastSavedLeavesRef.current = snapshot;
-    if (visit) {
-      // The visit goes on from what was just written: the real plan with its
-      // new entries, and the screen as it was when the save read it.
-      const base = recordSavedEvents(savedPlan, newEvents, pendingRead);
-      if (pastRef.current?.day !== visit.day) {
-        // The day was left while the file was being written: what the save
-        // recorded goes to wherever the real plan is now. What today's log
-        // entry is measured against was set on leaving, and includes edits
-        // made after this save read the screen.
-        if (pastRef.current) setPast(p => (p ? { ...p, base: recordSavedEvents(p.base, newEvents, pendingRead) } : p));
-        else if (!scnRef.current) setData(d => recordSavedEvents(d, newEvents, pendingRead));
-        return;
-      }
-      lastSavedPlanRef.current = base;
-      const baseScreen = { ...visit.screen, historyEvents: base.historyEvents };
-      setPast({ day: visit.day, base, baseScreen });
-      setData(d => (d === visit.screen ? baseScreen : { ...d, historyEvents: base.historyEvents }));
-      return;
-    }
-    if (savedPlan) lastSavedPlanRef.current = savedPlan;
-    if (scnRef.current) return;
-    setData(d => withDayLog(recordSavedEvents(d, newEvents, pendingRead), savedPlan?.dayLog));
-  }
-  function loadFile(e) {
-    const f = e.target.files[0];
-    if (!f) return;
-    const r = new FileReader();
-    r.onload = async ev => {
-      try {
-        const text = ev.target.result;
-        const isMd = f.name.endsWith('.md');
-        const d = normalizeLoadedData(isMd ? parseMdToProject(text) : JSON.parse(text));
-        if (!d.tree || !Array.isArray(d.tree) || d.tree.length === 0)
-          throw new Error(isMd ? 'No work items found in this Markdown file.' : 'Invalid project file.');
-        // Set data first, then clean up handle in background
-        setData(d);
-        resetHistory(); // different document — the old undo stack doesn't apply
-        setSel(null);
-        setSaved(true);
-        setFileName(f.name);
-        setFileWriteOk(false);
-        setAutoSave(true);
-        forgetHandle().catch(() => {});
-      } catch (e) {
-        alert(e.message || 'Invalid project file.');
-      }
-    };
-    r.readAsText(f);
-    e.target.value = '';
-  }
+  const logWriters = buildLogWriters({
+    data,
+    tree,
+    isMdFile,
+    setData,
+    setPast,
+    scnRef,
+    pastRef,
+    fileDataRef,
+    lastSavedPlanRef,
+    lastSavedLeavesRef,
+  });
+  logWritersRef.current = logWriters;
+  const { loadFile, newProject, restoreMountedFile } = fileLoaders({
+    setData,
+    resetHistory,
+    setSel,
+    setSaved,
+    setModal,
+    setTab,
+    setFileName,
+    setFileWriteOk,
+    setAutoSave,
+    setLastSavedAt,
+    forgetHandle,
+    fileHandleRef,
+    ensureHandlePermission,
+  });
   function onBarClick(s, focusRequest = null) {
     const node = tree.find(r => r.id === (s.treeId || s.id));
     if (!node) return;
@@ -1216,47 +879,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       setModal('node');
     });
   }
-  async function newProject() {
-    await forgetHandle();
-    setFileWriteOk(false);
-    setAutoSave(true);
-    setSaved(true);
-    setLastSavedAt(null);
-    setData(null);
-    resetHistory();
-    setSel(null);
-    setModal(null);
-    setTab('summary');
-  }
-
-  // Restore mounted file after page reload (when bootstrap left us with a handle but no read permission)
-  async function restoreMountedFile() {
-    const handle = fileHandleRef.current;
-    if (!handle) return;
-    try {
-      const granted = await requestHandlePermission(handle, 'readwrite');
-      if (granted !== 'granted') {
-        const readOnly = await requestHandlePermission(handle, 'read');
-        if (readOnly !== 'granted') return;
-      }
-      const file = await handle.getFile();
-      const text = await file.text();
-      const d = normalizeLoadedData(handle.name?.endsWith('.md') ? parseMdToProject(text) : JSON.parse(text));
-      if (!isValidProjectData(d)) throw new Error('Invalid project file in mounted location.');
-      setData(d);
-      resetHistory(); // different document — the old undo stack doesn't apply
-      setSel(null);
-      setSaved(true);
-      setLastSavedAt(new Date());
-      const canWrite = await ensureHandlePermission(handle, false);
-      setFileWriteOk(canWrite);
-      setAutoSave(true);
-    } catch (e) {
-      alert('Could not restore mounted file: ' + (e.message || e));
-      await forgetHandle();
-    }
-  }
-
   const onGanttBarClick = useStableCallback((...a) => onBarClick(...a));
   const onNetNodeClick = useStableCallback(r => onBarClick(r));
   // Clicking an item — anywhere — opens that item's own edit dialog. The same
