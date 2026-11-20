@@ -9,6 +9,7 @@ import { migratedAutoHolidays, trimmedToHorizon, withDerivedTeamsAndStatuses } f
 import { futureProgressByRoot } from './app/futureProgress.js';
 import { overbookedIds, scheduleFiltered, scopeFiltered, withReviewedDone, withoutDone } from './app/viewTree.js';
 import { pushSnapshot } from './app/snapshots.js';
+import { buildPaletteCommands } from './app/paletteCommands.js';
 import {
   initialShell,
   loadLocalProject,
@@ -16,7 +17,6 @@ import {
   scheduleIdleWrite,
   cancelIdleWrite,
   activateOnPress,
-  TAB_ICONS,
   NEW_BADGE_TAB_IDS,
   FILTERED_TABS,
   SEARCH_TABS,
@@ -111,12 +111,12 @@ import { TreeView, TREE_FOCUS_EVENT } from './components/views/TreeView.jsx';
 import { QuickEdit } from './components/views/QuickEdit.jsx';
 import { GanttView } from './components/views/GanttView.jsx';
 import { NetGraph } from './components/views/NetGraph.jsx';
-import { ResView, RES_JOB_EVENT } from './components/views/ResView.jsx';
+import { ResView } from './components/views/ResView.jsx';
 import { WorkOrderView, QUEUE_FOCUS_EVENT } from './components/views/WorkOrderView.jsx';
 import { Frozen } from './components/shared/Frozen.jsx';
 import { HolView } from './components/views/HolView.jsx';
 import { SumView } from './components/views/SumView.jsx';
-import { BriefingView, BRIEFING_JOB_EVENT } from './components/views/BriefingView.jsx';
+import { BriefingView } from './components/views/BriefingView.jsx';
 import { PlanReview } from './components/views/PlanReview.jsx';
 import { Onboard } from './components/views/Onboard.jsx';
 import { NodeModal } from './components/modals/NodeModal.jsx';
@@ -135,16 +135,9 @@ import { SearchSelect } from './components/shared/SearchSelect.jsx';
 import { LazyInput } from './components/shared/LazyInput.jsx';
 import { HoverTipProvider } from './components/shared/HoverTip.jsx';
 import { CommandPalette, PALETTE_OPEN_EVENT } from './components/shared/CommandPalette.jsx';
-import { KeyboardMap, KEYMAP_OPEN_EVENT } from './components/shared/KeyboardMap.jsx';
+import { KeyboardMap } from './components/shared/KeyboardMap.jsx';
 import { FileMenu } from './components/shared/FileMenu.jsx';
-import {
-  ScenarioBar,
-  ScenarioCompare,
-  ScenarioNotice,
-  ScenarioSwitch,
-  SCENARIO_NEW_EVENT,
-  useScenarioReport,
-} from './components/shared/Scenario.jsx';
+import { ScenarioBar, ScenarioCompare, ScenarioNotice, ScenarioSwitch, useScenarioReport } from './components/shared/Scenario.jsx';
 import { ReportView } from './components/views/ReportView.jsx';
 import { RoadmapLens } from './components/shared/RoadmapLens.jsx';
 import { withoutTeam, teamForAssignment } from './utils/memberTeams.js';
@@ -3466,226 +3459,21 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     // dead card and becomes one click of setup.
   };
 
-  // `/` command palette — every control displaced from the topbar (principle
-  // 4, tier 2), plus a jump to each mode and each view. One flat list; the
-  // palette itself groups by `group`/`groupLabel` and fuzzy-filters
-  // (src/utils/palette.js).
-  const fileGroup = _t('palette.group.file');
-  const jobGroup = _t('palette.group.jobs');
-  const viewGroup = _t('palette.group.views');
-  // `keywords` are the words you reach for when the label is in the other
-  // language, or is a sentence where your head holds one noun.
-  const JOBS = [
-    {
-      id: 'jira',
-      icon: 'swap',
-      labelKey: 'job.jira',
-      tab: 'briefing',
-      event: BRIEFING_JOB_EVENT,
-      keywords: ['jira', 'sync', 'abgleich', 'reconcile', 'ticket'],
-    },
-    {
-      id: 'vacation',
-      icon: 'beach',
-      labelKey: 'job.vacation',
-      tab: 'resources',
-      event: RES_JOB_EVENT,
-      keywords: ['vacation', 'holiday', 'urlaub', 'abwesenheit'],
-    },
-    {
-      id: 'onboard',
-      icon: 'plus',
-      labelKey: 'job.onboard',
-      tab: 'resources',
-      event: RES_JOB_EVENT,
-      keywords: ['onboard', 'onboarding', 'einstellen', 'mitarbeiter', 'person', 'hire'],
-    },
-  ];
-  // `icon` and `key` are what make this list scannable rather than twenty
-  // rows of identical text; `key` is a shortcuts.js id, so the palette
-  // teaches the keystroke instead of hiding it.
-  const paletteCommands = [
-    { id: 'load', icon: 'folder', labelKey: 'palette.load', group: 'file', groupLabel: fileGroup, key: 'open', run: () => loadFromFile() },
-    {
-      id: 'snapshots',
-      icon: 'undo',
-      labelKey: 'palette.snapshots',
-      group: 'file',
-      groupLabel: fileGroup,
-      run: () => setModal('snapshots'),
-    },
-    {
-      id: 'saveAs',
-      icon: 'save',
-      labelKey: 'palette.saveAs',
-      group: 'file',
-      groupLabel: fileGroup,
-      key: 'saveAs',
-      run: () => saveToFile(true),
-    },
-    // Export… means "go look at the Report view" — the export cards rendered
-    // as a normal view (ReportView.jsx). The old dialog stays one entry below
-    // so nothing that worked before stops working.
-    {
-      id: 'export',
-      icon: 'upload',
-      labelKey: 'palette.export',
-      group: 'file',
-      groupLabel: fileGroup,
-      key: 'export',
-      run: () => setTab('report'),
-    },
-    {
-      id: 'exportDialog',
-      icon: 'doc',
-      labelKey: 'palette.exportDialog',
-      group: 'file',
-      groupLabel: fileGroup,
-      run: () => setModal('export'),
-    },
-    {
-      id: 'jiraImport',
-      icon: 'download',
-      labelKey: 'ji.title',
-      group: 'file',
-      groupLabel: fileGroup,
-      keywords: ['jira', 'import', 'csv', 'tickets', 'übernehmen', 'board'],
-      run: () => setModal('jiraImport'),
-    },
-    {
-      id: 'newProject',
-      icon: 'sparkle',
-      labelKey: 'palette.newProject',
-      group: 'file',
-      groupLabel: fileGroup,
-      run: () => {
-        if (!saved && !confirm(_t('app.newConfirm'))) return;
-        newProject();
-      },
-    },
-    { id: 'help', icon: 'help', labelKey: 'tour.helpTitle', group: 'file', groupLabel: fileGroup, run: () => startTour() },
-    {
-      id: 'keymap',
-      icon: 'keyboard',
-      labelKey: 'km.title',
-      group: 'file',
-      groupLabel: fileGroup,
-      key: 'keymap',
-      run: () => window.dispatchEvent(new Event(KEYMAP_OPEN_EVENT)),
-    },
-    // The jobs that come back every week. Each lands on the surface with the
-    // work already started — the paste box focused, the row created — rather
-    // than on the tab that contains it. A command that only changed tabs would
-    // duplicate the view jumps below it.
-    // Scenarios: one entry to start one, one per scenario to go there, and
-    // while one is on screen the three things you do with it.
-    {
-      id: 'effective.pick',
-      icon: 'calendar',
-      labelKey: 'eff.cmd',
-      group: 'scenario',
-      groupLabel: _t('palette.group.scenario'),
-      keywords: [
-        'stichtag',
-        'datum',
-        'ab',
-        'kapazität',
-        'capacity',
-        'effective',
-        'date',
-        'meeting',
-        'teilzeit',
-        'backdate',
-        'rückdatieren',
-        'nachtragen',
-        'früher',
-        'earlier',
-        'zeitreise',
-      ],
-      run: () => window.dispatchEvent(new Event(EFFECTIVE_OPEN_EVENT)),
-    },
-    {
-      id: 'scenario.new',
-      icon: 'branch',
-      labelKey: 'scn.cmd.new',
-      group: 'scenario',
-      groupLabel: _t('palette.group.scenario'),
-      keywords: ['scenario', 'szenario', 'what if', 'was wäre wenn', 'variante', 'alternative', 'simulation'],
-      run: () => window.dispatchEvent(new Event(SCENARIO_NEW_EVENT)),
-    },
-    ...(scn
-      ? [
-          {
-            id: 'scenario.leave',
-            icon: 'undo',
-            labelKey: 'scn.cmd.leave',
-            group: 'scenario',
-            groupLabel: _t('palette.group.scenario'),
-            keywords: ['plan', 'verlassen', 'leave'],
-            run: () => scenarioSwitch(null),
-          },
-          {
-            id: 'scenario.compare',
-            icon: 'swap',
-            labelKey: 'scn.cmd.compare',
-            group: 'scenario',
-            groupLabel: _t('palette.group.scenario'),
-            keywords: ['vergleich', 'compare', 'diff'],
-            run: () => setModal('scenario'),
-          },
-          {
-            id: 'scenario.pdf',
-            icon: 'doc',
-            labelKey: 'scn.cmd.pdf',
-            group: 'scenario',
-            groupLabel: _t('palette.group.scenario'),
-            keywords: ['pdf', 'report', 'bericht', 'export', 'vergleich'],
-            run: () => exportScenarioPDF?.(),
-          },
-          {
-            id: 'scenario.apply',
-            icon: 'check',
-            labelKey: 'scn.cmd.apply',
-            group: 'scenario',
-            groupLabel: _t('palette.group.scenario'),
-            keywords: ['übernehmen', 'apply', 'merge'],
-            run: () => scenarioApply(),
-          },
-        ]
-      : []),
-    ...scenarioList
-      .filter(sc => sc.id !== scn?.id)
-      .map(sc => ({
-        id: `scenario.go.${sc.id}`,
-        icon: 'branch',
-        label: _t('scn.cmd.switch', sc.name),
-        labelKey: 'scn.cmd.switch',
-        group: 'scenario',
-        groupLabel: _t('palette.group.scenario'),
-        keywords: ['scenario', 'szenario'],
-        run: () => scenarioSwitch(sc.id),
-      })),
-    ...JOBS.map(j => ({
-      id: `job.${j.id}`,
-      icon: j.icon,
-      labelKey: j.labelKey,
-      keywords: j.keywords,
-      group: 'job',
-      groupLabel: jobGroup,
-      run: () => {
-        setTab(j.tab);
-        window.setTimeout(() => window.dispatchEvent(new CustomEvent(j.event, { detail: { job: j.id } })), 0);
-      },
-    })),
-    ...TAB_IDS.map(id => ({
-      id: `view.${id}`,
-      icon: TAB_ICONS[id] || 'chevronRight',
-      labelKey: `tab.${id}`,
-      group: 'view',
-      groupLabel: viewGroup,
-      run: () => setTab(id),
-    })),
-  ];
+  const paletteCommands = buildPaletteCommands({
+    _t,
+    saved,
+    scn,
+    scenarioList,
+    loadFromFile,
+    saveToFile,
+    setModal,
+    setTab,
+    newProject,
+    startTour,
+    scenarioSwitch,
+    scenarioApply,
+    exportScenarioPDF,
+  });
 
   return (
     <>
