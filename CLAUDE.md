@@ -11,7 +11,7 @@ changing a subsystem, instead of reconstructing it from the code.
   `npx vitest run -c vitest.worktree.config.js`, the default config's
   `fs.allow` rejects worktree paths. A single file: append its path.
 - Quality: `npm run quality` (lint with baseline, duplicates, dead code,
-  versions, private terms) and `npm run test:coverage`. CI runs both on every
+  versions, semgrep, private terms) and `npm run test:coverage`. CI runs both on every
   pull request. After fixing a baselined finding: `npm run lint:prune`. Limits
   and the reasons: `docs/quality.md`.
 - Lint: `npx eslint <file>` (a PostToolUse hook already lints every edited

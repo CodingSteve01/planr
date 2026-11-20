@@ -63,7 +63,6 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
   // Distinct from the project-wide horizon filter in ViewFilters; this is a local control
   // for the upcoming-sprint table.
   const [sprintDays, setSprintDays] = useState(() => { try { return +localStorage.getItem('planr_sprint_horizon') || 30; } catch { return 30; } });
-  const setHd = v => { setSprintDays(v); try { localStorage.setItem('planr_sprint_horizon', String(v)); } catch {} };
   const sprintEnd = useMemo(() => { const d = new Date(); d.setDate(d.getDate() + sprintDays); return d; }, [sprintDays]);
   const now = new Date();
   const h1Weeks = useMemo(() => { try { return +localStorage.getItem('planr_h1_weeks') || 8; } catch { return 8; } }, []);
@@ -423,7 +422,6 @@ function SumViewImpl({ tree, scheduled, goals, members, teams, cpSet, goalPaths,
       <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)', margin: '10px 0 4px', display: 'flex', alignItems: 'center', gap: 5 }}><Icon name={GT_ICON[g.type] || 'folder'} size={11} />{g.type ? t(g.type + 's') : t('s.otherProjects')}</div>
       {g.items.map(dl => {
         const gp = goalPaths?.[dl.id];
-        const st = stats?.[dl.id];
         const timeline = timelineById[dl.id];
         const linked = dl.type === 'deadline'
           ? deadlineScopedScheduledItems(tree, scheduled, dl.id)

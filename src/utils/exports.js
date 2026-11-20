@@ -416,6 +416,9 @@ export async function exportReportDocx(ctx) {
           const valueColor = v?.getAttribute('style')?.match(/color:\s*([^;]+)/i)?.[1] || '#1a1e2a';
           const td = doc.createElement('td');
           td.setAttribute('style', 'padding:8px 10px;border:1px solid #e0e4ea;background:#f7f9fc;text-align:center;vertical-align:top;font-family:Inter,system-ui,sans-serif');
+          // A detached document built for the DOCX converter; what goes in is the
+          // serialised content of elements Planr rendered itself.
+          // nosemgrep: planr-no-raw-html
           td.innerHTML =
             (v ? `<div style="font-size:14pt;font-weight:700;color:${valueColor};line-height:1.1;margin-bottom:2px">${v.innerHTML}</div>` : '') +
             (l ? `<div style="font-size:8pt;color:#7a839a;text-transform:uppercase;letter-spacing:0.04em">${l.innerHTML}</div>` : '');
@@ -506,7 +509,9 @@ export async function exportReportDocx(ctx) {
               const FONT = "'Inter','Segoe UI',system-ui,sans-serif";
               const INDENT_PX = 60; // cluster indent ≈ 10 chars Inter 10pt
               data.stationLines.forEach(s => {
-                const iconColor = data.color;
+                // A team's colour comes from the plan and ends up in a style
+                // attribute: only what a colour can look like gets through.
+                const iconColor = /^[#\w(),.%\s-]{1,40}$/.test(String(data.color || '')) ? data.color : '#4a5268';
                 const strike = s.done ? 'text-decoration:line-through;opacity:0.6;' : '';
                 if (s.kind === 'station') {
                   parts.push(
@@ -528,6 +533,9 @@ export async function exportReportDocx(ctx) {
                   );
                 }
               });
+              // Same detached document. Every piece of plan text in `parts` went
+              // through escapeHtml, and the colour is checked above.
+              // nosemgrep: planr-no-raw-html
               td.innerHTML = parts.join('');
             }
             tr.appendChild(td);
@@ -570,6 +578,8 @@ export async function exportReportDocx(ctx) {
           const bg = seg.getAttribute('style')?.match(/background:\s*([^;]+)/i)?.[1] || '#e5e8ee';
           const w = seg.getAttribute('style')?.match(/width:\s*([^;]+)/i)?.[1] || '0';
           td.setAttribute('style', `background:${bg};width:${w};height:8px;padding:0;line-height:8px;font-size:1px`);
+          // A literal.
+          // nosemgrep: planr-no-raw-html
           td.innerHTML = '&nbsp;';
           tr.appendChild(td);
         });

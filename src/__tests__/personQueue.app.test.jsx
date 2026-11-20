@@ -35,8 +35,6 @@ const tabNamed = name => [...document.querySelectorAll('.tab')]
 const press = async (key, opts = {}) => {
   await act(async () => { fireEvent.keyDown(window, { key, bubbles: true, ...opts }); });
 };
-const barOrder = () => [...document.querySelectorAll('[data-task-id]')].map(el => el.getAttribute('data-task-id'));
-const storedQueues = () => JSON.parse(localStorage.getItem('planr_v2') || '{}').personQueues || null;
 
 describe('the schedule is not the queue', () => {
   // Reported: that hint text eats the little vertical space there is, and it

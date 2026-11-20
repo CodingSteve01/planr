@@ -142,16 +142,6 @@ function flipTree(t) {
   return { ...t, pos: flipped, flipped: true };
 }
 
-// ── Node-level overlap check (tighter than bounding box) ────────────────────
-function nodesOverlap(treeA, ax, ay, treeB, bx, by) {
-  const gap = TREE_GAP / 2;
-  const nodesA = Object.values(treeA.pos);
-  const nodesB = Object.values(treeB.pos);
-  return nodesA.some(a => nodesB.some(b =>
-    ax + a.x < bx + b.x + NODE_W + gap && ax + a.x + NODE_W + gap > bx + b.x &&
-    ay + a.y < by + b.y + NODE_H + gap && ay + a.y + NODE_H + gap > by + b.y
-  ));
-}
 
 // ── Bin-pack trees with TD/BU flip optimization ─────────────────────────────
 function binPackTrees(trees) {
@@ -480,8 +470,6 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
   }, [activeId, allEdges, items]);
 
   const allPos = Object.entries(pos);
-  const graphW = allPos.length ? Math.max(...allPos.map(([, p]) => p.x + NODE_W)) + 20 : 400;
-  const graphH = allPos.length ? Math.max(...allPos.map(([, p]) => p.y + NODE_H)) + 20 : 300;
 
   // Search: ordered match list + Set (same pattern as GanttView).
   const searchMatchList = useMemo(() => {
@@ -544,7 +532,6 @@ function NetGraphImpl({ tree: _treeProp, scheduled, teams, members = [], cpSet, 
     return () => window.removeEventListener('keydown', h);
   }, []);
 
-  function svgPt(e) { const r = svgRef.current?.getBoundingClientRect(); return r ? { x: (e.clientX - r.left - pan.x) / zoom, y: (e.clientY - r.top - pan.y) / zoom } : { x: 0, y: 0 }; }
 
   useEffect(() => {
     const el = svgRef.current?.parentElement; if (!el) return;

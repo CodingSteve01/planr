@@ -1,0 +1,11 @@
+# Tests read the repository's own files by paths they build themselves and
+# compile patterns from their own constants. The rules that flag that are
+# about input from outside, which a test does not have.
+**/__tests__/**
+# Embedded font data.
+src/utils/pdfFonts.js
+node_modules/
+dist/
+dist-obsidian/
+# Fixtures that break the rules on purpose.
+semgrep/

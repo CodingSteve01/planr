@@ -187,9 +187,7 @@ function Slide3Network({ demo }) {
     };
 
     // Pick nodes with deps for interesting graph — roots + some leaves
-    const interesting = tree.filter(n => n.deps?.length > 0 || tree.some(o => (o.deps || []).includes(n.id)));
     const subset = tree.filter(n => !n.id.includes('.') || n.id.split('.').length <= 2).slice(0, 10);
-    const nodeIds = new Set(subset.map(n => n.id));
 
     // Layout: simple grid with jitter
     const cols = 4;

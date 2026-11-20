@@ -1,0 +1,25 @@
+on: pull_request
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      # ruleid: planr-workflow-pinned-actions
+      - uses: actions/checkout@v4
+      # ruleid: planr-workflow-pinned-actions
+      - uses: someone/thing@main
+      # ok: planr-workflow-pinned-actions
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # ok: planr-workflow-pinned-actions
+      - uses: ./.github/actions/local
+      # ruleid: planr-workflow-no-expression-in-run
+      - run: git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+      # ruleid: planr-workflow-no-expression-in-run
+      - run: |
+          echo start
+          echo "${{ github.head_ref }}"
+      # ok: planr-workflow-no-expression-in-run
+      - env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: git push origin "HEAD:${HEAD_REF}"
+      # ok: planr-workflow-no-expression-in-run
+      - run: echo "${{ steps.state.outputs.moved }}"

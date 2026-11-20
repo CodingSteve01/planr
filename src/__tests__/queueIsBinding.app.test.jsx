@@ -38,7 +38,6 @@ const goToTab = async name => {
   await waitFor(() => { if (!tabNamed(name)) throw new Error(`no tab ${name}`); });
   await act(async () => { fireEvent.mouseDown(tabNamed(name), { button: 0 }); });
 };
-const barOrder = () => [...document.querySelectorAll('[data-task-id]')].map(el => el.getAttribute('data-task-id'));
 
 describe('the order is binding', () => {
   beforeEach(() => {

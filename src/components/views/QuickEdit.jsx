@@ -125,7 +125,6 @@ function QuickEditBody({ node, tree, members, teams, taskTemplates, sizes: proje
   const customFields = projectCustomFields?.length ? projectCustomFields : DEFAULT_CUSTOM_FIELDS;
   const timeline = useMemo(() => summarizeNodeTimeline(tree, scheduled, f), [tree, scheduled, f]);
 
-  const hasPhases = isLeaf && (node.phases?.length > 0 || node.best > 0);
   const tabs = [
     // The same tabs in the same places as the item dialog (NodeModal): the
     // one only a task has comes last, so the others never move.

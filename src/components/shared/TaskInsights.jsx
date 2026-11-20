@@ -103,7 +103,6 @@ export function TaskInsights({ node, tree, members, teams, scheduled, cpSet, sta
   const customFields = projectCustomFields?.length ? projectCustomFields : DEFAULT_CUSTOM_FIELDS;
 
   const isLeaf = isLeafNode(tree, node.id);
-  const isRoot = !node.id.includes('.');
   const sc = scheduled?.find(s => s.id === node.id);
   const timeline = useMemo(() => summarizeNodeTimeline(tree, scheduled, node), [tree, scheduled, node]);
 

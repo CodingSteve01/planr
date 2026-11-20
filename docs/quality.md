@@ -4,7 +4,7 @@ What the pipeline holds the code to, and how to work with it. One command runs
 everything that does not need the test suite:
 
 ```bash
-npm run quality        # lint, duplicates, dead code, versions, private terms
+npm run quality        # lint, duplicates, dead code, versions, semgrep, private terms
 npm run test:coverage  # the suite, with the coverage floor
 ```
 
@@ -43,6 +43,18 @@ tests too; the size limits do not, because a `describe` block is one long
 function by nature. `src/i18n.jsx` and the embedded fonts are exempt from the
 size limits: one is a dictionary, the other is data.
 
+## Before CI: the hooks
+
+`npm install` installs three git hooks (`scripts/install-hooks.mjs`, also
+`npm run hooks`):
+
+- **pre-commit** lints the staged files and checks them for private terms;
+- **commit-msg** checks the message for private terms;
+- **pre-push** runs `npm run quality`.
+
+A hook of the same name that was already there and is not ours is left alone
+and reported. `git commit --no-verify` skips them; CI does not.
+
 ## The other checks
 
 - **Dead code** (`npm run deadcode`, knip): no file that nothing imports, no
@@ -54,6 +66,25 @@ size limits: one is a dictionary, the other is data.
   [contributing.md](contributing.md#nothing-from-a-real-plan). It needs the
   owner's word list and checks nothing without it, so it is not part of CI.
 - **Audit**: `npm audit --omit=dev --audit-level=high` on what ships.
+- **Security** (`npm run security`, semgrep): the repository's own rules in
+  `semgrep/planr.yml`, with no finding allowed. They say what Planr promises:
+  nothing from a plan becomes code (`eval`, `new Function`), plan text reaches
+  the page as text (no raw HTML), the app loads no code and sends nothing over
+  a network, and a workflow pastes no contributor-controlled value into a
+  shell and uses no action by a movable tag. The rules live in the repository
+  so that the same commit is judged the same way tomorrow. A place that is
+  not a violation gets a `nosemgrep: <rule id>` comment with the reason above
+  it. Where semgrep is not installed the local check is skipped with a line
+  saying so; CI installs a pinned version and fails without it.
+  `npm run security:test` runs each rule against a line it must find and one
+  it must not (the files beside the rules in `semgrep/`), so a rule cannot go quiet unnoticed.
+- **Security, as advice** (`npm run security:advice`): semgrep's registry
+  rules. They change upstream, so they run in CI without blocking.
+- **Workflows**: every action is pinned to a commit, because a tag can be
+  moved; `hooks.test.js` holds them to it and Dependabot keeps the pins fresh,
+  a week behind publication. Values a contributor controls (a branch name)
+  reach a workflow's shell as environment variables, never as text pasted
+  into the script.
 
 ## Raising a limit, lowering the baseline
 

@@ -35,19 +35,23 @@ jobs:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
 
       - id: state
         name: Has the version already moved in this branch?
+        # Branch names reach the shell as environment variables, never as
+        # text pasted into the script: a name is something a contributor picks.
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          base=$(git show "origin/${{ github.event.pull_request.base.ref }}:manifest.json" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version")
+          base=$(git show "origin/${BASE_REF}:manifest.json" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version")
           head=$(node -p "require('./manifest.json').version")
           echo "base=$base" >> "$GITHUB_OUTPUT"
           echo "head=$head" >> "$GITHUB_OUTPUT"
@@ -59,17 +63,23 @@ jobs:
 
       - name: Push it onto the PR branch
         if: steps.state.outputs.moved == 'false'
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package.json package-lock.json manifest.json versions.json
           git commit -m "$(node -p "require('./manifest.json').version")"
-          git push origin HEAD:"${{ github.event.pull_request.head.ref }}"
+          git push origin "HEAD:${HEAD_REF}"
 
       - name: Say what happened
+        env:
+          MOVED: ${{ steps.state.outputs.moved }}
+          HEAD_VERSION: ${{ steps.state.outputs.head }}
+          BASE_VERSION: ${{ steps.state.outputs.base }}
         run: |
-          if [ "${{ steps.state.outputs.moved }}" = "true" ]; then
-            echo "Version already set to ${{ steps.state.outputs.head }} in this branch — left alone."
+          if [ "$MOVED" = "true" ]; then
+            echo "Version already set to ${HEAD_VERSION} in this branch, left alone."
           else
-            echo "Bumped ${{ steps.state.outputs.base }} → $(node -p "require('./manifest.json').version")."
+            echo "Bumped ${BASE_VERSION} → $(node -p "require('./manifest.json').version")."
           fi

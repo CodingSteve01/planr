@@ -319,7 +319,6 @@ function NodeModalBody({ node, tree, members, teams, taskTemplates, sizes: proje
   };
 
   // Tab definitions
-  const hasPhases = isLeaf && (node.phases?.length > 0 || node.best > 0);
   const nmTabs = [
     // Fixed positions: the one tab only a task has comes last, so every
     // other tab sits in the same place for a task and for a package.
