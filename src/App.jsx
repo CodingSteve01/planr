@@ -139,15 +139,16 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     scenarioDelete,
     scenarioApply,
     scenarioRevertChange,
-  } = useScenarios({
-    data,
-    setData,
-    setSaved,
-    setMultiSel,
-    setModal,
-    _t,
-    ...doc,
-  });
+  } = useScenarios(
+    mergeNamed(doc, {
+      data,
+      setData,
+      setSaved,
+      setMultiSel,
+      setModal,
+      _t,
+    }),
+  );
   const fRef = useRef(null);
   const searchRef = useRef(null);
   const prevTreeRef = useRef([]);
@@ -212,20 +213,21 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     lastSavedPlanRef.current = data;
     leafBaselineStaleRef.current = false;
   }, [data]);
-  const { reloadFromFile, saveToFile, loadFromFile, ...fileSyncState } = useFileSync({
-    data,
-    saved,
-    setSaved,
-    setData,
-    setSel,
-    resetHistory,
-    session: fileSession,
-    fRef,
-    fileDataRef,
-    ...doc,
-    composeFileForSave,
-    commitSaveSideEffects,
-  });
+  const { reloadFromFile, saveToFile, loadFromFile, ...fileSyncState } = useFileSync(
+    mergeNamed(doc, {
+      data,
+      saved,
+      setSaved,
+      setData,
+      setSel,
+      resetHistory,
+      session: fileSession,
+      fRef,
+      fileDataRef,
+      composeFileForSave,
+      commitSaveSideEffects,
+    }),
+  );
 
   useGlobalKeys({ saveToFile, loadFromFile, setTab, setModal, tab, searchRef, search, setSearchIdx, handleUndo, handleRedo });
 
@@ -278,27 +280,29 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     diffOnlyChanged,
   });
   const { sinceDate, horizonEnd, horizonIds, futureProgressByRootId, diff, diffChangedSet } = reviewDiff;
-  const visible = useVisibleTree({
-    tree,
-    members,
-    scheduled,
-    stats,
-    ...viewFilters,
-    overbookedTaskIds,
-    sinceDate,
-    diffChangedSet,
-  });
+  const visible = useVisibleTree(
+    mergeNamed(viewFilters, {
+      tree,
+      members,
+      scheduled,
+      stats,
+      overbookedTaskIds,
+      sinceDate,
+      diffChangedSet,
+    }),
+  );
   const { archive, activeMembers, rootItems, netRootOptions, visibleViewIdSet } = visible;
-  const filterChips = useFilterChips({
-    _t,
-    teams,
-    archive,
-    activeMembers,
-    netRootOptions,
-    overbookedTaskIds,
-    ...viewFilters,
-    setSearchIdx,
-  });
+  const filterChips = useFilterChips(
+    mergeNamed(viewFilters, {
+      _t,
+      teams,
+      archive,
+      activeMembers,
+      netRootOptions,
+      overbookedTaskIds,
+      setSearchIdx,
+    }),
+  );
   const scenarioView = useScenarioView({ scn, data, scheduled, scnChanges });
   const { scnComparison } = scenarioView;
   useEffect(() => {
@@ -357,14 +361,15 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // persisted: like backdating, a date you forgot about would quietly send
   // every later edit to the wrong place.
   const { resLens, ...lensDates } = useResourceLens({ data, effDate });
-  const { pickEffDate, effFold, pastStart, effDropDate, effContext } = useEarlierDay({
-    data,
-    ...doc,
-    setData,
-    setSaved,
-    setTab,
-    fileDataRef,
-  });
+  const { pickEffDate, effFold, pastStart, effDropDate, effContext } = useEarlierDay(
+    mergeNamed(doc, {
+      data,
+      setData,
+      setSaved,
+      setTab,
+      fileDataRef,
+    }),
+  );
 
   useCompletedWindows({
     tree,
@@ -517,14 +522,15 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       projectWaitsOf,
     });
   const isMdFile = fileName?.endsWith('.md');
-  const logWriters = buildLogWriters({
-    data,
-    tree,
-    isMdFile,
-    setData,
-    ...doc,
-    fileDataRef,
-  });
+  const logWriters = buildLogWriters(
+    mergeNamed(doc, {
+      data,
+      tree,
+      isMdFile,
+      setData,
+      fileDataRef,
+    }),
+  );
   logWritersRef.current = logWriters;
   const { loadFile, newProject, restoreMountedFile } = fileLoaders({
     setData,

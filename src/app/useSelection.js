@@ -10,5 +10,6 @@ export function useSelection() {
   const [selId, setSelId] = useState(null);
   const setSel = n => setSelId(n == null ? null : typeof n === 'string' ? n : n.id);
   const [multiSel, setMultiSel] = useState(new Set());
-  return { sideTab, setSideTab, selId, setSelId, setSel, multiSel, setMultiSel };
+  // `setSelId` stays in here: `setSel` is the way in, and it takes a node or an id.
+  return { sideTab, setSideTab, selId, setSel, multiSel, setMultiSel };
 }
