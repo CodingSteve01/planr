@@ -458,6 +458,12 @@ log. What does not depend on those sits beside it:
   `useReviewWindow`, `useTour`, `useTabBar`), pure derivations the component
   calls from its memos (`viewTree.js`, `futureProgress.js`, `planRepairs.js`),
   and the shell helpers (`shell.js`, `storage.js`, `snapshots.js`).
+- `src/app/actions/`: the mutation handlers, one hook per concern
+  (`useNodeActions`, `useTreeEditorActions`, `useQueueActions`,
+  `useResourceActions`). Each takes one argument object and returns the named
+  functions. The bodies live in `*Edits.js` modules as `fn(ctx, ...args)`;
+  `bindActions` binds them to the render's context, so a handler sees the
+  latest values and calls its siblings through `ctx.act` / `ctx.res`.
 - `src/app/paletteCommands.js`: builds the command-palette list from the
   handlers, flags and translator `App` passes in.
 - `src/components/app/`: the render layer. `App` still decides what is shown
