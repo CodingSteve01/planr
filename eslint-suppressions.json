@@ -453,6 +453,14 @@
       "count": 2
     }
   },
+  "src/utils/gantt/taskBarModel.js": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
   "src/utils/history.js": {
     "complexity": {
       "count": 5
