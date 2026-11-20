@@ -344,6 +344,11 @@
       "count": 1
     }
   },
+  "src/components/views/gantt/GanttGridLayer.jsx": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
   "src/components/views/gantt/GanttHeader.jsx": {
     "max-lines-per-function": {
       "count": 1
