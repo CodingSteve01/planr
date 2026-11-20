@@ -212,7 +212,7 @@
   },
   "src/components/views/GanttView.jsx": {
     "complexity": {
-      "count": 10
+      "count": 8
     },
     "max-depth": {
       "count": 1
@@ -221,7 +221,7 @@
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 2
+      "count": 1
     },
     "no-unused-vars": {
       "count": 6
@@ -373,6 +373,14 @@
     },
     "max-lines-per-function": {
       "count": 2
+    }
+  },
+  "src/components/views/gantt/GanttTaskBarRow.jsx": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "src/utils/__tests__/phaseWalk.test.js": {
