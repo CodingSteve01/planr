@@ -537,4 +537,6 @@ items, structure, row layout, the load model, dependency lines, edits on the
 selection), each with unit tests. Stateless parts of the markup are under
 `src/components/views/gantt/` (header and axis, label column, grid layer,
 dependency lines, flag strip, selection bar, footer). The functions that were
-over the limits moved as they stood.
+over the limits moved as they stood. The components still take the view's
+locals one prop each, under the view's own short names: that is the state
+after a move, not the cut to aim for.

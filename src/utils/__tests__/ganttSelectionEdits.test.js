@@ -19,7 +19,9 @@ describe('reorderSelectionInTime', () => {
   });
 
   it('does nothing without a handler or a selection', () => {
-    expect(() => reorderSelectionInTime({ selectedTaskIds: [], leafIdSet: new Set(), onReorderSibling: vi.fn() }, 'up')).not.toThrow();
+    const onReorderSibling = vi.fn();
+    expect(() => reorderSelectionInTime({ selectedTaskIds: [], leafIdSet: new Set(), onReorderSibling }, 'up')).not.toThrow();
+    expect(onReorderSibling).not.toHaveBeenCalled();
     expect(() => reorderSelectionInTime({ selectedTaskIds: ['A'], leafIdSet: new Set(['A']) }, 'up')).not.toThrow();
   });
 });

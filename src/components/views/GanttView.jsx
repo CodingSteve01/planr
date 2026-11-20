@@ -398,7 +398,9 @@ function GanttViewImpl({
         UNASSIGNED_LABEL,
         weekIndexOfDate,
       }),
-    [scheduled, tree, leafIdSet, memberById, rootFilter, teamFilter, personFilter, workDays],
+    // `weeks` because the week index of a date depends on the window, and
+    // the label because it changes with the language.
+    [scheduled, tree, leafIdSet, memberById, rootFilter, teamFilter, personFilter, workDays, weeks, UNASSIGNED_LABEL],
   );
   // Determine root id of a task ('P1', 'D1.2.3' → 'D1')
   const iMap = useMemo(() => Object.fromEntries((tree || []).map(r => [r.id, r])), [tree]);
@@ -486,7 +488,22 @@ function GanttViewImpl({
         weekIndexOfDate,
         UNASSIGNED_LABEL,
       }),
-    [allItems, displayItems, groupBy, iMap, childrenByParent, rootIds, tree, teams, memberById, teamById, confidence, t, threadStructure],
+    [
+      allItems,
+      displayItems,
+      groupBy,
+      iMap,
+      childrenByParent,
+      rootIds,
+      tree,
+      teams,
+      memberById,
+      teamById,
+      confidence,
+      t,
+      threadStructure,
+      weeks,
+    ],
   );
 
   const collapsed = useMemo(
@@ -837,7 +854,7 @@ function GanttViewImpl({
         capacityAt,
         scheduledWorkDaysOf,
       }),
-    [allItems, iMap, memberById, members, vacByPerson, weeks, meetingPlans, teams, todayIso],
+    [allItems, iMap, memberById, members, vacByPerson, weeks, meetingPlans, teams, todayIso, capacityAt],
   );
   const loadRiskSummary = useMemo(() => buildLoadRiskSummary({ resourceLoadByWeek, memberById, t }), [resourceLoadByWeek, memberById, t]);
   const loadWeekSummary = useMemo(
