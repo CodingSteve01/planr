@@ -1,19 +1,24 @@
-import { useState, useMemo, useRef, useEffect, useDeferredValue } from 'react';
-import { useStableCallback } from './app/useStableCallback.js';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNodeActions } from './app/actions/useNodeActions.js';
 import { mergeNamed } from './app/actions/bindActions.js';
 import { useTreeEditorActions } from './app/actions/useTreeEditorActions.js';
+import { useOpenActions } from './app/actions/useOpenActions.js';
 import { useQueueActions } from './app/actions/useQueueActions.js';
 import { useResourceActions } from './app/actions/useResourceActions.js';
 import { useTabBar } from './app/useTabBar.js';
 import { useViewFilters } from './app/useViewFilters.js';
 import { useRoadmapFocus, useUiPrefs } from './app/useUiPrefs.js';
+import { useSelection } from './app/useSelection.js';
+import { useModalState } from './app/useModalState.js';
+import { useSearch } from './app/useSearch.js';
 import { useTour } from './app/useTour.js';
 import { useReviewWindow } from './app/useReviewWindow.js';
 import { useFileSession } from './app/useFileSession.js';
 import { useFileSync, SAVE_DEBOUNCE_MS } from './app/useFileSync.js';
 import { useDocumentState } from './app/useDocumentState.js';
 import { useScenarios } from './app/useScenarios.js';
+import { useCompletedWindows } from './app/completedWindows.js';
+import { useGlobalKeys } from './app/useGlobalKeys.js';
 import { buildLogWriters } from './app/logWriters.js';
 import { useEarlierDay } from './app/useEarlierDay.js';
 import { fileLoaders } from './app/fileLoaders.js';
@@ -48,21 +53,16 @@ import { OnboardingModals } from './components/app/OnboardingModals.jsx';
 import { buildPaletteCommands } from './app/paletteCommands.js';
 import { buildTabs, buildTourSteps, buildNewFeatures } from './app/shellContent.js';
 import { buildExportHandlerProps } from './app/exportHandlerProps.js';
-import { initialShell, loadLocalProject, SEARCH_TABS, MATCH_STEP_TABS } from './app/shell.js';
-import { flushSync } from 'react-dom';
+import { initialShell, loadLocalProject } from './app/shell.js';
 import { GT_MARKS } from './constants.js';
-import { iso } from './utils/date.js';
 import { useT } from './i18n.jsx';
-import { exportSprintMarkdown } from './utils/exports.js';
 import { buildMarkdownText as _buildMd } from './utils/markdown.js';
 import { buildMemberShortMap } from './utils/memberShort.js';
 import { exportScenarioComparePDF } from './utils/scenarioReport.js';
 import { CapacityProvider } from './utils/capacityLens.js';
 import { leafSnapshot } from './utils/history.js';
 import { buildExportCtx } from './utils/exportCtx.js';
-import { isLeafNode } from './utils/scheduler.js';
 import { sortTree } from './utils/treeEdit.js';
-import { deriveCompletedWindow, inferCompletedAt, inferCompletedPersonId } from './utils/completion.js';
 import { TAB_IDS } from './utils/modes.js';
 import { usePortalRoot } from './utils/embedHost.js';
 import { Frozen } from './components/shared/Frozen.jsx';
@@ -104,71 +104,19 @@ export default function App({ mount = null, onFileChange = null } = {}) {
 
   const { tabBarRef, activeTabRef, tabFades, syncTabFades, visitedTabs } = useTabBar(tab);
   const [ganttRoadmapFocus, setGanttRoadmapFocus] = useRoadmapFocus();
-  // Store only the selected node's ID; derive the actual node from the tree.
-  // This ensures `selected` always reflects the latest tree state — fixes a bug
-  // where QuickEdit would overwrite changes (e.g. assign) made via NodeModal,
-  // because the old code held a stale node object in state.
-  const [sideTab, setSideTab] = useState('insights');
-  const [selId, _setSelId] = useState(null);
-  const setSel = n => _setSelId(n == null ? null : typeof n === 'string' ? n : n.id);
-  const [multiSel, setMultiSel] = useState(new Set());
-  const [modal, setModal] = useState(null);
-  const [modalNode, setMN] = useState(null);
-  const [modalFocus, setModalFocus] = useState(null);
-  // Committed, debounced search only — the raw input state lives inside
-  // <SearchBox> so keystrokes don't trigger an App-level render and cascade
-  // through every mounted tab pane.
-  const [search, setSearch] = useState('');
-  const [searchIdx, setSearchIdx] = useState(0);
-  const deferredSearch = useDeferredValue(search);
-  const {
-    teamFilter,
-    setTeamFilter,
-    rootFilter,
-    setRootFilter,
-    personFilter,
-    setPersonFilter,
-    hideDone,
-    setHideDone,
-    showArchived,
-    setShowArchived,
-    archiveDays,
-    setArchiveDays,
-    onlyAutoAssigned,
-    setOnlyAutoAssigned,
-    onlyOverdue,
-    setOnlyOverdue,
-    onlyUnestimated,
-    setOnlyUnestimated,
-    onlyOverbooked,
-    setOnlyOverbooked,
-  } = useViewFilters();
+  const selection = useSelection();
+  const { selId, setSel, setMultiSel } = selection;
+  const modalState = useModalState();
+  const { modal, setModal, setMN, setModalFocus } = modalState;
+  const searchState = useSearch();
+  const { search, setSearch, searchIdx, setSearchIdx } = searchState;
+  const viewFilters = useViewFilters();
+  const { teamFilter, setTeamFilter, rootFilter, setRootFilter, personFilter, setPersonFilter, hideDone, setHideDone } = viewFilters;
   const [bulkEditModalOpen, setBulkEditModalOpen] = useState(false);
   const [saved, setSaved] = useState(true);
-  const {
-    history,
-    setHistory,
-    scn,
-    setScn,
-    scnRef,
-    past,
-    setPast,
-    pastRef,
-    effDate,
-    setEffDate,
-    lastSavedPlanRef,
-    dayUndoRef,
-    planHistoryRef,
-    lastSavedLeavesRef,
-    leafBaselineStaleRef,
-    scnNotice,
-    setScnNotice,
-    resetDocumentState,
-    dataRef,
-    mutate,
-    handleUndo,
-    handleRedo,
-  } = useDocumentState({ data, setData, setSaved });
+  const doc = useDocumentState({ data, setData, setSaved });
+  const { history, setHistory, scn, scnRef, past, effDate, scnNotice, setScnNotice, dataRef, mutate } = doc;
+  const { lastSavedPlanRef, lastSavedLeavesRef, leafBaselineStaleRef, resetDocumentState, handleUndo, handleRedo } = doc;
   // A different document is on screen: its undo stack is gone, and so is any
   // scenario that was open over the previous one.
   function resetHistory() {
@@ -191,25 +139,16 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     scenarioDelete,
     scenarioApply,
     scenarioRevertChange,
-  } = useScenarios({
-    data,
-    setData,
-    setSaved,
-    setMultiSel,
-    setModal,
-    _t,
-    mutate,
-    history,
-    setHistory,
-    scn,
-    setScn,
-    scnRef,
-    past,
-    pastRef,
-    dataRef,
-    planHistoryRef,
-    setScnNotice,
-  });
+  } = useScenarios(
+    mergeNamed(doc, {
+      data,
+      setData,
+      setSaved,
+      setMultiSel,
+      setModal,
+      _t,
+    }),
+  );
   const fRef = useRef(null);
   const searchRef = useRef(null);
   const prevTreeRef = useRef([]);
@@ -274,112 +213,23 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     lastSavedPlanRef.current = data;
     leafBaselineStaleRef.current = false;
   }, [data]);
-  const { reloadFromFile, saveToFile, loadFromFile, ...fileSyncState } = useFileSync({
-    data,
-    saved,
-    setSaved,
-    setData,
-    setSel,
-    resetHistory,
-    session: fileSession,
-    fRef,
-    fileDataRef,
-    pastRef,
-    scnRef,
-    lastSavedPlanRef,
-    lastSavedLeavesRef,
-    leafBaselineStaleRef,
-    composeFileForSave,
-    commitSaveSideEffects,
-  });
+  const { reloadFromFile, saveToFile, loadFromFile, ...fileSyncState } = useFileSync(
+    mergeNamed(doc, {
+      data,
+      saved,
+      setSaved,
+      setData,
+      setSel,
+      resetHistory,
+      session: fileSession,
+      fRef,
+      fileDataRef,
+      composeFileForSave,
+      commitSaveSideEffects,
+    }),
+  );
 
-  // Global keyboard shortcuts. The file ones are the platform conventions
-  // people already have in their fingers — ⌘O open, ⌘S save, ⇧⌘S save as,
-  // ⌘E export, ⌘, settings — declared in utils/shortcuts.js so the keymap
-  // and the menus name exactly what is bound here.
-  //
-  // ⌘N (new) is deliberately NOT bound: browsers keep it for "new window"
-  // and never deliver it to the page, so binding it would look like a
-  // feature and do nothing. New project lives in the File menu and the
-  // palette instead.
-  useEffect(() => {
-    const h = e => {
-      const mod = e.ctrlKey || e.metaKey;
-      const key = (e.key || '').toLowerCase();
-      // Never steal a file shortcut from a text field the user is typing in
-      // — except Save, which people expect to work from anywhere.
-      const active = document.activeElement;
-      const tag = active?.tagName;
-      const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || active?.isContentEditable;
-
-      if (mod && key === 's' && e.shiftKey) {
-        e.preventDefault();
-        saveToFile(true);
-        return;
-      }
-      if (mod && key === 'o' && !typing) {
-        e.preventDefault();
-        loadFromFile();
-        return;
-      }
-      if (mod && key === 'e' && !typing) {
-        e.preventDefault();
-        setTab('report');
-        return;
-      }
-      if (mod && e.key === ',' && !typing) {
-        e.preventDefault();
-        setModal('settings');
-        return;
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        saveToFile();
-        return;
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-        // Only intercept when a searchable view is active
-        if (SEARCH_TABS.has(tab)) {
-          e.preventDefault();
-          searchRef.current?.focus();
-          searchRef.current?.select();
-        }
-      }
-      // Cmd/Ctrl+Arrow Up/Down: cycle through search matches
-      // ⇧ is not ours: ⌘⇧↑/↓ moves a row in the tree.
-      // Not from a text field: the search box steps on its own (this used to
-      // step a second time, so each press skipped a match), and anywhere else
-      // ⌘↑/⌘↓ is the caret's jump to the start or end of the text.
-      if (
-        (e.ctrlKey || e.metaKey) &&
-        !e.shiftKey &&
-        !typing &&
-        search &&
-        MATCH_STEP_TABS.has(tab) &&
-        (e.key === 'ArrowDown' || e.key === 'ArrowUp')
-      ) {
-        e.preventDefault();
-        setSearchIdx(i => (e.key === 'ArrowDown' ? i + 1 : i - 1));
-      }
-      // Undo/redo — never while focus is in a text-editing control, so
-      // native text-field undo wins there instead of ours.
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z' || e.key === 'y' || e.key === 'Y')) {
-        const active = document.activeElement;
-        const tag = active?.tagName;
-        const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || active?.isContentEditable;
-        // No structure command can be issued from inside a field any more, so
-        // there is never plan history hiding behind a text field's ⌘Z.
-        if (!isEditable) {
-          const isRedo = e.key === 'y' || e.key === 'Y' || e.shiftKey;
-          e.preventDefault();
-          if (isRedo) handleRedo();
-          else handleUndo();
-        }
-      }
-    };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-  });
+  useGlobalKeys({ saveToFile, loadFromFile, setTab, setModal, tab, searchRef, search, setSearchIdx, handleUndo, handleRedo });
 
   const { members = [], teams = [], vacations = [], meta = {} } = data || {};
   const { reschedule, ...planModel } = usePlanModel({ data, members, vacations, meta, past });
@@ -430,53 +280,29 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     diffOnlyChanged,
   });
   const { sinceDate, horizonEnd, horizonIds, futureProgressByRootId, diff, diffChangedSet } = reviewDiff;
-  const visible = useVisibleTree({
-    tree,
-    members,
-    scheduled,
-    stats,
-    archiveDays,
-    showArchived,
-    hideDone,
-    rootFilter,
-    teamFilter,
-    personFilter,
-    onlyUnestimated,
-    onlyAutoAssigned,
-    onlyOverdue,
-    onlyOverbooked,
-    overbookedTaskIds,
-    sinceDate,
-    diffChangedSet,
-  });
+  const visible = useVisibleTree(
+    mergeNamed(viewFilters, {
+      tree,
+      members,
+      scheduled,
+      stats,
+      overbookedTaskIds,
+      sinceDate,
+      diffChangedSet,
+    }),
+  );
   const { archive, activeMembers, rootItems, netRootOptions, visibleViewIdSet } = visible;
-  const filterChips = useFilterChips({
-    _t,
-    teams,
-    archive,
-    activeMembers,
-    netRootOptions,
-    overbookedTaskIds,
-    hideDone,
-    setHideDone,
-    showArchived,
-    setShowArchived,
-    onlyAutoAssigned,
-    setOnlyAutoAssigned,
-    onlyOverdue,
-    setOnlyOverdue,
-    onlyUnestimated,
-    setOnlyUnestimated,
-    onlyOverbooked,
-    setOnlyOverbooked,
-    rootFilter,
-    setRootFilter,
-    teamFilter,
-    setTeamFilter,
-    personFilter,
-    setPersonFilter,
-    setSearchIdx,
-  });
+  const filterChips = useFilterChips(
+    mergeNamed(viewFilters, {
+      _t,
+      teams,
+      archive,
+      activeMembers,
+      netRootOptions,
+      overbookedTaskIds,
+      setSearchIdx,
+    }),
+  );
   const scenarioView = useScenarioView({ scn, data, scheduled, scnChanges });
   const { scnComparison } = scenarioView;
   useEffect(() => {
@@ -535,157 +361,29 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // persisted: like backdating, a date you forgot about would quietly send
   // every later edit to the wrong place.
   const { resLens, ...lensDates } = useResourceLens({ data, effDate });
-  const { pickEffDate, effFold, pastStart, effDropDate, effContext } = useEarlierDay({
-    data,
-    history,
-    setHistory,
+  const { pickEffDate, effFold, pastStart, effDropDate, effContext } = useEarlierDay(
+    mergeNamed(doc, {
+      data,
+      setData,
+      setSaved,
+      setTab,
+      fileDataRef,
+    }),
+  );
+
+  useCompletedWindows({
+    tree,
+    scheduled,
+    members,
+    vacations,
+    hm,
+    workDays,
+    planStart,
     setData,
     setSaved,
-    setTab,
-    setPast,
-    setEffDate,
-    mutate,
-    scn,
-    past,
-    effDate,
-    scnRef,
-    pastRef,
-    dataRef,
-    fileDataRef,
-    lastSavedPlanRef,
-    lastSavedLeavesRef,
-    dayUndoRef,
+    prevTreeRef,
+    prevScheduledRef,
   });
-
-  // Persist the last visible schedule window for completed tasks so they stay visible
-  // in the Gantt after being marked done, without reintroducing them into future planning.
-  useEffect(() => {
-    const prevTree = prevTreeRef.current || [];
-    const prevTreeMap = new Map(prevTree.map(r => [r.id, r]));
-    const prevScheduledMap = new Map((prevScheduledRef.current || []).map(s => [s.id, s]));
-    const currentScheduledMap = new Map((scheduled || []).map(s => [s.id, s]));
-    const patches = new Map();
-    const todayIso = iso(new Date());
-
-    tree.forEach(r => {
-      if (!isLeafNode(tree, r.id)) return;
-      const hasCompletionMeta = !!(
-        r.completedAt ||
-        r.completedStart ||
-        r.completedEnd ||
-        r.completedPersonId ||
-        r.completedPerson ||
-        r.completedAutoAssigned ||
-        r.plannedStart ||
-        r.plannedEnd
-      );
-      const prev = prevTreeMap.get(r.id);
-      const snap = prevScheduledMap.get(r.id);
-
-      if (r.status === 'done') {
-        const completedPersonId = inferCompletedPersonId(r, members, snap);
-        const completedAt =
-          prev?.status !== 'done' && !r.completedAt
-            ? todayIso
-            : inferCompletedAt({
-                item: r,
-                tree,
-                scheduledMap: currentScheduledMap,
-                scheduledSnap: snap,
-                workDays,
-                planStart,
-                completedPersonId,
-                members,
-                vacations,
-                hm,
-              });
-        if (!completedAt) return;
-        // Persisted done-window takes precedence over re-inference. The user
-        // may reconstruct history by editing done-start/done-end directly, so
-        // do not recalculate that window just because completedAt changed in
-        // the same edit. Refresh only when no window exists, when a task is
-        // newly completed, or when the cached window is clearly stale.
-        const hasExistingWindow = !!r.completedStart && !!r.completedEnd;
-        const windowWasEdited = !!prev && (prev.completedStart !== r.completedStart || prev.completedEnd !== r.completedEnd);
-        const completedAtChanged = !!prev && prev.completedAt !== completedAt;
-        const windowMatchesCompletedAt = hasExistingWindow && r.completedEnd === completedAt;
-        const shouldRefreshWindow =
-          !hasExistingWindow ||
-          (prev && prev.status !== 'done') ||
-          (completedAtChanged && !windowWasEdited && !windowMatchesCompletedAt) ||
-          (prev && prev.completedPersonId !== completedPersonId && !windowWasEdited);
-        const window = shouldRefreshWindow
-          ? deriveCompletedWindow({ item: r, completedAt, completedPersonId, members, vacations, hm, workDays })
-          : { completedStart: r.completedStart, completedEnd: r.completedEnd };
-        const completedPerson =
-          r.completedPerson ||
-          (completedPersonId ? members.find(m => m.id === completedPersonId)?.name || completedPersonId : snap?.person || '');
-        const plannedStart = r.plannedStart || (snap?.startD ? iso(snap.startD) : '');
-        const plannedEnd = r.plannedEnd || (snap?.endD ? iso(snap.endD) : '');
-        const patch = {
-          completedAt,
-          completedStart: window.completedStart,
-          completedEnd: window.completedEnd,
-        };
-        if (completedPersonId) patch.completedPersonId = completedPersonId;
-        if (completedPerson) patch.completedPerson = completedPerson;
-        if (snap?.autoAssigned || r.completedAutoAssigned) patch.completedAutoAssigned = true;
-        if (plannedStart) patch.plannedStart = plannedStart;
-        if (plannedEnd) patch.plannedEnd = plannedEnd;
-        const needsPatch = Object.entries(patch).some(([key, value]) => r[key] !== value);
-        if (!needsPatch) return;
-        patches.set(r.id, patch);
-        return;
-      }
-      if (hasCompletionMeta) patches.set(r.id, { _clearCompletedWindow: true });
-    });
-
-    prevTreeRef.current = tree;
-    prevScheduledRef.current = scheduled;
-
-    if (!patches.size) return;
-
-    let didChange = false;
-    setData(d => {
-      if (!d?.tree?.length) return d;
-      const nextTree = d.tree.map(r => {
-        const patch = patches.get(r.id);
-        if (!patch) return r;
-        if (patch._clearCompletedWindow) {
-          const {
-            completedAt,
-            completedStart,
-            completedEnd,
-            completedPersonId,
-            completedPerson,
-            completedAutoAssigned,
-            plannedStart,
-            plannedEnd,
-            ...rest
-          } = r;
-          if (
-            completedAt == null &&
-            completedStart == null &&
-            completedEnd == null &&
-            completedPersonId == null &&
-            completedPerson == null &&
-            completedAutoAssigned == null &&
-            plannedStart == null &&
-            plannedEnd == null
-          )
-            return r;
-          didChange = true;
-          return rest;
-        }
-        const alreadyApplied = Object.entries(patch).every(([k, v]) => r[k] === v);
-        if (alreadyApplied) return r;
-        didChange = true;
-        return { ...r, ...patch };
-      });
-      return didChange ? { ...d, tree: nextTree } : d;
-    });
-    setSaved(false);
-  }, [tree, scheduled, members, vacations, hm, workDays, planStart]);
 
   // The comparison as a PDF. The model is built where the dialog is (one set
   // of figures and words for both); null while no scenario is on screen.
@@ -724,7 +422,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // One list now — the one that decides what is drawn.
   useEffect(() => {
     if (!hideDone) return;
-    if (selId && !visibleViewIdSet.has(selId)) _setSelId(null);
+    if (selId && !visibleViewIdSet.has(selId)) setSel(null);
     setMultiSel(prev => {
       const next = new Set([...prev].filter(id => visibleViewIdSet.has(id)));
       return next.size === prev.size ? prev : next;
@@ -824,18 +522,15 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       projectWaitsOf,
     });
   const isMdFile = fileName?.endsWith('.md');
-  const logWriters = buildLogWriters({
-    data,
-    tree,
-    isMdFile,
-    setData,
-    setPast,
-    scnRef,
-    pastRef,
-    fileDataRef,
-    lastSavedPlanRef,
-    lastSavedLeavesRef,
-  });
+  const logWriters = buildLogWriters(
+    mergeNamed(doc, {
+      data,
+      tree,
+      isMdFile,
+      setData,
+      fileDataRef,
+    }),
+  );
   logWritersRef.current = logWriters;
   const { loadFile, newProject, restoreMountedFile } = fileLoaders({
     setData,
@@ -852,63 +547,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     fileHandleRef,
     ensureHandlePermission,
   });
-  function onBarClick(s, focusRequest = null) {
-    const node = tree.find(r => r.id === (s.treeId || s.id));
-    if (!node) return;
-    let effectiveFocus = focusRequest;
-    let modalNodeValue;
-    if (s.isHandoff && typeof s.segmentIdx === 'number') {
-      // Handoff-shadow click: open the PRIMARY's modal (not the shadow), jump
-      // the user straight into the handoff editor on the right stage. We do
-      // NOT spread the shadow over the node — that would put `#N` in the
-      // title and make the top-level Team/Assign fields look like they edit
-      // the shadow (they don't; they edit the primary tree item).
-      effectiveFocus = {
-        ...(focusRequest || {}),
-        section: 'handoff',
-        handoffStage: s.segmentIdx - 1,
-        handoffShadowId: s.id,
-      };
-      modalNodeValue = node;
-    } else {
-      modalNodeValue = { ...node, ...s };
-    }
-    flushSync(() => {
-      setModalFocus(effectiveFocus);
-      setMN(modalNodeValue);
-      setModal('node');
-    });
-  }
-  const onGanttBarClick = useStableCallback((...a) => onBarClick(...a));
-  const onNetNodeClick = useStableCallback(r => onBarClick(r));
-  // Clicking an item — anywhere — opens that item's own edit dialog. The same
-  // one a Gantt bar and a graph node open, because it is the same question:
-  // what is this, and can I change it without leaving what I was reading.
-  //
-  // There were three of these. #27 gave the Roadmap tab this behaviour and
-  // said why: routing a click through "set the root filter and jump to the
-  // Tree" is navigation, not editing — you lose the map you were reading to
-  // get a dialog you could have had in place. The Overview's subway map kept
-  // the old handler, which is the map that gets looked at most, and Planning
-  // had a third one that opened the bare tree node without the schedule's half
-  // of the answer. One handler now (principle 7).
-  //
-  // Navigating to a row in the tree is still a thing you can want, and it is
-  // still here — as `onNavigate`, a separate gesture with its own name, rather
-  // than as what a click silently did to a work package but not to a leaf.
-  const onOpenItemDialog = useStableCallback(id => {
-    // A leaf has a scheduled row — dates, effort, assignment — and the dialog
-    // wants it merged in; a work package has none and opens as the tree node.
-    const row = scheduled.find(s2 => (s2.treeId || s2.id) === id && !s2.isHandoff);
-    onBarClick(row || { id });
-  });
-  const onSumNavigate = useStableCallback((id, target) => {
-    const node = tree.find(r => r.id === id);
-    if (node) setSel(node);
-    setTab(target || 'tree');
-  });
-  const onNetAddNode = useStableCallback(() => setModal('add'));
-  const onSumExportTodo = useStableCallback(horizonDays => exportSprintMarkdown({ ..._exportCtx(), horizonDays }));
+  const openActions = useOpenActions({ tree, scheduled, setModalFocus, setMN, setModal, setSel, setTab, exportCtx: _exportCtx });
 
   if (!bootstrapped) return <BootScreen />;
 
@@ -987,54 +626,30 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     viewCpSet,
   });
 
-  const view = mergeNamed(uiPrefs, fileSyncState, filterChips, {
-    archiveDays,
+  const view = mergeNamed(uiPrefs, fileSyncState, filterChips, viewFilters, selection, modalState, searchState, {
     autoSave,
     bulkEditModalOpen,
-    deferredSearch,
     diffOnlyChanged,
     fileName,
     fileSynced,
     fileWriteOk,
     ganttRoadmapFocus,
-    hideDone,
     horizonOnlyPlanned,
     lastSavedAt,
-    modal,
-    modalFocus,
-    modalNode,
-    multiSel,
-    personFilter,
     resLens,
-    rootFilter,
     saved,
     scnNotice,
-    search,
     selected,
-    setArchiveDays,
     setAutoSave,
     setBulkEditModalOpen,
     setGanttRoadmapFocus,
-    setMN,
-    setModal,
-    setModalFocus,
-    setMultiSel,
-    setRootFilter,
     setScnNotice,
-    setSearch,
-    setSearchIdx,
-    setSel,
-    setShowArchived,
-    setSideTab,
     setTab,
     setTourStep,
-    showArchived,
     showNewFeat,
-    sideTab,
     sinceDays,
     tab,
     tabFades,
-    teamFilter,
     tourStep,
   });
   // The two raw writes a component may ask for, by name. `mutate`, `setData`
@@ -1049,7 +664,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   };
   // One object for the components, built so that the same name twice is an
   // error on the first render instead of one action silently replacing another.
-  const handlers = mergeNamed(act, treeEditor, queueActions, resActions, {
+  const handlers = mergeNamed(act, treeEditor, queueActions, resActions, openActions, {
     closeTour,
     dismissNewFeat,
     exportScenarioPDF,
@@ -1058,12 +673,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     loadFile,
     loadFromFile,
     newProject,
-    onGanttBarClick,
-    onNetAddNode,
-    onNetNodeClick,
-    onOpenItemDialog,
-    onSumExportTodo,
-    onSumNavigate,
     persistDiffOnlyChanged,
     persistHorizon,
     persistHorizonOnly,

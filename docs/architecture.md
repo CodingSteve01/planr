@@ -496,6 +496,15 @@ it:
   functions. The bodies live in `*Edits.js` modules as `fn(ctx, ...args)`;
   `bindActions` binds them to the render's context, so a handler sees the
   latest values and calls its siblings through `ctx.act` / `ctx.res`.
+- `src/app/useGlobalKeys.js`: the global keyboard shortcuts, one small function
+  per key group; they are checked in a fixed order and the file shortcuts stop
+  the rest. `useSelection`, `useModalState` and `useSearch` hold the picked row,
+  the open dialog and the committed search; `App` spreads each into the `view`
+  bundle. `completedWindows.js` is the effect that stamps finished items with
+  their done window; `App` passes it the two refs that carry the previous
+  render, so the order of hooks in `App` did not change.
+- `src/app/actions/openEdits.js`, `useOpenActions.js`: what a click on a bar, a
+  graph node or an item does (open its dialog, navigate, export the to-do list).
 - `src/app/paletteCommands.js`: builds the command-palette list from the
   handlers, flags and translator `App` passes in.
 - `src/components/app/`: the render layer. `App` still decides what is shown

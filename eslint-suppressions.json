@@ -1,9 +1,6 @@
 {
   "src/App.jsx": {
     "complexity": {
-      "count": 3
-    },
-    "max-lines": {
       "count": 1
     },
     "max-lines-per-function": {
@@ -28,6 +25,14 @@
   "src/__tests__/treeEditor.app.test.jsx": {
     "no-unused-vars": {
       "count": 1
+    }
+  },
+  "src/app/completedWindows.js": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 2
     }
   },
   "src/app/logWriters.js": {
