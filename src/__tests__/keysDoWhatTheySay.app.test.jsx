@@ -19,30 +19,49 @@ function seed(tab) {
   localStorage.setItem('planr_lang', 'en');
   localStorage.setItem('planr_tab', tab);
   localStorage.setItem('planr_tour_done', '1');
-  localStorage.setItem('planr_v2', JSON.stringify({
-    tree: [
-      { id: 'P1', name: 'Billing', status: 'open', team: 'T1' },
-      leaf('P1.1', 'Match one'), leaf('P1.2', 'Match two'), leaf('P1.3', 'Match three'), leaf('P1.4', 'Other'),
-    ],
-    members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
-    teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-    vacations: [], meetingPlans: [],
-    meta: { name: 'Keys', planStart: '2026-01-05', planEnd: '2027-06-30' },
-  }));
+  localStorage.setItem(
+    'planr_v2',
+    JSON.stringify({
+      tree: [
+        { id: 'P1', name: 'Billing', status: 'open', team: 'T1' },
+        leaf('P1.1', 'Match one'),
+        leaf('P1.2', 'Match two'),
+        leaf('P1.3', 'Match three'),
+        leaf('P1.4', 'Other'),
+      ],
+      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [],
+      meetingPlans: [],
+      meta: { name: 'Keys', planStart: '2026-01-05', planEnd: '2027-06-30' },
+    }),
+  );
 }
-const renderApp = () => render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
+const renderApp = () =>
+  render(
+    <I18nProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </I18nProvider>,
+  );
 const searchBox = () => document.querySelector('input[placeholder^="Search"]');
 const counter = () => (document.body.textContent.match(/(\d) \/ 3/) || [])[1];
 const treeNames = () => [...document.querySelectorAll('[data-testid="tree-row-name"]')].map(n => n.textContent.trim());
 
-afterEach(() => { cleanup(); localStorage.clear(); });
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+});
 
 describe('/ on a German keyboard', () => {
   beforeEach(() => seed('tree'));
   it('opens the palette, not the keyboard map as well', async () => {
     renderApp();
     await screen.findByTestId('tree-editor-surface');
-    await act(async () => { document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '/', shiftKey: true, bubbles: true, cancelable: true })); });
+    await act(async () => {
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '/', shiftKey: true, bubbles: true, cancelable: true }));
+    });
     expect(screen.queryByTestId('command-palette')).not.toBeNull();
     expect(screen.queryByTestId('keymap-overlay')).toBeNull();
   });
@@ -52,11 +71,17 @@ describe('stepping through matches', () => {
   it('⌘↓ in the search box moves one match, not two', async () => {
     seed('gantt');
     renderApp();
-    await waitFor(() => { if (!document.querySelector('[data-task-id]')) throw new Error('no bars'); });
-    await act(async () => { fireEvent.change(searchBox(), { target: { value: 'match' } }); });
+    await waitFor(() => {
+      if (!document.querySelector('[data-task-id]')) throw new Error('no bars');
+    });
+    await act(async () => {
+      fireEvent.change(searchBox(), { target: { value: 'match' } });
+    });
     await waitFor(() => expect(counter()).toBe('1'));
     searchBox().focus();
-    await act(async () => { fireEvent.keyDown(searchBox(), { key: 'ArrowDown', metaKey: true }); });
+    await act(async () => {
+      fireEvent.keyDown(searchBox(), { key: 'ArrowDown', metaKey: true });
+    });
     await waitFor(() => expect(counter()).toBe('2'));
   });
 
@@ -64,7 +89,9 @@ describe('stepping through matches', () => {
     seed('tree');
     renderApp();
     await screen.findByTestId('tree-editor-surface');
-    await act(async () => { fireEvent.change(searchBox(), { target: { value: 'match' } }); });
+    await act(async () => {
+      fireEvent.change(searchBox(), { target: { value: 'match' } });
+    });
     await waitFor(() => expect(treeNames()).not.toContain('Other'));
     expect(document.querySelector('[aria-label^="Next match"]')).toBeNull();
   });
@@ -76,7 +103,9 @@ describe('⇧← in the tree', () => {
     renderApp();
     const surface = await screen.findByTestId('tree-editor-surface');
     await waitFor(() => expect(treeNames()).toContain('Match one'));
-    await act(async () => { fireEvent.keyDown(surface, { key: 'ArrowLeft', shiftKey: true }); });
+    await act(async () => {
+      fireEvent.keyDown(surface, { key: 'ArrowLeft', shiftKey: true });
+    });
     await waitFor(() => expect(treeNames()).toEqual(['Billing']));
   });
 });
@@ -88,7 +117,9 @@ describe('the keyboard map', () => {
   it('has a work-order section with the keys that view handles', async () => {
     renderApp();
     await screen.findByTestId('tree-editor-surface');
-    await act(async () => { document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '?', bubbles: true, cancelable: true })); });
+    await act(async () => {
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '?', bubbles: true, cancelable: true }));
+    });
     const map = screen.getByTestId('keymap-overlay').textContent;
     expect(map).toContain('Work order — cursor on a row');
     expect(map).toContain('Move earlier / later in the queue');

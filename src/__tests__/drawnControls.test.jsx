@@ -43,7 +43,8 @@ const TERNARY = new RegExp(`>\\s*\\{[^}]*\\?\\s*'[${ICONISH}]'\\s*:\\s*'[${ICONI
 
 describe('controls the app draws', () => {
   it.each(FILES)('has no glyph standing in for an icon in %s', file => {
-    const hits = read(file).split('\n')
+    const hits = read(file)
+      .split('\n')
       .map((line, i) => ({ line: line.trim(), n: i + 1 }))
       .filter(({ line }) => BARE.test(line) || TERNARY.test(line))
       .map(({ line, n }) => `${n}: ${line.slice(0, 90)}`);
@@ -73,11 +74,13 @@ describe('the palette', () => {
       .map(f => `src/${f}`);
     const missing = [];
     for (const file of sources) {
-      read(file).split('\n').forEach((line, i) => {
-        for (const m of line.matchAll(/var\((--[a-zA-Z0-9-]+)/g)) {
-          if (!defined.has(m[1])) missing.push(`${file}:${i + 1} ${m[1]}`);
-        }
-      });
+      read(file)
+        .split('\n')
+        .forEach((line, i) => {
+          for (const m of line.matchAll(/var\((--[a-zA-Z0-9-]+)/g)) {
+            if (!defined.has(m[1])) missing.push(`${file}:${i + 1} ${m[1]}`);
+          }
+        });
     }
     expect(missing, `undefined custom properties:\n${missing.join('\n')}`).toEqual([]);
   });

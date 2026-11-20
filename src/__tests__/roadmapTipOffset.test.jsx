@@ -27,14 +27,23 @@ const TREE = [
 const STATS = { P1: { _progress: 50 }, 'P1.1': { _progress: 100 }, 'P1.2': { _progress: 0 } };
 
 const rect = (left, top, width, height) => ({
-  left, top, width, height, right: left + width, bottom: top + height, x: left, y: top,
+  left,
+  top,
+  width,
+  height,
+  right: left + width,
+  bottom: top + height,
+  x: left,
+  y: top,
 });
 
 // The map's box starts 100 viewport pixels in, and the app root carries the
 // given `zoom`. `fixedFrame` probes with a fixed, inset-0 div holding a ruler
 // exactly 100px wide — both have to answer, or the measurement falls back to
 // the viewport.
-const MAP_W = 600, MAP_H = 400, MAP_LEFT = 100;
+const MAP_W = 600,
+  MAP_H = 400,
+  MAP_LEFT = 100;
 // `fixedFrame` caches its measurement per root for 500ms, and two tests in the
 // same file run well inside that — the second would read the first one's
 // scale. Move the clock forward instead of reaching into the cache.
@@ -66,7 +75,9 @@ function hoverAt(wrapper, clientX, clientY) {
 
 function renderMap() {
   const { container } = render(
-    <I18nProvider><Roadmap tree={TREE} scheduled={[]} stats={STATS} /></I18nProvider>,
+    <I18nProvider>
+      <Roadmap tree={TREE} scheduled={[]} stats={STATS} />
+    </I18nProvider>,
   );
   const wrapper = container.firstChild;
   expect(wrapper, 'the map did not render').toBeTruthy();
@@ -74,11 +85,13 @@ function renderMap() {
 }
 
 // The tooltip is the only absolutely-positioned child carrying a `left`.
-const tipStyle = () => [...document.querySelectorAll('div[style*="position: absolute"]')]
-  .map(el => el.style)
-  .find(style => style.left && style.zIndex === '20');
+const tipStyle = () =>
+  [...document.querySelectorAll('div[style*="position: absolute"]')].map(el => el.style).find(style => style.left && style.zIndex === '20');
 
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe('Subway map tooltip', () => {
   it('sits at the cursor on the web, where a local pixel is a viewport pixel', () => {

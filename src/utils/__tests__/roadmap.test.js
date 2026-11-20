@@ -57,11 +57,25 @@ describe('computeRoadmapModel progress semantics', () => {
       // Four at half done, four untouched: (4 x 10 x 0.5) / 80 = 0.25.
       const wip = i <= 4;
       tree.push({ id: `P1.1.${i}`, name: `Erfassung ${i}`, status: wip ? 'wip' : 'open', progress: wip ? 50 : 0, best: 10, factor: 1 });
-      scheduled.push({ id: `P1.1.${i}`, name: `Erfassung ${i}`, status: wip ? 'wip' : 'open', effort: 10, startD: d('2026-01-05'), endD: d(`2026-01-0${5 + (i % 4)}`) });
+      scheduled.push({
+        id: `P1.1.${i}`,
+        name: `Erfassung ${i}`,
+        status: wip ? 'wip' : 'open',
+        effort: 10,
+        startD: d('2026-01-05'),
+        endD: d(`2026-01-0${5 + (i % 4)}`),
+      });
     }
     for (let i = 1; i <= 8; i++) {
       tree.push({ id: `P1.2.${i}`, name: `Migration ${i}`, status: 'open', progress: 0, best: 10, factor: 1 });
-      scheduled.push({ id: `P1.2.${i}`, name: `Migration ${i}`, status: 'open', effort: 10, startD: d('2026-03-02'), endD: d(`2026-03-0${2 + (i % 5)}`) });
+      scheduled.push({
+        id: `P1.2.${i}`,
+        name: `Migration ${i}`,
+        status: 'open',
+        effort: 10,
+        startD: d('2026-03-02'),
+        endD: d(`2026-03-0${2 + (i % 5)}`),
+      });
     }
 
     const model = modelFor(tree, scheduled);
@@ -126,15 +140,14 @@ describe('computeRoadmapModel progress semantics', () => {
       { id: 'P1.5', name: 'Step 5', status: 'done', progress: 100, best: 2, factor: 1 },
       { id: 'P1.6', name: 'Step 6', status: 'done', progress: 100, best: 2, factor: 1 },
     ];
-    const scheduled = ['2026-01-05', '2026-01-15', '2026-01-26', '2026-02-05', '2026-02-16', '2026-02-26']
-      .map((day, idx) => ({
-        id: `P1.${idx + 1}`,
-        name: `Step ${idx + 1}`,
-        status: 'done',
-        effort: 2,
-        startD: d(day),
-        endD: d(day),
-      }));
+    const scheduled = ['2026-01-05', '2026-01-15', '2026-01-26', '2026-02-05', '2026-02-16', '2026-02-26'].map((day, idx) => ({
+      id: `P1.${idx + 1}`,
+      name: `Step ${idx + 1}`,
+      status: 'done',
+      effort: 2,
+      startD: d(day),
+      endD: d(day),
+    }));
 
     const model = modelFor(tree, scheduled);
     const stations = model.lines[0].majorStations;
@@ -220,9 +233,7 @@ describe('computeRoadmapModel progress semantics', () => {
       { id: 'P1', name: 'Project', status: 'wip', best: 0 },
       { id: 'P1.1', name: 'Tiny movement', status: 'wip', progress: 50.04, best: 100, factor: 1 },
     ];
-    const scheduled = [
-      { id: 'P1.1', name: 'Tiny movement', status: 'wip', effort: 100, startD: d('2026-01-01'), endD: d('2026-01-31') },
-    ];
+    const scheduled = [{ id: 'P1.1', name: 'Tiny movement', status: 'wip', effort: 100, startD: d('2026-01-01'), endD: d('2026-01-31') }];
 
     const svg = renderRoadmapSvg({
       tree,
@@ -326,9 +337,7 @@ describe('computeRoadmapModel progress semantics', () => {
       },
       { id: 'P1.2', name: 'Future open', status: 'open', progress: 0, best: 1, factor: 1 },
     ];
-    const scheduled = [
-      { id: 'P1.2', name: 'Future open', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') },
-    ];
+    const scheduled = [{ id: 'P1.2', name: 'Future open', status: 'open', effort: 1, startD: d('2026-02-01'), endD: d('2026-02-01') }];
 
     const model = computeRoadmapModel({
       tree,
@@ -513,16 +522,27 @@ describe('computeRoadmapModel progress semantics', () => {
 
     expect(line.progress).toBeCloseTo(0.08, 4);
     expect(line.trainT).toBeCloseTo(rawProgressT, 4);
-    line.majorStations.filter(station => station.allDone).forEach(station => {
-      expect(station.t).toBeLessThanOrEqual(line.trainT + 0.0001);
-    });
+    line.majorStations
+      .filter(station => station.allDone)
+      .forEach(station => {
+        expect(station.t).toBeLessThanOrEqual(line.trainT + 0.0001);
+      });
   });
 
   test('unfinished milestones stay ahead of the train even when their plan date is older than completed work', () => {
     const tree = [
       { id: 'P1', name: 'Project', status: 'wip', best: 0 },
       { id: 'P1.1', name: 'Old planned but still open', status: 'open', progress: 0, best: 1, factor: 1 },
-      { id: 'P1.2', name: 'Completed later', status: 'done', progress: 100, best: 9, factor: 1, completedStart: '2026-02-01', completedEnd: '2026-02-01' },
+      {
+        id: 'P1.2',
+        name: 'Completed later',
+        status: 'done',
+        progress: 100,
+        best: 9,
+        factor: 1,
+        completedStart: '2026-02-01',
+        completedEnd: '2026-02-01',
+      },
       { id: 'P1.3', name: 'Large future scope', status: 'open', progress: 0, best: 90, factor: 1 },
     ];
     const scheduled = [
@@ -549,8 +569,26 @@ describe('computeRoadmapModel progress semantics', () => {
   test('completed stations are ordered by actual completion date, not schedule end date', () => {
     const tree = [
       { id: 'P1', name: 'Project', status: 'wip', best: 0 },
-      { id: 'P1.1', name: 'Completed later in reality', status: 'done', progress: 100, best: 1, factor: 1, completedStart: '2026-03-01', completedEnd: '2026-03-01' },
-      { id: 'P1.2', name: 'Completed earlier in reality', status: 'done', progress: 100, best: 1, factor: 1, completedStart: '2026-01-01', completedEnd: '2026-01-01' },
+      {
+        id: 'P1.1',
+        name: 'Completed later in reality',
+        status: 'done',
+        progress: 100,
+        best: 1,
+        factor: 1,
+        completedStart: '2026-03-01',
+        completedEnd: '2026-03-01',
+      },
+      {
+        id: 'P1.2',
+        name: 'Completed earlier in reality',
+        status: 'done',
+        progress: 100,
+        best: 1,
+        factor: 1,
+        completedStart: '2026-01-01',
+        completedEnd: '2026-01-01',
+      },
       { id: 'P1.3', name: 'Future scope', status: 'open', progress: 0, best: 8, factor: 1 },
     ];
     const scheduled = [
@@ -695,13 +733,13 @@ describe('computeRoadmapModel progress semantics', () => {
     const tree = [
       { id: 'P1', name: 'Project', status: 'wip', best: 0 },
       { id: 'P1.1', name: 'Early big', status: 'open', progress: 0, best: 30, factor: 1 },
-      { id: 'P1.2', name: 'Mid tiny',  status: 'open', progress: 0, best: 1,  factor: 1 },
-      { id: 'P1.3', name: 'Late big',  status: 'open', progress: 0, best: 20, factor: 1 },
+      { id: 'P1.2', name: 'Mid tiny', status: 'open', progress: 0, best: 1, factor: 1 },
+      { id: 'P1.3', name: 'Late big', status: 'open', progress: 0, best: 20, factor: 1 },
     ];
     const scheduled = [
       { id: 'P1.1', name: 'Early big', status: 'open', effort: 30, startD: d('2026-02-01'), endD: d('2026-02-28') },
-      { id: 'P1.2', name: 'Mid tiny',  status: 'open', effort: 1,  startD: d('2026-04-15'), endD: d('2026-04-16') },
-      { id: 'P1.3', name: 'Late big',  status: 'open', effort: 20, startD: d('2026-06-01'), endD: d('2026-06-30') },
+      { id: 'P1.2', name: 'Mid tiny', status: 'open', effort: 1, startD: d('2026-04-15'), endD: d('2026-04-16') },
+      { id: 'P1.3', name: 'Late big', status: 'open', effort: 20, startD: d('2026-06-01'), endD: d('2026-06-30') },
     ];
     const model = computeRoadmapModel({
       tree,

@@ -21,7 +21,10 @@ const TS = '2026-09-22T09:00:00.000Z';
 describe('writing history as of an earlier day', () => {
   test('stamps every event with the day it is meant to belong to', () => {
     const before = snap([['P1.1', 'open', 0]]);
-    const after = snap([['P1.1', 'wip', 40], ['P1.2', 'open', 0]]);
+    const after = snap([
+      ['P1.1', 'wip', 40],
+      ['P1.2', 'open', 0],
+    ]);
 
     const events = diffSnapshots(before, after, TS, '2026-09-14');
 
@@ -45,18 +48,25 @@ describe('writing history as of an earlier day', () => {
     expect(events[0].effectiveAt).toBeUndefined();
   });
 
-  test('keeps the backdated restructuring out of this week\'s review', () => {
+  test("keeps the backdated restructuring out of this week's review", () => {
     // The whole point, end to end: today I split a package; the review window
     // opened on the 15th; the split is dated the 14th and therefore is not
     // movement this week. A progress change made today still is.
     const before = snap([['P1.1', 'wip', 20]]);
-    const restructured = diffSnapshots(before, snap([['P1.1', 'wip', 20], ['P1.1.1', 'open', 0]]), TS, '2026-09-14');
+    const restructured = diffSnapshots(
+      before,
+      snap([
+        ['P1.1', 'wip', 20],
+        ['P1.1.1', 'open', 0],
+      ]),
+      TS,
+      '2026-09-14',
+    );
     const realWork = diffSnapshots(snap([['P1.1', 'wip', 20]]), snap([['P1.1', 'wip', 60]]), TS);
 
     // `effectiveDateOfEvent` is what every window filter reads — one source
     // per truth, so asserting on it is asserting on what the review shows.
-    const inWindow = [...restructured, ...realWork]
-      .filter(ev => effectiveDateOfEvent(ev) >= '2026-09-15');
+    const inWindow = [...restructured, ...realWork].filter(ev => effectiveDateOfEvent(ev) >= '2026-09-15');
 
     expect(inWindow.map(e => e.id)).toEqual(['P1.1']);
     expect(inWindow[0].progress).toBe(60);
@@ -72,9 +82,9 @@ describe('a backdated entry and the ones after it', () => {
 
   test('drops the later entries for that item that claim the same fields', () => {
     const existing = [
-      ev('P1.1', '2026-09-10', { status: 'wip' }),   // before — untouched
-      ev('P1.1', '2026-09-20', { status: 'wip' }),   // after, same field — gone
-      ev('P1.2', '2026-09-20', { status: 'wip' }),   // another item — untouched
+      ev('P1.1', '2026-09-10', { status: 'wip' }), // before — untouched
+      ev('P1.1', '2026-09-20', { status: 'wip' }), // after, same field — gone
+      ev('P1.2', '2026-09-20', { status: 'wip' }), // another item — untouched
     ];
     const { kept, dropped } = supersededByBackdate(existing, [ev('P1.1', '2026-09-14', { status: 'done' })]);
 

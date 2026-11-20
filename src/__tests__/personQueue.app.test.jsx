@@ -12,28 +12,38 @@ import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 
 function seedProject() {
-  localStorage.setItem('planr_v2', JSON.stringify({
-    tree: [
-      { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
-      { id: 'A.1', name: 'A eins', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
-      { id: 'A.2', name: 'A zwei', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
-      { id: 'B', name: 'Projekt B', status: 'wip', team: 'T1' },
-      { id: 'B.1', name: 'B eins', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
-    ],
-    members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
-    teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-    vacations: [], meetingPlans: [],
-    meta: { name: 'Queue', planStart: '2026-01-05', planEnd: '2027-06-30' },
-  }));
+  localStorage.setItem(
+    'planr_v2',
+    JSON.stringify({
+      tree: [
+        { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
+        { id: 'A.1', name: 'A eins', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+        { id: 'A.2', name: 'A zwei', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+        { id: 'B', name: 'Projekt B', status: 'wip', team: 'T1' },
+        { id: 'B.1', name: 'B eins', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+      ],
+      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [],
+      meetingPlans: [],
+      meta: { name: 'Queue', planStart: '2026-01-05', planEnd: '2027-06-30' },
+    }),
+  );
 }
 
-const renderApp = () => render(
-  <I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>,
-);
-const tabNamed = name => [...document.querySelectorAll('.tab')]
-  .find(el => (el.firstChild?.textContent || '').trim() === name);
+const renderApp = () =>
+  render(
+    <I18nProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </I18nProvider>,
+  );
+const tabNamed = name => [...document.querySelectorAll('.tab')].find(el => (el.firstChild?.textContent || '').trim() === name);
 const press = async (key, opts = {}) => {
-  await act(async () => { fireEvent.keyDown(window, { key, bubbles: true, ...opts }); });
+  await act(async () => {
+    fireEvent.keyDown(window, { key, bubbles: true, ...opts });
+  });
 };
 
 describe('the schedule is not the queue', () => {
@@ -62,13 +72,22 @@ describe('the schedule is not the queue', () => {
     localStorage.setItem('planr_gantt_collapsed', JSON.stringify({ resource: [] }));
     seedProject();
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   const openSchedule = async () => {
     renderApp();
-    await waitFor(() => { if (!tabNamed('Schedule')) throw new Error('no tab'); });
-    await act(async () => { fireEvent.mouseDown(tabNamed('Schedule'), { button: 0 }); });
-    await waitFor(() => { if (!document.querySelector('[data-task-id]')) throw new Error('no bars'); });
+    await waitFor(() => {
+      if (!tabNamed('Schedule')) throw new Error('no tab');
+    });
+    await act(async () => {
+      fireEvent.mouseDown(tabNamed('Schedule'), { button: 0 });
+    });
+    await waitFor(() => {
+      if (!document.querySelector('[data-task-id]')) throw new Error('no bars');
+    });
   };
 
   it('spends no vertical space explaining a gesture it no longer has', async () => {
@@ -77,10 +96,13 @@ describe('the schedule is not the queue', () => {
   });
 
   it('still says whose order is their own, so the bars are explicable', async () => {
-    localStorage.setItem('planr_v2', JSON.stringify({
-      ...JSON.parse(localStorage.getItem('planr_v2')),
-      personQueues: { M1: ['B.1', 'A.1', 'A.2'] },
-    }));
+    localStorage.setItem(
+      'planr_v2',
+      JSON.stringify({
+        ...JSON.parse(localStorage.getItem('planr_v2')),
+        personQueues: { M1: ['B.1', 'A.1', 'A.2'] },
+      }),
+    );
     await openSchedule();
     expect(screen.getByTestId('queue-sorted-M1')).toBeTruthy();
     // Read-only here: it is changed where it lives.

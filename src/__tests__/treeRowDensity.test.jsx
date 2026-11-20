@@ -83,8 +83,7 @@ describe('a narrow pane', () => {
 
   it('never drops the name or who — those two say which row this is', () => {
     for (const col of ['name', 'who']) {
-      expect(css, `${col} is dropped somewhere`)
-        .not.toMatch(new RegExp(`data-col="${col}"[^{]*\\{[^}]*display:\\s*none`));
+      expect(css, `${col} is dropped somewhere`).not.toMatch(new RegExp(`data-col="${col}"[^{]*\\{[^}]*display:\\s*none`));
     }
   });
 

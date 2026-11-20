@@ -67,7 +67,14 @@ describe('formatHistoryBlock / formatEvent', () => {
   });
 
   test('formatEvent puts kind/status/progress/completedAt in canonical order', () => {
-    const line = formatEvent({ ts: '2026-05-01T00:00:00Z', id: 'P1', completedAt: '2026-05-01', status: 'done', progress: 100, kind: 'added' });
+    const line = formatEvent({
+      ts: '2026-05-01T00:00:00Z',
+      id: 'P1',
+      completedAt: '2026-05-01',
+      status: 'done',
+      progress: 100,
+      kind: 'added',
+    });
     expect(line).toBe('2026-05-01T00:00:00Z P1 kind=added status=done progress=100 completedAt=2026-05-01');
   });
 });
@@ -185,10 +192,7 @@ describe('replayToDate (Time-Travel snapshot)', () => {
   });
 
   test('filters out items added after the operating date and their subtree', () => {
-    const treeWithSub = [
-      ...tree,
-      { id: 'P1.B.1', name: 'B-child', status: 'open', progress: 0 },
-    ];
+    const treeWithSub = [...tree, { id: 'P1.B.1', name: 'B-child', status: 'open', progress: 0 }];
     const events = [
       { ts: '2026-05-20T10:00:00Z', id: 'P1.B', kind: 'added', status: 'open', progress: 0, effectiveAt: '2026-05-20' },
       { ts: '2026-05-21T10:00:00Z', id: 'P1.B.1', kind: 'added', status: 'open', progress: 0, effectiveAt: '2026-05-21' },
@@ -231,10 +235,10 @@ describe('compactHistory', () => {
     const log = [
       ev('01', 'A', { kind: 'added', status: 'open', progress: 0 }),
       ev('02', 'B', { kind: 'added', status: 'wip', progress: 50 }),
-      ev('03', 'A', { kind: 'added', status: 'open', progress: 0 }),   // again, unchanged
+      ev('03', 'A', { kind: 'added', status: 'open', progress: 0 }), // again, unchanged
       ev('04', 'A', { status: 'wip', progress: 30 }),
-      ev('05', 'B', { kind: 'added', status: 'wip', progress: 50 }),   // again, unchanged
-      ev('06', 'A', { progress: 30 }),                                  // says what is already so
+      ev('05', 'B', { kind: 'added', status: 'wip', progress: 50 }), // again, unchanged
+      ev('06', 'A', { progress: 30 }), // says what is already so
       ev('07', 'A', { status: 'done', progress: 100, completedAt: '2026-09-07' }),
     ];
     const { events, dropped } = compactHistory(log);
@@ -289,7 +293,9 @@ describe('dates waiting for a save', () => {
   test('stamps the item and the package above it, and nothing else', () => {
     const out = stampPendingDates(
       [ev('P1.1', { progress: 60 }), ev('P1', { status: 'wip' }), ev('P2.1', { progress: 10 }), ev('P2', { status: 'wip' })],
-      { 'P1.1': wait('2026-11-10', 'wip', 60) }, snap({ 'P1.1': ['wip', 60] }));
+      { 'P1.1': wait('2026-11-10', 'wip', 60) },
+      snap({ 'P1.1': ['wip', 60] }),
+    );
     expect(out.map(e => e.effectiveAt || null)).toEqual(['2026-11-10', '2026-11-10', null, null]);
   });
 
@@ -301,20 +307,27 @@ describe('dates waiting for a save', () => {
   test('a package that also changed through a sibling edited today stays on today', () => {
     const out = stampPendingDates(
       [ev('P1.1', { progress: 60 }), ev('P1.2', { status: 'done', progress: 100 }), ev('P1', { status: 'wip' })],
-      { 'P1.1': wait('2026-11-10', 'wip', 60) }, snap({ 'P1.1': ['wip', 60], 'P1.2': ['done', 100] }));
+      { 'P1.1': wait('2026-11-10', 'wip', 60) },
+      snap({ 'P1.1': ['wip', 60], 'P1.2': ['done', 100] }),
+    );
     expect(out.map(e => e.effectiveAt || null)).toEqual(['2026-11-10', null, null]);
   });
 
   test('a package over two dated items takes the earlier day, through every level', () => {
     const out = stampPendingDates(
       [ev('P1.1.1', { progress: 60 }), ev('P1.1.2', { progress: 30 }), ev('P1.1', { status: 'wip' }), ev('P1', { status: 'wip' })],
-      { 'P1.1.1': wait('2026-11-10', 'wip', 60), 'P1.1.2': wait('2026-11-03', 'wip', 30) }, snap({ 'P1.1.1': ['wip', 60], 'P1.1.2': ['wip', 30] }));
+      { 'P1.1.1': wait('2026-11-10', 'wip', 60), 'P1.1.2': wait('2026-11-03', 'wip', 30) },
+      snap({ 'P1.1.1': ['wip', 60], 'P1.1.2': ['wip', 30] }),
+    );
     expect(out.map(e => e.effectiveAt)).toEqual(['2026-11-10', '2026-11-03', '2026-11-03', '2026-11-03']);
   });
 
   test('leaves a day that is already there, and never dates a removal', () => {
-    const out = stampPendingDates([ev('P1.1', { progress: 60, effectiveAt: '2026-11-01' }), ev('P1.1', { kind: 'removed' })],
-      { 'P1.1': wait('2026-11-10', 'wip', 60) }, snap({ 'P1.1': ['wip', 60] }));
+    const out = stampPendingDates(
+      [ev('P1.1', { progress: 60, effectiveAt: '2026-11-01' }), ev('P1.1', { kind: 'removed' })],
+      { 'P1.1': wait('2026-11-10', 'wip', 60) },
+      snap({ 'P1.1': ['wip', 60] }),
+    );
     expect(out[0].effectiveAt).toBe('2026-11-01');
     expect(out[1].effectiveAt).toBeUndefined();
   });
@@ -331,7 +344,8 @@ describe('dates waiting for a save', () => {
   });
 
   test('takes out what a save read and keeps what was set meanwhile', () => {
-    const a = wait('2026-11-10', 'wip', 60), b = wait('2026-11-12', 'wip', 20);
+    const a = wait('2026-11-10', 'wip', 60),
+      b = wait('2026-11-12', 'wip', 20);
     const data = { tree: [], asOfPending: { 'P1.1': a, 'P1.2': b } };
     expect(withoutPendingDates(data)).toEqual({ tree: [] });
     expect(withoutPendingDates(data, { 'P1.1': a })).toEqual({ tree: [], asOfPending: { 'P1.2': b } });

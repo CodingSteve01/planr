@@ -26,7 +26,10 @@ export function parseHorizonValue(val) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return new Date(val + 'T23:59:59');
   const n = parseInt(val, 10);
   if (!Number.isFinite(n) || n <= 0) return null;
-  const d = new Date(); d.setDate(d.getDate() + n); d.setHours(23, 59, 59, 999); return d;
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  d.setHours(23, 59, 59, 999);
+  return d;
 }
 
 // Compute the set of scheduled-leaf ids whose work falls within
@@ -44,7 +47,7 @@ export function horizonScopedIds({ tree, scheduled, horizonEnd, now = new Date()
     const s = schedById.get(r.id);
     if (s && s.startD) {
       const startD = s.startD instanceof Date ? s.startD : new Date(s.startD);
-      const endD = s.endD instanceof Date ? s.endD : (s.endD ? new Date(s.endD) : startD);
+      const endD = s.endD instanceof Date ? s.endD : s.endD ? new Date(s.endD) : startD;
       if (startD <= horizonEnd && endD >= now && r.status !== 'done') {
         ids.add(r.id);
       }
@@ -100,13 +103,24 @@ export function horizonBucket(date, confidence, de = false, now = new Date()) {
   else if (days > 28) gran = 'm';
   else gran = 'w';
   if (gran === 'w') {
-    const w = isoWeek(d), y = d.getFullYear();
-    return { key: y + '-w' + String(w).padStart(2, '0'), label: (de ? 'KW ' : 'Week ') + w + ' · ' + d.toLocaleDateString(de ? 'de-DE' : 'en-US', { month: 'short', year: 'numeric' }), order: y * 100 + w };
+    const w = isoWeek(d),
+      y = d.getFullYear();
+    return {
+      key: y + '-w' + String(w).padStart(2, '0'),
+      label: (de ? 'KW ' : 'Week ') + w + ' · ' + d.toLocaleDateString(de ? 'de-DE' : 'en-US', { month: 'short', year: 'numeric' }),
+      order: y * 100 + w,
+    };
   }
   if (gran === 'm') {
-    const m = d.getMonth(), y = d.getFullYear();
-    return { key: y + '-m' + String(m + 1).padStart(2, '0'), label: d.toLocaleDateString(de ? 'de-DE' : 'en-US', { month: 'long', year: 'numeric' }), order: y * 100 + m + 50 };
+    const m = d.getMonth(),
+      y = d.getFullYear();
+    return {
+      key: y + '-m' + String(m + 1).padStart(2, '0'),
+      label: d.toLocaleDateString(de ? 'de-DE' : 'en-US', { month: 'long', year: 'numeric' }),
+      order: y * 100 + m + 50,
+    };
   }
-  const q = Math.floor(d.getMonth() / 3) + 1, y = d.getFullYear();
+  const q = Math.floor(d.getMonth() / 3) + 1,
+    y = d.getFullYear();
   return { key: y + '-q' + q, label: 'Q' + q + ' ' + y, order: y * 100 + q * 3 + 80 };
 }

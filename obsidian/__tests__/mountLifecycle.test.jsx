@@ -14,8 +14,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // "this container has been cleared", which is the whole question here.
 vi.mock('react-dom/client', () => ({
   createRoot: el => ({
-    render: () => { el.textContent = 'app'; },
-    unmount: () => { el.textContent = ''; },
+    render: () => {
+      el.textContent = 'app';
+    },
+    unmount: () => {
+      el.textContent = '';
+    },
   }),
 }));
 
@@ -48,8 +52,12 @@ function view() {
 
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
-beforeEach(() => { setVaultApp({ vault: {} }); });
-afterEach(() => { document.body.innerHTML = ''; });
+beforeEach(() => {
+  setVaultApp({ vault: {} });
+});
+afterEach(() => {
+  document.body.innerHTML = '';
+});
 
 describe('switching a tab from one plan to another', () => {
   it('leaves the new plan on screen once the old one is torn down', async () => {

@@ -53,7 +53,7 @@ describe('the printed palette', () => {
     ['confLo', 'cf-lo'],
     ['scenario', 'sc'],
     ['scenarioSoft', 'sc-soft'],
-  ])('%s is the stylesheet\'s --%s', (printKey, cssName) => {
+  ])("%s is the stylesheet's --%s", (printKey, cssName) => {
     const want = token(cssName);
     expect(want, `--${cssName} is not a literal in the light block`).toBeTruthy();
     expect(String(PRINT[printKey]).toLowerCase()).toBe(want);

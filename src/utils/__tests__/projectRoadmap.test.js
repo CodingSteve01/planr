@@ -9,8 +9,16 @@ const d = isoStr => new Date(`${isoStr}T00:00:00`);
 const tree = [
   { id: 'D1', name: 'E-Rechnungspflicht', type: 'deadline', status: 'wip', date: '2027-01-01' },
   { id: 'D1.1', name: 'Kurzfristig DMS', status: 'wip' },
-  { id: 'D1.1.1', name: 'PDF-Rechnung', status: 'done', best: 8, factor: 1.5,
-    completedStart: '2026-05-05', completedEnd: '2026-06-03', completedAt: '2026-06-03' },
+  {
+    id: 'D1.1.1',
+    name: 'PDF-Rechnung',
+    status: 'done',
+    best: 8,
+    factor: 1.5,
+    completedStart: '2026-05-05',
+    completedEnd: '2026-06-03',
+    completedAt: '2026-06-03',
+  },
   { id: 'D1.1.2', name: 'Masken UI', status: 'open', best: 4, factor: 1.5 },
   { id: 'D1.2', name: 'Langfristig Rechnungen', status: 'open' },
   { id: 'D1.2.1', name: 'Format 2.5', status: 'open', best: 10, factor: 1.5 },
@@ -68,14 +76,22 @@ describe('computeProjectRoadmap', () => {
     // forward to meet it.
     const finished = [
       { id: 'F1', name: 'Wrapped last spring', status: 'done' },
-      { id: 'F1.1', name: 'Only task', status: 'done', best: 5, factor: 1.5,
-        completedStart: '2025-03-01', completedEnd: '2025-03-20', completedAt: '2025-03-20' },
+      {
+        id: 'F1.1',
+        name: 'Only task',
+        status: 'done',
+        best: 5,
+        factor: 1.5,
+        completedStart: '2025-03-01',
+        completedEnd: '2025-03-20',
+        completedAt: '2025-03-20',
+      },
     ];
     const finishedStats = treeStats(finished);
     const past = computeProjectRoadmap({ tree: finished, scheduled: [], stats: finishedStats, rootId: 'F1', now: NOW });
 
-    expect(past.axisEnd).toEqual(new Date(2025, 3, 1));   // snapped to April 2025 — not anywhere near NOW
-    expect(+NOW).toBeGreaterThan(+past.axisEnd);          // sanity: NOW really is outside this axis
+    expect(past.axisEnd).toEqual(new Date(2025, 3, 1)); // snapped to April 2025 — not anywhere near NOW
+    expect(+NOW).toBeGreaterThan(+past.axisEnd); // sanity: NOW really is outside this axis
   });
 
   test('today never WIDENS the axis — a project that has not started yet draws its own future span', () => {
@@ -83,14 +99,12 @@ describe('computeProjectRoadmap', () => {
       { id: 'U1', name: 'Starts next year', status: 'open' },
       { id: 'U1.1', name: 'Only task', status: 'open', best: 5, factor: 1.5, pinnedStart: '2028-01-15' },
     ];
-    const scheduledFuture = [
-      { id: 'U1.1', treeId: 'U1.1', startD: d('2028-01-15'), endD: d('2028-02-10'), effort: 6 },
-    ];
+    const scheduledFuture = [{ id: 'U1.1', treeId: 'U1.1', startD: d('2028-01-15'), endD: d('2028-02-10'), effort: 6 }];
     const futureStats = treeStats(future);
     const upcoming = computeProjectRoadmap({ tree: future, scheduled: scheduledFuture, stats: futureStats, rootId: 'U1', now: NOW });
 
-    expect(upcoming.axisStart).toEqual(new Date(2028, 0, 1));   // snapped to January 2028 — not NOW
-    expect(+NOW).toBeLessThan(+upcoming.axisStart);              // sanity: NOW really is before this axis
+    expect(upcoming.axisStart).toEqual(new Date(2028, 0, 1)); // snapped to January 2028 — not NOW
+    expect(+NOW).toBeLessThan(+upcoming.axisStart); // sanity: NOW really is before this axis
   });
 
   test('long projects switch to quarterly ticks', () => {
@@ -111,8 +125,11 @@ describe('computeProjectRoadmap', () => {
   test('a project with no children still renders as a single row', () => {
     const lone = [{ id: 'S1', name: 'Solo task', status: 'wip', best: 3, factor: 1 }];
     const m = computeProjectRoadmap({
-      tree: lone, scheduled: [{ id: 'S1', startD: d('2026-09-01'), endD: d('2026-09-30'), effort: 3 }],
-      stats: treeStats(lone), rootId: 'S1', now: NOW,
+      tree: lone,
+      scheduled: [{ id: 'S1', startD: d('2026-09-01'), endD: d('2026-09-30'), effort: 3 }],
+      stats: treeStats(lone),
+      rootId: 'S1',
+      now: NOW,
     });
     expect(m.rows.map(r => r.id)).toEqual(['S1']);
     expect(m.rows[0].milestones.map(m2 => m2.id)).toEqual(['S1']);
@@ -137,8 +154,11 @@ describe('nothing falls off the board', () => {
     expect(onBoard.slice().sort()).toEqual(projectRoadmapLeafIds(tree, 'D1').slice().sort());
     expect(new Set(onBoard).size).toBe(onBoard.length);
     // ...and that is genuinely every leaf under D1.
-    expect(projectRoadmapLeafIds(tree, 'D1').sort())
-      .toEqual(descendantLeaves(tree, 'D1').map(l => l.id).sort());
+    expect(projectRoadmapLeafIds(tree, 'D1').sort()).toEqual(
+      descendantLeaves(tree, 'D1')
+        .map(l => l.id)
+        .sort(),
+    );
   });
 
   test('a leaf with no date at all is not silently dropped from the count', () => {
@@ -156,7 +176,12 @@ describe('nothing falls off the board', () => {
 
 describe('renderProjectRoadmapSvg', () => {
   const svg = renderProjectRoadmapSvg({
-    tree, scheduled, stats, rootId: 'D1', color: '#ef4444', now: NOW,
+    tree,
+    scheduled,
+    stats,
+    rootId: 'D1',
+    color: '#ef4444',
+    now: NOW,
     labels: { months: 'Jan,Feb,Mär,Apr,Mai,Jun,Jul,Aug,Sep,Okt,Nov,Dez', today: 'heute', tasks: 'Aufgaben' },
   });
 
@@ -184,7 +209,7 @@ describe('renderProjectRoadmapSvg', () => {
   test('marks today and the deadline, in the caller language', () => {
     expect(svg).toContain('heute');
     expect(svg).toContain('2027-01-01');
-    expect(svg).toContain('Mai');   // localized month axis
+    expect(svg).toContain('Mai'); // localized month axis
     expect(svg).not.toContain('May');
   });
 
@@ -202,15 +227,27 @@ describe('renderProjectRoadmapSvg', () => {
   test('draws no today line, and no "today" text, for a project that does not span today', () => {
     const finished = [
       { id: 'F1', name: 'Wrapped last spring', status: 'done' },
-      { id: 'F1.1', name: 'Only task', status: 'done', best: 5, factor: 1.5,
-        completedStart: '2025-03-01', completedEnd: '2025-03-20', completedAt: '2025-03-20' },
+      {
+        id: 'F1.1',
+        name: 'Only task',
+        status: 'done',
+        best: 5,
+        factor: 1.5,
+        completedStart: '2025-03-01',
+        completedEnd: '2025-03-20',
+        completedAt: '2025-03-20',
+      },
     ];
     const out = renderProjectRoadmapSvg({
-      tree: finished, scheduled: [], stats: treeStats(finished), rootId: 'F1', now: NOW,
+      tree: finished,
+      scheduled: [],
+      stats: treeStats(finished),
+      rootId: 'F1',
+      now: NOW,
       labels: { months: 'Jan,Feb,Mär,Apr,Mai,Jun,Jul,Aug,Sep,Okt,Nov,Dez', today: 'heute', tasks: 'Aufgaben' },
     });
     expect(out).not.toContain('heute');
-    expect(out).not.toContain('#22c55e');   // the today line/text colour
+    expect(out).not.toContain('#22c55e'); // the today line/text colour
   });
 
   test('escapes names instead of letting them break the svg', () => {
@@ -219,8 +256,11 @@ describe('renderProjectRoadmapSvg', () => {
       { id: 'X1.1', name: '"quoted"', status: 'open', best: 1 },
     ];
     const out = renderProjectRoadmapSvg({
-      tree: nasty, scheduled: [{ id: 'X1.1', startD: d('2026-09-01'), endD: d('2026-09-05'), effort: 1 }],
-      stats: treeStats(nasty), rootId: 'X1', now: NOW,
+      tree: nasty,
+      scheduled: [{ id: 'X1.1', startD: d('2026-09-01'), endD: d('2026-09-05'), effort: 1 }],
+      stats: treeStats(nasty),
+      rootId: 'X1',
+      now: NOW,
     });
     expect(out).not.toContain('<script>');
     expect(out).toContain('&amp;');
@@ -241,8 +281,7 @@ describe('renderProjectRoadmapSvg', () => {
     }
     const out = renderProjectRoadmapSvg({ tree: dense, scheduled: denseSched, stats: treeStats(dense), rootId: 'C1', now: NOW });
     // Count drawn stop labels only — the names also appear inside tooltips.
-    const drawn = [...out.matchAll(/<text class="pr-axis"[^>]*fill="var\(--tx2[^>]*>([^<]*)<\/text>/g)]
-      .map(m => m[1]);
+    const drawn = [...out.matchAll(/<text class="pr-axis"[^>]*fill="var\(--tx2[^>]*>([^<]*)<\/text>/g)].map(m => m[1]);
 
     expect(drawn.length).toBeGreaterThan(0);
     expect(drawn.length).toBeLessThan(5);
@@ -254,8 +293,7 @@ describe('renderProjectRoadmapSvg', () => {
 
 describe('the full-map renderer is untouched by all this', () => {
   test('leafNodes still sees every leaf of the whole tree', () => {
-    expect(leafNodes(tree).map(l => l.id))
-      .toEqual(['D1.1.1', 'D1.1.2', 'D1.2.1', 'Other']);
+    expect(leafNodes(tree).map(l => l.id)).toEqual(['D1.1.1', 'D1.1.2', 'D1.2.1', 'Other']);
   });
 });
 
@@ -279,7 +317,7 @@ describe('dropped work on the project roadmap', () => {
     expect([row.start, row.end, row.leafCount]).toEqual([null, null, 0]);
   });
 
-  test('leaves dropped tasks out of a package\'s count and out of the project\'s', () => {
+  test("leaves dropped tasks out of a package's count and out of the project's", () => {
     const masks = model.rows.find(r => r.id === 'P8.1');
     expect([masks.doneCount, masks.leafCount]).toEqual([1, 1]);
     expect([model.doneCount, model.leafCount]).toEqual([1, 1]);
@@ -287,7 +325,13 @@ describe('dropped work on the project roadmap', () => {
   });
 
   test('says "dropped" in the SVG instead of "no dates yet", without figures', () => {
-    const svg = renderProjectRoadmapSvg({ tree, scheduled, stats: treeStats(tree), rootId: 'P8', labels: { dropped: 'verworfen', noDates: 'noch keine Termine' } });
+    const svg = renderProjectRoadmapSvg({
+      tree,
+      scheduled,
+      stats: treeStats(tree),
+      rootId: 'P8',
+      labels: { dropped: 'verworfen', noDates: 'noch keine Termine' },
+    });
     expect(svg).toContain('verworfen');
     expect(svg).not.toContain('noch keine Termine');
     expect(svg).toMatch(/text-decoration="line-through"[^>]*>Zahlung/);

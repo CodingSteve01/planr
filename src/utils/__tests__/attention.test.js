@@ -33,7 +33,7 @@ describe('computeAttention', () => {
   });
 
   test('a satisfied dependency clears the blocked flag', () => {
-    const tree = baseTree().map(n => n.id === 'P1.1' ? { ...n, status: 'done' } : n);
+    const tree = baseTree().map(n => (n.id === 'P1.1' ? { ...n, status: 'done' } : n));
     const items = computeAttention({ tree, scheduled: [], now: NOW });
     expect(items.find(i => i.id === 'P1.3')).toBeUndefined();
   });
@@ -77,7 +77,7 @@ describe('computeAttention', () => {
   });
 
   test('readiness ignores the active scope — a filtered-out predecessor still counts as done', () => {
-    const tree = baseTree().map(n => n.id === 'P1.1' ? { ...n, status: 'done' } : n);
+    const tree = baseTree().map(n => (n.id === 'P1.1' ? { ...n, status: 'done' } : n));
     // Filter down to team T2 only (P1.3's team); P1.1 (team T1) is out of
     // scope but must still count as done for the readiness check.
     const items = computeAttention({ tree, scheduled: [], now: NOW, teamFilter: 'T2' });

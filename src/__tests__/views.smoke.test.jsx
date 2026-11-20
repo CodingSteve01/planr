@@ -37,24 +37,56 @@ describe('view smoke', () => {
   });
 
   it('TreeView mounts', () => {
-    expect(() => wrap(
-      <TreeView tree={tree} selected={null} multiSel={new Set()} onSelect={noop}
-        search="" teamFilter="" rootFilter="" personFilter=""
-        stats={stats} teams={teams} members={members} scheduled={scheduled}
-        cpSet={new Set()} customFields={[]}
-        onQuickAdd={noop} onDelete={noop} onReorder={noop} />,
-    )).not.toThrow();
+    expect(() =>
+      wrap(
+        <TreeView
+          tree={tree}
+          selected={null}
+          multiSel={new Set()}
+          onSelect={noop}
+          search=""
+          teamFilter=""
+          rootFilter=""
+          personFilter=""
+          stats={stats}
+          teams={teams}
+          members={members}
+          scheduled={scheduled}
+          cpSet={new Set()}
+          customFields={[]}
+          onQuickAdd={noop}
+          onDelete={noop}
+          onReorder={noop}
+        />,
+      ),
+    ).not.toThrow();
   });
 
   it('GanttView mounts', () => {
-    expect(() => wrap(
-      <GanttView scheduled={scheduled} weeks={weeks} goals={[]} teams={teams}
-        members={members} vacations={[]} cpSet={new Set()} cpEdges={[]}
-        tree={tree} workDays={[1, 2, 3, 4, 5]} planStart="2026-01-01"
-        onBarClick={noop} onSeqUpdate={noop} onExtendViewStart={noop}
-        onTaskUpdate={noop} onRemoveDep={noop} onAddDep={noop}
-        onReorderSibling={noop} />,
-    )).not.toThrow();
+    expect(() =>
+      wrap(
+        <GanttView
+          scheduled={scheduled}
+          weeks={weeks}
+          goals={[]}
+          teams={teams}
+          members={members}
+          vacations={[]}
+          cpSet={new Set()}
+          cpEdges={[]}
+          tree={tree}
+          workDays={[1, 2, 3, 4, 5]}
+          planStart="2026-01-01"
+          onBarClick={noop}
+          onSeqUpdate={noop}
+          onExtendViewStart={noop}
+          onTaskUpdate={noop}
+          onRemoveDep={noop}
+          onAddDep={noop}
+          onReorderSibling={noop}
+        />,
+      ),
+    ).not.toThrow();
   });
 
   it('GanttView updates the timeline zoom through the zoom control', () => {
@@ -69,12 +101,26 @@ describe('view smoke', () => {
       assign: [],
     };
     const { container } = wrap(
-      <GanttView scheduled={[scheduledTask]} weeks={weeks} goals={[]} teams={teams}
-        members={members} vacations={[]} cpSet={new Set()} cpEdges={[]}
-        tree={tree} workDays={[1, 2, 3, 4, 5]} planStart="2026-01-01"
-        onBarClick={noop} onSeqUpdate={noop} onExtendViewStart={noop}
-        onTaskUpdate={noop} onRemoveDep={noop} onAddDep={noop}
-        onReorderSibling={noop} />,
+      <GanttView
+        scheduled={[scheduledTask]}
+        weeks={weeks}
+        goals={[]}
+        teams={teams}
+        members={members}
+        vacations={[]}
+        cpSet={new Set()}
+        cpEdges={[]}
+        tree={tree}
+        workDays={[1, 2, 3, 4, 5]}
+        planStart="2026-01-01"
+        onBarClick={noop}
+        onSeqUpdate={noop}
+        onExtendViewStart={noop}
+        onTaskUpdate={noop}
+        onRemoveDep={noop}
+        onAddDep={noop}
+        onReorderSibling={noop}
+      />,
     );
 
     fireEvent.click(container.querySelector('[data-htip="Zoom in"]'));
@@ -94,12 +140,26 @@ describe('view smoke', () => {
       assign: [],
     };
     const { getByTestId } = wrap(
-      <GanttView scheduled={[scheduledTask]} weeks={weeks} goals={[]} teams={teams}
-        members={members} vacations={[]} cpSet={new Set()} cpEdges={[]}
-        tree={tree} workDays={[1, 2, 3, 4, 5]} planStart="2026-01-01"
-        onBarClick={noop} onSeqUpdate={noop} onExtendViewStart={noop}
-        onTaskUpdate={noop} onRemoveDep={noop} onAddDep={noop}
-        onReorderSibling={noop} />,
+      <GanttView
+        scheduled={[scheduledTask]}
+        weeks={weeks}
+        goals={[]}
+        teams={teams}
+        members={members}
+        vacations={[]}
+        cpSet={new Set()}
+        cpEdges={[]}
+        tree={tree}
+        workDays={[1, 2, 3, 4, 5]}
+        planStart="2026-01-01"
+        onBarClick={noop}
+        onSeqUpdate={noop}
+        onExtendViewStart={noop}
+        onTaskUpdate={noop}
+        onRemoveDep={noop}
+        onAddDep={noop}
+        onReorderSibling={noop}
+      />,
     );
     const timeline = getByTestId('gantt-timeline');
     Object.defineProperty(timeline, 'getBoundingClientRect', {
@@ -133,12 +193,26 @@ describe('view smoke', () => {
       assign: [],
     };
     const { container, getByTestId } = wrap(
-      <GanttView scheduled={[scheduledTask]} weeks={weeks} goals={[]} teams={teams}
-        members={members} vacations={[]} cpSet={new Set()} cpEdges={[]}
-        tree={tree} workDays={[1, 2, 3, 4, 5]} planStart="2026-01-01"
-        onBarClick={noop} onSeqUpdate={noop} onExtendViewStart={noop}
-        onTaskUpdate={noop} onRemoveDep={noop} onAddDep={noop}
-        onReorderSibling={noop} />,
+      <GanttView
+        scheduled={[scheduledTask]}
+        weeks={weeks}
+        goals={[]}
+        teams={teams}
+        members={members}
+        vacations={[]}
+        cpSet={new Set()}
+        cpEdges={[]}
+        tree={tree}
+        workDays={[1, 2, 3, 4, 5]}
+        planStart="2026-01-01"
+        onBarClick={noop}
+        onSeqUpdate={noop}
+        onExtendViewStart={noop}
+        onTaskUpdate={noop}
+        onRemoveDep={noop}
+        onAddDep={noop}
+        onReorderSibling={noop}
+      />,
     );
     const timeline = getByTestId('gantt-timeline');
     timeline.scrollLeft = 80;
@@ -175,12 +249,26 @@ describe('view smoke', () => {
         _selectionOrder: idx,
       }));
     const { container, getByTestId } = wrap(
-      <GanttView scheduled={selectionScheduled} weeks={weeks} goals={[]} teams={teams}
-        members={members} vacations={[]} cpSet={new Set()} cpEdges={[]}
-        tree={selectionTree} workDays={[1, 2, 3, 4, 5]} planStart="2026-01-01"
-        onBarClick={noop} onSeqUpdate={noop} onExtendViewStart={noop}
-        onTaskUpdate={noop} onRemoveDep={noop} onAddDep={onAddDep}
-        onReorderSibling={noop} />,
+      <GanttView
+        scheduled={selectionScheduled}
+        weeks={weeks}
+        goals={[]}
+        teams={teams}
+        members={members}
+        vacations={[]}
+        cpSet={new Set()}
+        cpEdges={[]}
+        tree={selectionTree}
+        workDays={[1, 2, 3, 4, 5]}
+        planStart="2026-01-01"
+        onBarClick={noop}
+        onSeqUpdate={noop}
+        onExtendViewStart={noop}
+        onTaskUpdate={noop}
+        onRemoveDep={noop}
+        onAddDep={onAddDep}
+        onReorderSibling={noop}
+      />,
     );
     const timeline = getByTestId('gantt-timeline');
     const shell = container.querySelector('.gantt');
@@ -216,12 +304,26 @@ describe('view smoke', () => {
         assign: [],
       }));
     const { getByTestId } = wrap(
-      <GanttView scheduled={selectionScheduled} weeks={weeks} goals={[]} teams={teams}
-        members={members} vacations={[]} cpSet={new Set()} cpEdges={[]}
-        tree={selectionTree} workDays={[1, 2, 3, 4, 5]} planStart="2026-01-01"
-        onBarClick={noop} onSeqUpdate={noop} onExtendViewStart={noop}
-        onTaskUpdate={noop} onRemoveDep={noop} onAddDep={noop}
-        onReorderSibling={noop} />,
+      <GanttView
+        scheduled={selectionScheduled}
+        weeks={weeks}
+        goals={[]}
+        teams={teams}
+        members={members}
+        vacations={[]}
+        cpSet={new Set()}
+        cpEdges={[]}
+        tree={selectionTree}
+        workDays={[1, 2, 3, 4, 5]}
+        planStart="2026-01-01"
+        onBarClick={noop}
+        onSeqUpdate={noop}
+        onExtendViewStart={noop}
+        onTaskUpdate={noop}
+        onRemoveDep={noop}
+        onAddDep={noop}
+        onReorderSibling={noop}
+      />,
     );
 
     fireEvent.keyDown(window, { key: 'a', ctrlKey: true });
@@ -253,12 +355,25 @@ describe('view smoke', () => {
         _selectionOrder: idx,
       }));
     const { container, getByTestId } = wrap(
-      <GanttView scheduled={selectionScheduled} weeks={weeks} goals={[]} teams={teams}
-        members={members} vacations={[]} cpSet={new Set()} cpEdges={[]}
-        tree={selectionTree} workDays={[1, 2, 3, 4, 5]} planStart="2026-01-01"
-        onBarClick={noop} onSeqUpdate={noop} onExtendViewStart={noop}
-        onRemoveDep={onRemoveDep} onAddDep={noop}
-        onReorderSibling={noop} />,
+      <GanttView
+        scheduled={selectionScheduled}
+        weeks={weeks}
+        goals={[]}
+        teams={teams}
+        members={members}
+        vacations={[]}
+        cpSet={new Set()}
+        cpEdges={[]}
+        tree={selectionTree}
+        workDays={[1, 2, 3, 4, 5]}
+        planStart="2026-01-01"
+        onBarClick={noop}
+        onSeqUpdate={noop}
+        onExtendViewStart={noop}
+        onRemoveDep={onRemoveDep}
+        onAddDep={noop}
+        onReorderSibling={noop}
+      />,
     );
     const timeline = getByTestId('gantt-timeline');
     const shell = container.querySelector('.gantt');
@@ -272,7 +387,6 @@ describe('view smoke', () => {
     expect(onRemoveDep).toHaveBeenCalledWith('P1.2', 'P1.1');
     expect(onRemoveDep).toHaveBeenCalledWith('P1.3', 'P1.2');
   });
-
 
   it('GanttView clear-all links wipes deps + softDeps on every affected task (no legacy parallel flag)', () => {
     localStorage.setItem('planr_gantt_group', 'thread');
@@ -299,12 +413,26 @@ describe('view smoke', () => {
         _selectionOrder: idx,
       }));
     const { container, getByTestId } = wrap(
-      <GanttView scheduled={selectionScheduled} weeks={weeks} goals={[]} teams={teams}
-        members={members} vacations={[]} cpSet={new Set()} cpEdges={[]}
-        tree={selectionTree} workDays={[1, 2, 3, 4, 5]} planStart="2026-01-01"
-        onBarClick={noop} onSeqUpdate={noop} onExtendViewStart={noop}
-        onTaskUpdate={onTaskUpdate} onRemoveDep={onRemoveDep} onAddDep={noop}
-        onReorderSibling={noop} />,
+      <GanttView
+        scheduled={selectionScheduled}
+        weeks={weeks}
+        goals={[]}
+        teams={teams}
+        members={members}
+        vacations={[]}
+        cpSet={new Set()}
+        cpEdges={[]}
+        tree={selectionTree}
+        workDays={[1, 2, 3, 4, 5]}
+        planStart="2026-01-01"
+        onBarClick={noop}
+        onSeqUpdate={noop}
+        onExtendViewStart={noop}
+        onTaskUpdate={onTaskUpdate}
+        onRemoveDep={onRemoveDep}
+        onAddDep={noop}
+        onReorderSibling={noop}
+      />,
     );
     const timeline = getByTestId('gantt-timeline');
     const shell = container.querySelector('.gantt');
@@ -351,13 +479,29 @@ describe('view smoke', () => {
         assign: [],
       }));
     const { container } = wrap(
-      <GanttView scheduled={doneScheduled} weeks={weeks} goals={[]} teams={teams}
-        members={members} vacations={[]} cpSet={new Set()} cpEdges={[]}
-        tree={doneTree} hideDone diffDoneIds={['P1.1']} sinceDate={new Date('2026-01-01')}
-        workDays={[1, 2, 3, 4, 5]} planStart="2026-01-01"
-        onBarClick={noop} onSeqUpdate={noop} onExtendViewStart={noop}
-        onTaskUpdate={noop} onRemoveDep={noop} onAddDep={noop}
-        onReorderSibling={noop} />,
+      <GanttView
+        scheduled={doneScheduled}
+        weeks={weeks}
+        goals={[]}
+        teams={teams}
+        members={members}
+        vacations={[]}
+        cpSet={new Set()}
+        cpEdges={[]}
+        tree={doneTree}
+        hideDone
+        diffDoneIds={['P1.1']}
+        sinceDate={new Date('2026-01-01')}
+        workDays={[1, 2, 3, 4, 5]}
+        planStart="2026-01-01"
+        onBarClick={noop}
+        onSeqUpdate={noop}
+        onExtendViewStart={noop}
+        onTaskUpdate={noop}
+        onRemoveDep={noop}
+        onAddDep={noop}
+        onReorderSibling={noop}
+      />,
     );
 
     expect(container.textContent).toContain('Recently completed');
@@ -397,12 +541,26 @@ describe('view smoke', () => {
       },
     ];
     const { container } = wrap(
-      <GanttView scheduled={[]} weeks={weeks} goals={[]} teams={teams}
-        members={members} vacations={[]} cpSet={new Set()} cpEdges={[]}
-        tree={doneTree} workDays={[1, 2, 3, 4, 5]} planStart="2026-01-01"
-        onBarClick={onBarClick} onSeqUpdate={noop} onExtendViewStart={noop}
-        onTaskUpdate={noop} onRemoveDep={noop} onAddDep={noop}
-        onReorderSibling={noop} />,
+      <GanttView
+        scheduled={[]}
+        weeks={weeks}
+        goals={[]}
+        teams={teams}
+        members={members}
+        vacations={[]}
+        cpSet={new Set()}
+        cpEdges={[]}
+        tree={doneTree}
+        workDays={[1, 2, 3, 4, 5]}
+        planStart="2026-01-01"
+        onBarClick={onBarClick}
+        onSeqUpdate={noop}
+        onExtendViewStart={noop}
+        onTaskUpdate={noop}
+        onRemoveDep={noop}
+        onAddDep={noop}
+        onReorderSibling={noop}
+      />,
     );
     const bar = container.querySelector('[data-task-bar="P1.1.1"]');
 
@@ -415,48 +573,103 @@ describe('view smoke', () => {
   });
 
   it('NetGraph mounts', () => {
-    expect(() => wrap(
-      <NetGraph tree={tree} scheduled={scheduled} teams={teams} members={members}
-        cpSet={new Set()} stats={stats}
-        onNodeClick={noop} onAddNode={noop} onAddDep={noop} onDeleteNode={noop} />,
-    )).not.toThrow();
+    expect(() =>
+      wrap(
+        <NetGraph
+          tree={tree}
+          scheduled={scheduled}
+          teams={teams}
+          members={members}
+          cpSet={new Set()}
+          stats={stats}
+          onNodeClick={noop}
+          onAddNode={noop}
+          onAddDep={noop}
+          onDeleteNode={noop}
+        />,
+      ),
+    ).not.toThrow();
   });
 
   it('PlanReview mounts', () => {
-    expect(() => wrap(
-      <PlanReview tree={tree} scheduled={scheduled} members={members} teams={teams}
-        confidence={{}} cpSet={new Set()} stats={stats}
-        onOpenItem={noop} onUpdate={noop} />,
-    )).not.toThrow();
+    expect(() =>
+      wrap(
+        <PlanReview
+          tree={tree}
+          scheduled={scheduled}
+          members={members}
+          teams={teams}
+          confidence={{}}
+          cpSet={new Set()}
+          stats={stats}
+          onOpenItem={noop}
+          onUpdate={noop}
+        />,
+      ),
+    ).not.toThrow();
   });
 
   it('SumView mounts', () => {
-    expect(() => wrap(
-      <SumView tree={tree} scheduled={scheduled} goals={[]} members={members}
-        teams={teams} cpSet={new Set()} goalPaths={{}} stats={stats}
-        onNavigate={noop} onOpenItem={noop} onExportTodo={noop} />,
-    )).not.toThrow();
+    expect(() =>
+      wrap(
+        <SumView
+          tree={tree}
+          scheduled={scheduled}
+          goals={[]}
+          members={members}
+          teams={teams}
+          cpSet={new Set()}
+          goalPaths={{}}
+          stats={stats}
+          onNavigate={noop}
+          onOpenItem={noop}
+          onExportTodo={noop}
+        />,
+      ),
+    ).not.toThrow();
   });
 
   it('BriefingView mounts', () => {
-    expect(() => wrap(
-      <BriefingView tree={tree} scheduled={scheduled} vacations={[]} members={members}
-        teams={teams} stats={stats} cpSet={new Set()}
-        onOpenItem={noop} onExportTodo={noop} />,
-    )).not.toThrow();
+    expect(() =>
+      wrap(
+        <BriefingView
+          tree={tree}
+          scheduled={scheduled}
+          vacations={[]}
+          members={members}
+          teams={teams}
+          stats={stats}
+          cpSet={new Set()}
+          onOpenItem={noop}
+          onExportTodo={noop}
+        />,
+      ),
+    ).not.toThrow();
   });
 
   it('ResView mounts', () => {
-    expect(() => wrap(
-      <ResView members={members} teams={teams} vacations={[]} meetingPlans={[]}
-        onMeetingPlansUpd={noop} onUpd={noop} onAdd={noop} onClone={noop}
-        onDel={noop} onVac={noop} onTeamUpd={noop} onTeamAdd={noop} onTeamDel={noop} />,
-    )).not.toThrow();
+    expect(() =>
+      wrap(
+        <ResView
+          members={members}
+          teams={teams}
+          vacations={[]}
+          meetingPlans={[]}
+          onMeetingPlansUpd={noop}
+          onUpd={noop}
+          onAdd={noop}
+          onClone={noop}
+          onDel={noop}
+          onVac={noop}
+          onTeamUpd={noop}
+          onTeamAdd={noop}
+          onTeamDel={noop}
+        />,
+      ),
+    ).not.toThrow();
   });
 
   it('HolView mounts', () => {
-    expect(() => wrap(
-      <HolView holidays={[]} planStart="2026-01-01" planEnd="2027-01-01" onUpdate={noop} />,
-    )).not.toThrow();
+    expect(() => wrap(<HolView holidays={[]} planStart="2026-01-01" planEnd="2027-01-01" onUpdate={noop} />)).not.toThrow();
   });
 });

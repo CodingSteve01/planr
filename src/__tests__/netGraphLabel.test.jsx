@@ -27,8 +27,7 @@ describe('a node label', () => {
   });
 
   it('marks a name that does not fit in two lines', () => {
-    const [, second] = wrapTwoLines(
-      'Rechnungsvorbereitung und Planung inklusive Backlog und Wireframes und mehr', 26);
+    const [, second] = wrapTwoLines('Rechnungsvorbereitung und Planung inklusive Backlog und Wireframes und mehr', 26);
     expect(second.endsWith('…')).toBe(true);
   });
 

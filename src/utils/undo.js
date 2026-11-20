@@ -34,7 +34,7 @@ export function createHistory({ limit = 100 } = {}) {
 
 export function push(history, snapshot, { coalesceMs = 0 } = {}) {
   const now = Date.now();
-  const coalescing = coalesceMs > 0 && history.lastPushAt != null && (now - history.lastPushAt) < coalesceMs;
+  const coalescing = coalesceMs > 0 && history.lastPushAt != null && now - history.lastPushAt < coalesceMs;
   if (coalescing) {
     // Part of an in-flight burst — the state before the burst is already the
     // top of `past` from the first push. Just extend the coalescing window
@@ -61,5 +61,9 @@ export function redo(history, current) {
   return { history: { ...history, past, future: restFuture, lastPushAt: null }, snapshot };
 }
 
-export function canUndo(history) { return !!history?.past?.length; }
-export function canRedo(history) { return !!history?.future?.length; }
+export function canUndo(history) {
+  return !!history?.past?.length;
+}
+export function canRedo(history) {
+  return !!history?.future?.length;
+}

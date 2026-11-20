@@ -19,30 +19,52 @@ import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 
 function seedProject() {
-  localStorage.setItem('planr_v2', JSON.stringify({
-    tree: [
-      { id: 'AB', name: 'Rechnungen im Portal', status: 'wip', team: 'T1', type: 'goal', severity: 'critical', date: '2027-06-30' },
-      { id: 'AB.6', name: 'Masken stehen', status: 'wip', team: 'T1' },
-      { id: 'AB.6.1', name: 'Wizard Schritte 1 bis 5', status: 'wip', progress: 80, team: 'T1',
-        best: 30, factor: 1.5, assign: ['M1', 'M2'], prio: 1, due: '2026-10-01', decideBy: '2026-09-30' },
-      { id: 'AB.6.2', name: 'API: Zuweisungen', status: 'open', team: 'T2', best: 5, factor: 1 },
-    ],
-    members: [
-      { id: 'M1', name: 'Alex Noor', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
-      { id: 'M2', name: 'Rita Xu', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
-    ],
-    teams: [{ id: 'T1', name: 'Frontend', color: '#3b82f6' }, { id: 'T2', name: 'Backend', color: '#10b981' }],
-    vacations: [], meetingPlans: [],
-    meta: { name: 'Columns', planStart: '2026-01-05', planEnd: '2027-12-31' },
-  }));
+  localStorage.setItem(
+    'planr_v2',
+    JSON.stringify({
+      tree: [
+        { id: 'AB', name: 'Rechnungen im Portal', status: 'wip', team: 'T1', type: 'goal', severity: 'critical', date: '2027-06-30' },
+        { id: 'AB.6', name: 'Masken stehen', status: 'wip', team: 'T1' },
+        {
+          id: 'AB.6.1',
+          name: 'Wizard Schritte 1 bis 5',
+          status: 'wip',
+          progress: 80,
+          team: 'T1',
+          best: 30,
+          factor: 1.5,
+          assign: ['M1', 'M2'],
+          prio: 1,
+          due: '2026-10-01',
+          decideBy: '2026-09-30',
+        },
+        { id: 'AB.6.2', name: 'API: Zuweisungen', status: 'open', team: 'T2', best: 5, factor: 1 },
+      ],
+      members: [
+        { id: 'M1', name: 'Alex Noor', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+        { id: 'M2', name: 'Rita Xu', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+      ],
+      teams: [
+        { id: 'T1', name: 'Frontend', color: '#3b82f6' },
+        { id: 'T2', name: 'Backend', color: '#10b981' },
+      ],
+      vacations: [],
+      meetingPlans: [],
+      meta: { name: 'Columns', planStart: '2026-01-05', planEnd: '2027-12-31' },
+    }),
+  );
 }
 
-const renderApp = () => render(
-  <I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>,
-);
+const renderApp = () =>
+  render(
+    <I18nProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </I18nProvider>,
+  );
 
-const rowOf = id => [...document.querySelectorAll('tr')]
-  .find(tr => tr.children[0]?.textContent.trim().replace(/^⋮⋮/, '') === id);
+const rowOf = id => [...document.querySelectorAll('tr')].find(tr => tr.children[0]?.textContent.trim().replace(/^⋮⋮/, '') === id);
 const cell = (id, name) => rowOf(id)?.querySelector(`[data-col="${name}"]`);
 
 const setup = () => {
@@ -57,7 +79,10 @@ const setup = () => {
 
 describe('the name column holds the name', () => {
   beforeEach(setup);
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('and nothing that used to trail behind it', async () => {
     renderApp();
@@ -102,7 +127,10 @@ describe('the name column holds the name', () => {
 
 describe('what moved off the row', () => {
   beforeEach(setup);
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('severity, the goal date and decide-by are no longer printed on it', async () => {
     renderApp();
@@ -116,16 +144,21 @@ describe('what moved off the row', () => {
 
 describe('a collapsed parent', () => {
   beforeEach(setup);
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
-  it('counts its leaves in the app\'s language', async () => {
+  it("counts its leaves in the app's language", async () => {
     // It said "(2 leafs)" — English, and misspelled, in a German app.
     renderApp();
     await screen.findByText('AB.6');
     const collapseAll = [...document.querySelectorAll('button')].find(b => /collapse all/i.test(b.textContent));
     if (!collapseAll) return;
     collapseAll.click();
-    await waitFor(() => { if (!rowOf('AB')) throw new Error('no root'); });
+    await waitFor(() => {
+      if (!rowOf('AB')) throw new Error('no root');
+    });
     expect(document.body.textContent).not.toMatch(/leafs/);
   });
 });

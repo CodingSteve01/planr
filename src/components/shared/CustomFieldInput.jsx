@@ -27,31 +27,32 @@ export function CustomFieldInput({ field, value, onChange }) {
 
   if (field.type === 'uri') {
     const url = resolveUri(field, v);
-    return <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-      <LazyInput
-        style={{ flex: 1 }}
-        value={v}
-        placeholder={field.uriTemplate ? t('cf.uriValuePlaceholder') : 'https://…'}
-        onCommit={onChange}
-      />
-      {url && <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="btn btn-sec btn-xs"
-        style={{ padding: '4px 7px', lineHeight: 1, textDecoration: 'none' }}
-        data-htip={t('cf.openLink')}
-      >↗</a>}
-    </div>;
+    return (
+      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+        <LazyInput
+          style={{ flex: 1 }}
+          value={v}
+          placeholder={field.uriTemplate ? t('cf.uriValuePlaceholder') : 'https://…'}
+          onCommit={onChange}
+        />
+        {url && (
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-sec btn-xs"
+            style={{ padding: '4px 7px', lineHeight: 1, textDecoration: 'none' }}
+            data-htip={t('cf.openLink')}
+          >
+            ↗
+          </a>
+        )}
+      </div>
+    );
   }
 
   if (field.type === 'number') {
-    return <LazyInput
-      type="number"
-      value={v}
-      onCommit={val => onChange(val === '' ? '' : +val)}
-      style={{ fontFamily: 'var(--mono)' }}
-    />;
+    return <LazyInput type="number" value={v} onCommit={val => onChange(val === '' ? '' : +val)} style={{ fontFamily: 'var(--mono)' }} />;
   }
 
   // default: text

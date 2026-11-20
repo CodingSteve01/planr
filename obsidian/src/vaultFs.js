@@ -22,7 +22,9 @@ import { FuzzySuggestModal, Modal, Setting, TFile, TFolder, normalizePath } from
 
 let _app = null;
 
-export function setVaultApp(app) { _app = app; }
+export function setVaultApp(app) {
+  _app = app;
+}
 
 // ── Where the last plan lived ─────────────────────────────────────────────
 // Not a mount: which plan a tab is editing is the tab's business, and
@@ -32,11 +34,19 @@ export function setVaultApp(app) { _app = app; }
 const LAST_FOLDER_KEY = 'planr-last-plan-path';
 
 export function lastPlanPath() {
-  try { return _app?.loadLocalStorage(LAST_FOLDER_KEY) || null; } catch { return null; }
+  try {
+    return _app?.loadLocalStorage(LAST_FOLDER_KEY) || null;
+  } catch {
+    return null;
+  }
 }
 
 export function setLastPlanFolder(path) {
-  try { _app?.saveLocalStorage(LAST_FOLDER_KEY, path || null); } catch { /* ignore */ }
+  try {
+    _app?.saveLocalStorage(LAST_FOLDER_KEY, path || null);
+  } catch {
+    /* ignore */
+  }
 }
 
 // ── Errors the app already knows how to handle ────────────────────────────
@@ -65,12 +75,19 @@ async function ensureFolder(path) {
   const dir = normalizePath(path).split('/').slice(0, -1).join('/');
   if (!dir) return;
   if (_app.vault.getAbstractFileByPath(dir) instanceof TFolder) return;
-  try { await _app.vault.createFolder(dir); } catch { /* raced or already there */ }
+  try {
+    await _app.vault.createFolder(dir);
+  } catch {
+    /* raced or already there */
+  }
 }
 
 async function writeVaultFile(path, content) {
   const existing = fileAt(path);
-  if (existing) { await _app.vault.modify(existing, content); return; }
+  if (existing) {
+    await _app.vault.modify(existing, content);
+    return;
+  }
   await ensureFolder(path);
   await _app.vault.create(normalizePath(path), content);
 }
@@ -108,13 +125,21 @@ export function handleForPath(path) {
     async createWritable() {
       let buf = '';
       return {
-        async write(chunk) { buf += await asText(chunk); },
-        async close() { await writeVaultFile(p, buf); },
-        async abort() { buf = ''; },
+        async write(chunk) {
+          buf += await asText(chunk);
+        },
+        async close() {
+          await writeVaultFile(p, buf);
+        },
+        async abort() {
+          buf = '';
+        },
       };
     },
 
-    async isSameEntry(other) { return other?.path === p; },
+    async isSameEntry(other) {
+      return other?.path === p;
+    },
   };
 }
 
@@ -137,7 +162,9 @@ class PlanFileSuggest extends FuzzySuggestModal {
     return files.sort((a, b) => rank(a) - rank(b) || a.path.localeCompare(b.path));
   }
 
-  getItemText(file) { return file.path; }
+  getItemText(file) {
+    return file.path;
+  }
 
   onChooseItem(file) {
     this.done = true;
@@ -148,7 +175,9 @@ class PlanFileSuggest extends FuzzySuggestModal {
     super.onClose();
     // Obsidian closes the suggester *before* it calls onChooseItem, so "was
     // anything picked?" is only answerable one tick later.
-    window.setTimeout(() => { if (!this.done) this.reject(abortError()); }, 0);
+    window.setTimeout(() => {
+      if (!this.done) this.reject(abortError());
+    }, 0);
   }
 }
 
@@ -179,17 +208,20 @@ class SavePathModal extends Modal {
       .setName('Path in vault')
       .setDesc('Relative to the vault root. .planr.json keeps everything, .md stays readable as a note.')
       .addText(text => {
-        text.setValue(this.value).onChange(v => { this.value = v; });
+        text.setValue(this.value).onChange(v => {
+          this.value = v;
+        });
         text.inputEl.style.width = '100%';
         text.inputEl.addEventListener('keydown', e => {
-          if (e.key === 'Enter') { e.preventDefault(); submit(); }
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            submit();
+          }
         });
         window.setTimeout(() => {
           text.inputEl.focus();
           // Select the basename, keep the extension — renaming is the common case.
-          const dot = this.value.lastIndexOf('.planr.json') >= 0
-            ? this.value.lastIndexOf('.planr.json')
-            : this.value.lastIndexOf('.');
+          const dot = this.value.lastIndexOf('.planr.json') >= 0 ? this.value.lastIndexOf('.planr.json') : this.value.lastIndexOf('.');
           text.inputEl.setSelectionRange(this.value.lastIndexOf('/') + 1, dot > 0 ? dot : this.value.length);
         }, 0);
       });

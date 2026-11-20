@@ -18,25 +18,32 @@ import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 
 function seedProject() {
-  localStorage.setItem('planr_v2', JSON.stringify({
-    tree: [
-      { id: 'P1', name: 'Billing', status: 'wip', team: 'T1' },
-      { id: 'P1.1', name: 'Prices', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
-    ],
-    members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 25, start: '2026-01-01' }],
-    teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-    vacations: [], meetingPlans: [],
-    meta: { name: 'Recurring jobs', planStart: '2026-01-01', planEnd: '2027-01-01' },
-  }));
+  localStorage.setItem(
+    'planr_v2',
+    JSON.stringify({
+      tree: [
+        { id: 'P1', name: 'Billing', status: 'wip', team: 'T1' },
+        { id: 'P1.1', name: 'Prices', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+      ],
+      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 25, start: '2026-01-01' }],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [],
+      meetingPlans: [],
+      meta: { name: 'Recurring jobs', planStart: '2026-01-01', planEnd: '2027-01-01' },
+    }),
+  );
 }
 
 import { openPalette, runCommand } from './openPalette.js';
 
-const renderApp = () => render(
-  <I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>,
-);
-
-
+const renderApp = () =>
+  render(
+    <I18nProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </I18nProvider>,
+  );
 
 const activeTabName = () => document.querySelector('.tab.on')?.firstChild?.textContent?.trim();
 
@@ -49,7 +56,10 @@ describe('the jobs that come back every week have a way in', () => {
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('reconciling Jira lands on the paste box, focused', async () => {
     renderApp();
@@ -62,7 +72,9 @@ describe('the jobs that come back every week have a way in', () => {
 
     expect(activeTabName()).toBe('Briefing');
     const box = await screen.findByTestId('jira-paste');
-    await waitFor(() => { if (document.activeElement !== box) throw new Error('not focused'); });
+    await waitFor(() => {
+      if (document.activeElement !== box) throw new Error('not focused');
+    });
   });
 
   it('typing just "jira" offers both the reconcile and the import', async () => {
@@ -72,11 +84,19 @@ describe('the jobs that come back every week have a way in', () => {
     await screen.findByTestId('view-filters-trigger');
 
     const input = await openPalette();
-    await act(async () => { fireEvent.change(input, { target: { value: 'jira' } }); });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'jira' } });
+    });
 
     const labels = [document.querySelector('[data-testid="command-palette"]')?.textContent || ''];
-    expect(labels.some(text => /reconcile/i.test(text)), labels.join(' | ')).toBe(true);
-    expect(labels.some(text => /import/i.test(text)), labels.join(' | ')).toBe(true);
+    expect(
+      labels.some(text => /reconcile/i.test(text)),
+      labels.join(' | '),
+    ).toBe(true);
+    expect(
+      labels.some(text => /import/i.test(text)),
+      labels.join(' | '),
+    ).toBe(true);
   });
 
   it('booking a holiday lands on the vacation list with a row already added', async () => {
@@ -101,6 +121,8 @@ describe('the jobs that come back every week have a way in', () => {
 
     expect(activeTabName()).toBe('Resources');
     const name = await screen.findByTestId('rv-new-member-name');
-    await waitFor(() => { if (document.activeElement !== name) throw new Error('not focused'); });
+    await waitFor(() => {
+      if (document.activeElement !== name) throw new Error('not focused');
+    });
   });
 });

@@ -179,9 +179,17 @@ describe('undo', () => {
     h = push(h, { v: 2 });
     h = push(h, { v: 3 });
     let cur = { v: 'current' };
-    let r = undo(h, cur); expect(r.snapshot).toEqual({ v: 3 }); cur = r.snapshot; h = r.history;
-    r = undo(h, cur); expect(r.snapshot).toEqual({ v: 2 }); cur = r.snapshot; h = r.history;
-    r = undo(h, cur); expect(r.snapshot).toEqual({ v: 1 }); h = r.history;
+    let r = undo(h, cur);
+    expect(r.snapshot).toEqual({ v: 3 });
+    cur = r.snapshot;
+    h = r.history;
+    r = undo(h, cur);
+    expect(r.snapshot).toEqual({ v: 2 });
+    cur = r.snapshot;
+    h = r.history;
+    r = undo(h, cur);
+    expect(r.snapshot).toEqual({ v: 1 });
+    h = r.history;
     expect(canUndo(h)).toBe(false);
   });
 });
@@ -239,10 +247,12 @@ describe('canUndo / canRedo', () => {
 // so undo walks back one edit at a time instead of skipping one.
 describe('snapshots are per-edit, not per-burst', () => {
   test('two pushes outside the coalescing window are two undo steps', () => {
-    const s0 = { n: 0 }, s1 = { n: 1 }, s2 = { n: 2 };
+    const s0 = { n: 0 },
+      s1 = { n: 1 },
+      s2 = { n: 2 };
     let h = createHistory();
     h = push(h, s0, { coalesceMs: 300 });
-    h.lastPushAt -= 1000;                      // simulate "a second later"
+    h.lastPushAt -= 1000; // simulate "a second later"
     h = push(h, s1, { coalesceMs: 300 });
 
     let r = undo(h, s2);
@@ -256,8 +266,8 @@ describe('snapshots are per-edit, not per-burst', () => {
     const before = { n: 0 };
     let h = createHistory();
     h = push(h, before, { coalesceMs: 300 });
-    h = push(h, { n: 1 }, { coalesceMs: 300 });   // same burst
-    h = push(h, { n: 2 }, { coalesceMs: 300 });   // same burst
+    h = push(h, { n: 1 }, { coalesceMs: 300 }); // same burst
+    h = push(h, { n: 2 }, { coalesceMs: 300 }); // same burst
 
     expect(h.past).toHaveLength(1);
     expect(undo(h, { n: 3 }).snapshot).toBe(before);

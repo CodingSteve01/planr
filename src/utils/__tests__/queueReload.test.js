@@ -11,7 +11,10 @@ import { parseMdToProject } from '../markdownParse.js';
 const plan = () => ({
   meta: { name: 'X', planStart: '2026-01-05', version: '2' },
   // "Ops" first, so that team ids (T1, T2 by order of appearance) could shift.
-  teams: [{ id: 'T1', name: 'Ops Team', color: '#8b5cf6' }, { id: 'T2', name: 'Ops', color: '#f0d342' }],
+  teams: [
+    { id: 'T1', name: 'Ops Team', color: '#8b5cf6' },
+    { id: 'T2', name: 'Ops', color: '#f0d342' },
+  ],
   members: [
     { id: 'm-old-1', name: 'Anna Noor', team: 'T1', cap: 1, vac: 25 },
     { id: 'm-old-2', name: 'Bo Lund', team: 'T2', cap: 1, vac: 25 },
@@ -23,7 +26,8 @@ const plan = () => ({
     { id: 'P1.3', name: 'Three', status: 'open', team: 'T2', best: 2, factor: 1.5, assign: [], deps: [] },
     { id: 'P1.4', name: 'Four', status: 'open', team: 'T2', best: 2, factor: 1.5, assign: [], deps: [] },
   ],
-  vacations: [], holidays: [],
+  vacations: [],
+  holidays: [],
   personQueues: { 'm-old-1': ['P1.2', 'P1.1'], 'team:T2': ['P1.4', 'P1.3'] },
 });
 const write = d => buildMarkdownText({ tree: d.tree, members: d.members, teams: d.teams, vacations: d.vacations, meta: d.meta, data: d });
@@ -60,7 +64,10 @@ describe('the work order through a Markdown file', () => {
   });
 
   test('a file written by an older version: a team line follows its tasks, lines for nobody go', () => {
-    const md = write(plan()).replace(/```planr-queues[\s\S]*?```/, '```planr-queues\nv1\nteam:T1 P1.1 P1.2\nm17311112223330 P1.3 P1.4\n```');
+    const md = write(plan()).replace(
+      /```planr-queues[\s\S]*?```/,
+      '```planr-queues\nv1\nteam:T1 P1.1 P1.2\nm17311112223330 P1.3 P1.4\n```',
+    );
     const loaded = parseMdToProject(md);
     expect(loaded.personQueues).toEqual({ 'team:T1': ['P1.1', 'P1.2'] });
     // The number in a v1 team line may belong to another team by now. The

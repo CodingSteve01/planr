@@ -15,9 +15,7 @@ const mk = (id, extra = {}) => ({ id, name: id, status: 'open', best: 0, factor:
 
 describe('treeEdit — sortTree / filterCollapsedRows', () => {
   it('sorts parent-then-children, honouring displayOrder over id order', () => {
-    const tree = [
-      mk('P1'), mk('P1.2', { displayOrder: 1 }), mk('P1.1', { displayOrder: 2 }),
-    ];
+    const tree = [mk('P1'), mk('P1.2', { displayOrder: 1 }), mk('P1.1', { displayOrder: 2 })];
     const order = sortTree(tree).map(r => r.id);
     expect(order).toEqual(['P1', 'P1.2', 'P1.1']);
   });
@@ -88,8 +86,7 @@ describe('treeEdit — field shortcuts', () => {
     expect(done.completedEnd).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 
     // Cycling back to open clears the progress rather than leaving 100.
-    expect(fieldPatchForKey(mk('P1.1', { status: 'done' }), ' '))
-      .toEqual({ status: 'open', progress: 0 });
+    expect(fieldPatchForKey(mk('P1.1', { status: 'done' }), ' ')).toEqual({ status: 'open', progress: 0 });
   });
 
   it('fieldPatchForKey is still a no-op when the status would not change', () => {
@@ -118,13 +115,7 @@ describe('treeEdit — parsePastedRows', () => {
   });
 
   it('reads mixed indentation as nesting relative to the first line, clamped to +1 level', () => {
-    const text = [
-      'Parent',
-      '  Child A',
-      '    Grandchild',
-      '  Child B',
-      'NoIndentSibling',
-    ].join('\n');
+    const text = ['Parent', '  Child A', '    Grandchild', '  Child B', 'NoIndentSibling'].join('\n');
     expect(parsePastedRows(text)).toEqual([
       { name: 'Parent', depth: 0 },
       { name: 'Child A', depth: 1 },
@@ -183,7 +174,10 @@ describe('treeEdit — buildPasteNodes', () => {
 
   it('continues numbering after existing siblings', () => {
     const tree = [mk('P1'), mk('P1.1'), mk('P1.2')];
-    const nodes = buildPasteNodes(tree, 'P1', [{ name: 'Third', depth: 0 }, { name: 'Fourth', depth: 0 }]);
+    const nodes = buildPasteNodes(tree, 'P1', [
+      { name: 'Third', depth: 0 },
+      { name: 'Fourth', depth: 0 },
+    ]);
     expect(nodes.map(n => n.id)).toEqual(['P1.3', 'P1.4']);
   });
 
@@ -211,8 +205,14 @@ describe('treeEdit — buildPasteNodes', () => {
 describe('compareSiblings is the one order', () => {
   // Exactly the reported plan: five roots with no displayOrder, three with.
   const roots = [
-    { id: 'B1' }, { id: 'D1' }, { id: 'F1' }, { id: 'M1' }, { id: 'Pr1' },
-    { id: 'P4', displayOrder: 1 }, { id: 'P2', displayOrder: 2 }, { id: 'P3', displayOrder: 3 },
+    { id: 'B1' },
+    { id: 'D1' },
+    { id: 'F1' },
+    { id: 'M1' },
+    { id: 'Pr1' },
+    { id: 'P4', displayOrder: 1 },
+    { id: 'P2', displayOrder: 2 },
+    { id: 'P3', displayOrder: 3 },
   ];
   const order = rows => [...rows].sort(compareSiblings).map(r => r.id);
 
@@ -229,7 +229,12 @@ describe('compareSiblings is the one order', () => {
     // P4 has displayOrder 1 and Pr1 has none. Treating 1 as comparable to
     // Pr1's id-derived 1 is what made the two orders diverge.
     expect(order([{ id: 'Pr1' }, { id: 'P4', displayOrder: 1 }])).toEqual(['Pr1', 'P4']);
-    expect(order([{ id: 'P4', displayOrder: 1 }, { id: 'Pr1', displayOrder: 2 }])).toEqual(['P4', 'Pr1']);
+    expect(
+      order([
+        { id: 'P4', displayOrder: 1 },
+        { id: 'Pr1', displayOrder: 2 },
+      ]),
+    ).toEqual(['P4', 'Pr1']);
   });
 
   it('falls back to the number in the id, then to the id itself', () => {

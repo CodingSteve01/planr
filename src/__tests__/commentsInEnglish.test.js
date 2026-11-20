@@ -19,14 +19,18 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 // Words that carry almost no risk of appearing in an English comment. "die"
 // and "man" are deliberately absent — they are English words too, and a guard
 // that cries wolf gets switched off.
-const GERMAN = /\b(ich|nicht|kann|dass|und|oder|werden|wenn|aber|sind|eine|einen|einem|nur|noch|schon|auch|gibt|wäre|müsste|können|sieht|für|von|mit|über|beim|dann|weil|damit|dieser|diese|welche|jedes|immer)\b/gi;
+const GERMAN =
+  /\b(ich|nicht|kann|dass|und|oder|werden|wenn|aber|sind|eine|einen|einem|nur|noch|schon|auch|gibt|wäre|müsste|können|sieht|für|von|mit|über|beim|dann|weil|damit|dieser|diese|welche|jedes|immer)\b/gi;
 
 function sourceFiles(dir) {
   const out = [];
   for (const entry of readdirSync(dir)) {
     if (entry === 'node_modules' || entry.startsWith('.')) continue;
     const full = path.join(dir, entry);
-    if (statSync(full).isDirectory()) { out.push(...sourceFiles(full)); continue; }
+    if (statSync(full).isDirectory()) {
+      out.push(...sourceFiles(full));
+      continue;
+    }
     if (/\.(js|jsx|mjs)$/.test(entry)) out.push(full);
   }
   return out;
@@ -49,7 +53,7 @@ describe('source comments', () => {
     const offenders = [];
     for (const dir of ['src', 'obsidian', 'scripts']) {
       for (const file of sourceFiles(path.join(repo, dir))) {
-        if (file.endsWith('i18n.jsx')) continue;   // translations are data
+        if (file.endsWith('i18n.jsx')) continue; // translations are data
         const lines = readFileSync(file, 'utf8').split('\n');
         lines.forEach((line, i) => {
           const trimmed = line.trim();

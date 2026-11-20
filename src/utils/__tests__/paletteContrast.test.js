@@ -55,7 +55,10 @@ const LIGHT = paletteOf(':root[data-theme="light"]{');
 // hover states, not text grounds.
 const SURFACES = ['bg', 'bg2', 'bg3'];
 
-describe.each([['dark', DARK], ['light', LIGHT]])('the %s palette', (name, palette) => {
+describe.each([
+  ['dark', DARK],
+  ['light', LIGHT],
+])('the %s palette', (name, palette) => {
   it('defines every colour token as a resolvable hex', () => {
     for (const token of ['bg', 'bg2', 'bg3', 'b', 'b2', 'b3', 'tx', 'tx2', 'tx3', 'ac', 'ac2']) {
       expect(hexOf(palette, token), `--${token} does not resolve to a hex`).toBeTruthy();
@@ -70,7 +73,11 @@ describe.each([['dark', DARK], ['light', LIGHT]])('the %s palette', (name, palet
   // palettes. So the text ladder is held above it — body and secondary text
   // to AAA (7:1, WCAG 1.4.6), captions to 6:1, which is where GitHub's and
   // macOS's own secondary greys sit.
-  it.each([['tx', 7], ['tx2', 7], ['tx3', 6]])('reads --%s on every surface it sits on', (token, bar) => {
+  it.each([
+    ['tx', 7],
+    ['tx2', 7],
+    ['tx3', 6],
+  ])('reads --%s on every surface it sits on', (token, bar) => {
     const ink = hexOf(palette, token);
     for (const surface of SURFACES) {
       const ratio = contrast(ink, hexOf(palette, surface));
@@ -124,21 +131,22 @@ describe.each([['dark', DARK], ['light', LIGHT]])('the %s palette', (name, palet
   it('gives the open-state ring more contrast than a row separator', () => {
     const ring = hexOf(palette, 'st-open-ring');
     expect(ring, '--st-open-ring is not defined').toBeTruthy();
-    expect(contrast(ring, hexOf(palette, 'bg2')))
-      .toBeGreaterThan(contrast(hexOf(palette, 'b'), hexOf(palette, 'bg2')));
+    expect(contrast(ring, hexOf(palette, 'bg2'))).toBeGreaterThan(contrast(hexOf(palette, 'b'), hexOf(palette, 'bg2')));
   });
 
   // Tinted badge grounds carry their own label. A soft ground borrowed from
   // the other palette is how dark mode ends up with dark green on dark green.
-  it.each([['st-done', 'st-done-soft'], ['st-wip', 'st-wip-soft'], ['st-risk', 'st-risk-soft'], ['ac', 'ac-soft']])(
-    'carries --%s on its own --%s ground',
-    (ink, ground) => {
-      const groundHex = hexOf(palette, ground);
-      expect(groundHex, `--${ground} is not defined`).toBeTruthy();
-      const ratio = contrast(hexOf(palette, ink), groundHex);
-      expect(ratio, `--${ink} on --${ground} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
-    },
-  );
+  it.each([
+    ['st-done', 'st-done-soft'],
+    ['st-wip', 'st-wip-soft'],
+    ['st-risk', 'st-risk-soft'],
+    ['ac', 'ac-soft'],
+  ])('carries --%s on its own --%s ground', (ink, ground) => {
+    const groundHex = hexOf(palette, ground);
+    expect(groundHex, `--${ground} is not defined`).toBeTruthy();
+    const ratio = contrast(hexOf(palette, ink), groundHex);
+    expect(ratio, `--${ink} on --${ground} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+  });
 });
 
 describe('the two palettes stay in step', () => {
@@ -146,7 +154,10 @@ describe('the two palettes stay in step', () => {
     // Only tokens written as a literal hex. An alias (`--surf1: var(--bg2)`)
     // re-resolves against whichever palette is in effect, so it is declared
     // once in :root on purpose and must NOT be repeated in the light block.
-    const colourish = p => Object.keys(p).filter(k => /^#[0-9a-fA-F]{3,6}$/.test(p[k])).sort();
+    const colourish = p =>
+      Object.keys(p)
+        .filter(k => /^#[0-9a-fA-F]{3,6}$/.test(p[k]))
+        .sort();
     const light = colourish(LIGHT);
     const onlyDark = colourish(DARK).filter(k => !light.includes(k));
     expect(onlyDark, `only in the dark palette: ${onlyDark.join(', ')}`).toEqual([]);
@@ -173,9 +184,9 @@ describe('the palette has one source', () => {
     const offenders = [];
     lines.forEach((line, i) => {
       const n = i + 1;
-      if (n <= darkEnd) return;                       // dark palette
-      if (n >= lightStart && n <= lightEnd) return;   // light palette
-      if (/^\s*(\/\*|\*)/.test(line)) return;         // a comment naming a colour
+      if (n <= darkEnd) return; // dark palette
+      if (n >= lightStart && n <= lightEnd) return; // light palette
+      if (/^\s*(\/\*|\*)/.test(line)) return; // a comment naming a colour
       for (const m of line.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) {
         // White and black on a coloured fill (a button's own label, a toggle
         // knob) are not palette decisions — they are the contrast pair of
@@ -194,8 +205,7 @@ describe('the palette has one source', () => {
     // block itself (`:root[data-theme="light"]`), which is where the light
     // values belong.
     const twins = [...css.matchAll(/\[data-theme="light"\] [^{]*\{([^}]*)\}/g)]
-      .filter(m => [...m[1].matchAll(/#[0-9a-fA-F]{3,8}\b/g)]
-        .some(h => !/^#(fff|ffffff|000|000000)$/i.test(h[0])))
+      .filter(m => [...m[1].matchAll(/#[0-9a-fA-F]{3,8}\b/g)].some(h => !/^#(fff|ffffff|000|000000)$/i.test(h[0])))
       .map(m => m[0].slice(0, 80));
     expect(twins, `light twins still carrying literal colours:\n${twins.join('\n')}`).toEqual([]);
   });
@@ -219,7 +229,8 @@ describe('free-standing text fields carry the palette', () => {
       // must not stand in for the field's own ink.
       const rule = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)]
         .filter(m => m[1].split(',').some(sel => sel.trim().endsWith(`.${cls}`)))
-        .map(m => m[2]).join(';');
+        .map(m => m[2])
+        .join(';');
       expect(rule, `.${cls} has no background from the palette`).toMatch(/background:var\(--/);
       expect(rule, `.${cls} has no text colour from the palette`).toMatch(/(?:^|;)color:var\(--/);
     }

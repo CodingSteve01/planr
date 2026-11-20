@@ -33,8 +33,10 @@ export function compareSiblings(a, b) {
   const da = typeof a.displayOrder === 'number' ? a.displayOrder : null;
   const db = typeof b.displayOrder === 'number' ? b.displayOrder : null;
   if (da != null && db != null && da !== db) return da - db;
-  const aLast = a.id.split('.').pop(), bLast = b.id.split('.').pop();
-  const an = parseInt(aLast.replace(/\D/g, '')) || 0, bn = parseInt(bLast.replace(/\D/g, '')) || 0;
+  const aLast = a.id.split('.').pop(),
+    bLast = b.id.split('.').pop();
+  const an = parseInt(aLast.replace(/\D/g, '')) || 0,
+    bn = parseInt(bLast.replace(/\D/g, '')) || 0;
   return an !== bn ? an - bn : aLast.localeCompare(bLast);
 }
 
@@ -57,7 +59,7 @@ export function sortTree(tree) {
   const seen = new Set();
   const visit = pid => {
     (byParent[pid] || []).forEach(r => {
-      if (seen.has(r.id)) return;   // a duplicate id cannot recurse forever
+      if (seen.has(r.id)) return; // a duplicate id cannot recurse forever
       seen.add(r.id);
       result.push(r);
       visit(r.id);
@@ -154,7 +156,7 @@ export function fieldPatchForKey(node, key, sizes, { back = false } = {}) {
   if (key.length === 1 && /[a-zA-Z]/.test(key)) {
     const size = resolveSize(sizes, key);
     if (!size) return null;
-    return (node.best === size.best && node.factor === size.factor) ? null : size;
+    return node.best === size.best && node.factor === size.factor ? null : size;
   }
   if (key === ' ' || key === 'Spacebar') {
     // A task with phases is walked phase by phase: its progress comes from
@@ -192,7 +194,9 @@ export function fieldPatchForKey(node, key, sizes, { back = false } = {}) {
 // can never nest more than one level deeper than the line before it —
 // pasted text can't invent an ancestor that isn't there.
 export function parsePastedRows(text) {
-  const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+  const lines = String(text || '')
+    .replace(/\r\n?/g, '\n')
+    .split('\n');
   const rows = [];
   let baseIndent = null;
   let prevDepth = 0;
@@ -202,7 +206,10 @@ export function parsePastedRows(text) {
     const tabCount = (lead.match(/\t/g) || []).length;
     const spaceCount = (lead.match(/ /g) || []).length;
     const indentLevel = tabCount + Math.floor(spaceCount / 2);
-    const name = rawLine.slice(lead.length).replace(/^[-*•]\s+/, '').trim();
+    const name = rawLine
+      .slice(lead.length)
+      .replace(/^[-*•]\s+/, '')
+      .trim();
     if (!name) continue;
     if (baseIndent === null) baseIndent = indentLevel;
     const depth = rows.length === 0 ? 0 : Math.min(Math.max(0, indentLevel - baseIndent), prevDepth + 1);

@@ -17,7 +17,17 @@ function seedProject() {
       // wip, estimated, assigned — should NOT show up in the attention list,
       // and SHOULD show up in Anna's queue under "Now" (wip, regardless of
       // scheduled dates).
-      { id: 'P1.1', name: 'Prices', status: 'wip', team: 'T1', best: 5, factor: 1.5, assign: ['M1'], deps: [], customValues: { jira: 'PRJ-1' } },
+      {
+        id: 'P1.1',
+        name: 'Prices',
+        status: 'wip',
+        team: 'T1',
+        best: 5,
+        factor: 1.5,
+        assign: ['M1'],
+        deps: [],
+        customValues: { jira: 'PRJ-1' },
+      },
       // no estimate at all — the "unestimated" attention bucket.
       { id: 'P1.2', name: 'Unsized work', status: 'open', team: 'T1', best: 0, factor: 1.5, assign: [], deps: [] },
       // estimated but waits on P1.1, which is not done yet — "blocked".
@@ -33,12 +43,20 @@ function seedProject() {
     customFields: [{ id: 'jira', name: 'Jira ID', type: 'uri', uriTemplate: '' }],
     meta: { name: 'Run mode test', planStart: '2026-01-01', planEnd: '2027-01-01' },
   };
-  try { localStorage.setItem('planr_v2', JSON.stringify(project)); } catch { /* ignore */ }
+  try {
+    localStorage.setItem('planr_v2', JSON.stringify(project));
+  } catch {
+    /* ignore */
+  }
 }
 
 function renderApp() {
   return render(
-    <I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>,
+    <I18nProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </I18nProvider>,
   );
 }
 
@@ -57,12 +75,15 @@ const statusOf = id => planTree().find(n => n.id === id)?.status;
 
 // A tab's textContent can carry a trailing "New!" badge, so match the label
 // node rather than the whole row.
-const tabNamed = name => [...document.querySelectorAll('.tab')]
-  .find(el => (el.firstChild?.textContent || '').trim() === name);
+const tabNamed = name => [...document.querySelectorAll('.tab')].find(el => (el.firstChild?.textContent || '').trim() === name);
 
 async function goToTab(name) {
-  await waitFor(() => { if (!tabNamed(name)) throw new Error(`no tab: ${name}`); });
-  await act(async () => { fireEvent.mouseDown(tabNamed(name), { button: 0 }); });
+  await waitFor(() => {
+    if (!tabNamed(name)) throw new Error(`no tab: ${name}`);
+  });
+  await act(async () => {
+    fireEvent.mouseDown(tabNamed(name), { button: 0 });
+  });
 }
 const goToBuildTree = () => goToTab('Work Tree');
 
@@ -74,12 +95,18 @@ describe('the Briefing view', () => {
       localStorage.setItem('planr_lang', 'en');
       localStorage.setItem('planr_tree_ids', 'true');
       localStorage.setItem('planr_tab', 'briefing'); // land directly on Briefing
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     seedProject();
   });
   afterEach(() => {
     cleanup();
-    try { localStorage.clear(); } catch { /* ignore */ }
+    try {
+      localStorage.clear();
+    } catch {
+      /* ignore */
+    }
   });
 
   it('lands on the Briefing tab and builds the attention list', async () => {
@@ -91,7 +118,7 @@ describe('the Briefing view', () => {
     expect(screen.queryByTestId(/bv-attn-.*-P1\.1$/)).toBeNull();
   });
 
-  it('lists a wip, assigned leaf under the assignee\'s queue', async () => {
+  it("lists a wip, assigned leaf under the assignee's queue", async () => {
     renderApp();
     expect(await screen.findByText('Anna')).toBeTruthy();
     expect(screen.getByText('Prices')).toBeTruthy();
@@ -103,7 +130,9 @@ describe('the Briefing view', () => {
     const button = await screen.findByTestId('bv-status-P1.2');
     expect(button.textContent).toBe('○'); // open
 
-    await act(async () => { fireEvent.click(button); });
+    await act(async () => {
+      fireEvent.click(button);
+    });
     expect(button.textContent).toBe('◐'); // wip
 
     await goToBuildTree();
@@ -125,7 +154,9 @@ describe('the Briefing view', () => {
 
     // Open the (collapsed by default) paste box and reconcile.
     const toggle = await screen.findByText(/Paste Jira issues/);
-    await act(async () => { fireEvent.click(toggle); });
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
     const textarea = await screen.findByPlaceholderText(/Issue key/);
     await act(async () => {
       fireEvent.change(textarea, { target: { value: 'Issue key,Status\nPRJ-1,Done' } });
@@ -137,7 +168,9 @@ describe('the Briefing view', () => {
     // The same drift also surfaces in the ranked attention list.
     expect(await screen.findByTestId('bv-attn-drift-P1.1')).toBeTruthy();
 
-    await act(async () => { fireEvent.click(screen.getByTestId('bv-jira-apply')); });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('bv-jira-apply'));
+    });
 
     await goToBuildTree();
     expect(statusOf('P1.1')).toBe('done');

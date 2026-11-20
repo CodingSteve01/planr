@@ -20,7 +20,11 @@ const tokenOf = name => {
   return m ? m[1].trim() : null;
 };
 // The first family in a stack, unquoted.
-const firstFamily = stack => stack.split(',')[0].trim().replace(/^['"]|['"]$/g, '');
+const firstFamily = stack =>
+  stack
+    .split(',')[0]
+    .trim()
+    .replace(/^['"]|['"]$/g, '');
 
 describe('the type stack', () => {
   it('names a body, a mono and a display face', () => {
@@ -33,8 +37,7 @@ describe('the type stack', () => {
     // The platform's own faces (SF Pro, SF Mono, Segoe UI) are already on the
     // machine and have nothing to load; only a named web font does.
     const PLATFORM = /^(-apple-system|BlinkMacSystemFont|system-ui|ui-monospace|ui-sans-serif)$/;
-    const wanted = ['font', 'mono', 'font-display'].map(t => firstFamily(tokenOf(t)))
-      .filter(family => !PLATFORM.test(family));
+    const wanted = ['font', 'mono', 'font-display'].map(t => firstFamily(tokenOf(t))).filter(family => !PLATFORM.test(family));
     expect(wanted).toContain('Instrument Serif');
     for (const family of wanted) {
       expect(html, `index.html never loads "${family}"`).toContain(family.replace(/ /g, '+'));

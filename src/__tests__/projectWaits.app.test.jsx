@@ -8,24 +8,37 @@ import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 
 function seedProject() {
-  localStorage.setItem('planr_v2', JSON.stringify({
-    tree: [
-      { id: 'P1', name: 'Bookkeeping', type: 'goal', status: 'open', displayOrder: 1 },
-      { id: 'P1.1', name: 'Mail import', status: 'open', team: 'T1', best: 20, factor: 1, assign: [], deps: [] },
-      { id: 'P2', name: 'Billing', type: 'deadline', date: '2026-02-06', status: 'open', displayOrder: 2 },
-      { id: 'P2.1', name: 'Masks', status: 'open', team: 'T1', best: 10, factor: 1, assign: [], deps: [] },
-    ],
-    members: [{ id: 'M1', name: 'Noah', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
-    teams: [{ id: 'T1', name: 'Backend', color: '#10b981' }],
-    vacations: [], meetingPlans: [],
-    meta: { name: 'Waits', planStart: '2026-01-05', planEnd: '2027-01-01' },
-  }));
+  localStorage.setItem(
+    'planr_v2',
+    JSON.stringify({
+      tree: [
+        { id: 'P1', name: 'Bookkeeping', type: 'goal', status: 'open', displayOrder: 1 },
+        { id: 'P1.1', name: 'Mail import', status: 'open', team: 'T1', best: 20, factor: 1, assign: [], deps: [] },
+        { id: 'P2', name: 'Billing', type: 'deadline', date: '2026-02-06', status: 'open', displayOrder: 2 },
+        { id: 'P2.1', name: 'Masks', status: 'open', team: 'T1', best: 10, factor: 1, assign: [], deps: [] },
+      ],
+      members: [{ id: 'M1', name: 'Noah', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
+      teams: [{ id: 'T1', name: 'Backend', color: '#10b981' }],
+      vacations: [],
+      meetingPlans: [],
+      meta: { name: 'Waits', planStart: '2026-01-05', planEnd: '2027-01-01' },
+    }),
+  );
 }
 
-const renderApp = () => render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
+const renderApp = () =>
+  render(
+    <I18nProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </I18nProvider>,
+  );
 const tabNamed = name => [...document.querySelectorAll('.tab')].find(el => (el.firstChild?.textContent || '').trim() === name);
 const goToTab = async name => {
-  await waitFor(() => { if (!tabNamed(name)) throw new Error(`no tab: ${name}`); });
+  await waitFor(() => {
+    if (!tabNamed(name)) throw new Error(`no tab: ${name}`);
+  });
   fireEvent.mouseDown(tabNamed(name));
 };
 function pickProject(name) {
@@ -42,7 +55,10 @@ describe('what a late project waits on', () => {
     localStorage.setItem('planr_tour_done', '1');
     seedProject();
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('is shown above the roadmap, and the button moves the cause behind it', async () => {
     renderApp();

@@ -53,8 +53,7 @@ export function queueBlockers(orderedIds, byId) {
   const place = new Map(ids.map((id, i) => [id, i]));
   const out = new Map();
   ids.forEach((id, i) => {
-    const waitsFor = effectiveDepsOf(id, byId)
-      .filter(d => stillOpen(byId.get?.(d) ?? byId[d]));
+    const waitsFor = effectiveDepsOf(id, byId).filter(d => stillOpen(byId.get?.(d) ?? byId[d]));
     if (!waitsFor.length) return;
     const later = waitsFor.filter(d => (place.get(d) ?? -1) > i);
     out.set(id, { waitsFor, later });

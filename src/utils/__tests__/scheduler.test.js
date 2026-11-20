@@ -8,7 +8,7 @@ function runSchedule({
   tree,
   members,
   vacations = [],
-  planStart = '2026-01-05',   // Monday
+  planStart = '2026-01-05', // Monday
   planEnd = '2026-12-31',
   holidays = {},
   workDays = [1, 2, 3, 4, 5],
@@ -73,7 +73,7 @@ describe('schedule(): offboard cascade', () => {
   // Two members, same team. M1 offboards mid-task, M2 is available.
   const members = [
     { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01', end: '2026-02-13' },
-    { id: 'M2', name: 'Sam',  team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+    { id: 'M2', name: 'Sam', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
   ];
 
   test('single-assign task cascades to same-team member on offboard', () => {
@@ -127,7 +127,7 @@ describe('schedule(): offboard cascade', () => {
   test('cross-team cascade when same-team exhausted', () => {
     const cross = [
       { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01', end: '2026-02-13' },
-      { id: 'M2', name: 'Sam',  team: 'T2', cap: 1, vac: 0, start: '2026-01-01' },
+      { id: 'M2', name: 'Sam', team: 'T2', cap: 1, vac: 0, start: '2026-01-01' },
     ];
     const tree = [
       { id: 'P1', name: 'Root', team: '', best: 0 },
@@ -142,16 +142,14 @@ describe('schedule(): offboard cascade', () => {
   test('handoffPlan override forces specific assignee', () => {
     const trio = [
       { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01', end: '2026-02-13' },
-      { id: 'M2', name: 'Sam',  team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+      { id: 'M2', name: 'Sam', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
       { id: 'M3', name: 'Robin', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
     ];
     // Without override Scheduler might pick either M2 or M3 (earliest-free).
     // With override → must be M3.
     const tree = [
       { id: 'P1', name: 'Root', team: '', best: 0 },
-      { id: 'P1.1', name: 'Long', team: 'T1', best: 60, factor: 1,
-        assign: ['M1'], status: 'open',
-        handoffPlan: [{ assign: ['M3'] }] },
+      { id: 'P1.1', name: 'Long', team: 'T1', best: 60, factor: 1, assign: ['M1'], status: 'open', handoffPlan: [{ assign: ['M3'] }] },
     ];
     const { results } = runSchedule({ tree, members: trio });
     const handoff = results.find(s => s.isHandoff && !s.unscheduled);
@@ -236,8 +234,7 @@ describe('schedule(): pinned starts', () => {
   test('pinned task starts on its pin date (not earlier)', () => {
     const tree = [
       { id: 'P1', name: 'Root', team: '', best: 0 },
-      { id: 'P1.1', name: 'Pinned', team: 'T1', best: 3, factor: 1,
-        assign: ['M1'], pinnedStart: '2026-03-02', status: 'open' },
+      { id: 'P1.1', name: 'Pinned', team: 'T1', best: 3, factor: 1, assign: ['M1'], pinnedStart: '2026-03-02', status: 'open' },
     ];
     const { results } = runSchedule({ tree, members: [alex] });
     const s = results.find(r => r.id === 'P1.1');
@@ -249,8 +246,7 @@ describe('schedule(): pinned starts', () => {
     // earlier on the same person.
     const tree = [
       { id: 'P1', name: 'Root', team: '', best: 0 },
-      { id: 'P1.1', name: 'Pinned', team: 'T1', best: 3, factor: 1,
-        assign: ['M1'], pinnedStart: '2026-03-02', status: 'open' },
+      { id: 'P1.1', name: 'Pinned', team: 'T1', best: 3, factor: 1, assign: ['M1'], pinnedStart: '2026-03-02', status: 'open' },
       { id: 'P1.2', name: 'Early', team: 'T1', best: 2, factor: 1, assign: ['M1'], status: 'open' },
     ];
     const { results } = runSchedule({ tree, members: [alex] });
@@ -319,7 +315,7 @@ describe('schedule(): dep + parallel interaction', () => {
     const linkedB = linkedRes.results.find(s => s.id === 'P1.2');
     expect(linkedB.startD >= linkedA.endD).toBe(true);
 
-    const unlinked = linked.map(n => n.id === 'P1.2' ? { ...n, deps: [] } : n);
+    const unlinked = linked.map(n => (n.id === 'P1.2' ? { ...n, deps: [] } : n));
     const unlinkedRes = runSchedule({ tree: unlinked, members: [alex] });
     const ulA = unlinkedRes.results.find(s => s.id === 'P1.1');
     const ulB = unlinkedRes.results.find(s => s.id === 'P1.2');
@@ -402,19 +398,16 @@ describe('schedule(): vacations', () => {
 
 describe('schedule(): multi-assign (pair programming)', () => {
   const m1 = { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
-  const m2 = { id: 'M2', name: 'Sam',  team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
+  const m2 = { id: 'M2', name: 'Sam', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' };
 
   test('multi-assign pair task with dep-blocked follow-ups: sequential', () => {
     // Exercise the multi-assign-blocks-both mechanic with explicit deps so
     // the assertion is about pair blocking, not ordinary queue order.
     const tree = [
       { id: 'P1', name: 'Root', team: '', best: 0 },
-      { id: 'P1.1', name: 'Pair', team: 'T1', best: 5, factor: 1,
-        assign: ['M1', 'M2'], status: 'open' },
-      { id: 'P1.2', name: 'Other-A', team: 'T1', best: 3, factor: 1,
-        assign: ['M1'], deps: ['P1.1'], status: 'open' },
-      { id: 'P1.3', name: 'Other-B', team: 'T1', best: 3, factor: 1,
-        assign: ['M2'], deps: ['P1.1'], status: 'open' },
+      { id: 'P1.1', name: 'Pair', team: 'T1', best: 5, factor: 1, assign: ['M1', 'M2'], status: 'open' },
+      { id: 'P1.2', name: 'Other-A', team: 'T1', best: 3, factor: 1, assign: ['M1'], deps: ['P1.1'], status: 'open' },
+      { id: 'P1.3', name: 'Other-B', team: 'T1', best: 3, factor: 1, assign: ['M2'], deps: ['P1.1'], status: 'open' },
     ];
     const { results } = runSchedule({ tree, members: [m1, m2] });
     const pair = results.find(s => s.id === 'P1.1');
@@ -470,13 +463,14 @@ describe('schedule(): cascade respects dep earliest-start', () => {
   test('handoff does not start before its dep is free', () => {
     const warn = [];
     const origWarn = console.warn;
-    console.warn = (...args) => { warn.push(args.join(' ')); };
+    console.warn = (...args) => {
+      warn.push(args.join(' '));
+    };
     try {
       const members = [
         // M1 offboards very early; assigned to the LATE task. Pool member M2
         // takes over via cascade.
-        { id: 'M1', name: 'Early-Out', team: 'T1', cap: 1, vac: 0,
-          start: '2026-01-01', end: '2026-01-16' },
+        { id: 'M1', name: 'Early-Out', team: 'T1', cap: 1, vac: 0, start: '2026-01-01', end: '2026-01-16' },
         { id: 'M2', name: 'Stayer', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
         // M3 runs the long predecessor.
         { id: 'M3', name: 'Blocker', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
@@ -484,13 +478,11 @@ describe('schedule(): cascade respects dep earliest-start', () => {
       const tree = [
         { id: 'P1', name: 'Root', team: '', best: 0 },
         // Predecessor: 40 work days; ends late March/April.
-        { id: 'P1.1', name: 'Long', team: 'T1', best: 40, factor: 1,
-          assign: ['M3'], status: 'open' },
+        { id: 'P1.1', name: 'Long', team: 'T1', best: 40, factor: 1, assign: ['M3'], status: 'open' },
         // Successor assigned to M1 who is already offboarded by then. Without
         // the fix, the cascade would start at Jan 17 (M1.end + 1) instead of
         // after P1.1 finishes.
-        { id: 'P1.2', name: 'After', team: 'T1', best: 5, factor: 1,
-          assign: ['M1'], deps: ['P1.1'], status: 'open' },
+        { id: 'P1.2', name: 'After', team: 'T1', best: 5, factor: 1, assign: ['M1'], deps: ['P1.1'], status: 'open' },
       ];
       const { results } = runSchedule({ tree, members });
       // No dep-violation warning emitted.
@@ -509,12 +501,11 @@ describe('schedule(): pinned + offboard cascade', () => {
   test('pinned task whose assignee offboards still hands off', () => {
     const members = [
       { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01', end: '2026-03-13' },
-      { id: 'M2', name: 'Sam',  team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+      { id: 'M2', name: 'Sam', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
     ];
     const tree = [
       { id: 'P1', name: 'Root', team: '', best: 0 },
-      { id: 'P1.1', name: 'Pinned+long', team: 'T1', best: 50, factor: 1,
-        assign: ['M1'], pinnedStart: '2026-02-02', status: 'open' },
+      { id: 'P1.1', name: 'Pinned+long', team: 'T1', best: 50, factor: 1, assign: ['M1'], pinnedStart: '2026-02-02', status: 'open' },
     ];
     const { results } = runSchedule({ tree, members });
     const primary = results.find(s => s.id === 'P1.1');
@@ -530,15 +521,21 @@ describe('schedule(): meeting-plan capacity reduction end-to-end', () => {
   test('team-inherited plan reduces scheduled throughput', () => {
     // Same task scheduled twice: once with a heavy team plan, once without.
     // The one with plans should take more calendar days.
-    const makeMembers = (withPlan) => ([{
-      id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01',
-      capMode: 'derived', weeklyHours: 40,
-      // Manual enrichment (scheduler reads member.meetings directly; App.jsx
-      // does this via resolveMemberMeetings at call-site).
-      meetings: withPlan
-        ? [{ id: 'm', name: 'Heavy', hours: 20, frequency: 'weekly' }]
-        : [],
-    }]);
+    const makeMembers = withPlan => [
+      {
+        id: 'M1',
+        name: 'Alex',
+        team: 'T1',
+        cap: 1,
+        vac: 0,
+        start: '2026-01-01',
+        capMode: 'derived',
+        weeklyHours: 40,
+        // Manual enrichment (scheduler reads member.meetings directly; App.jsx
+        // does this via resolveMemberMeetings at call-site).
+        meetings: withPlan ? [{ id: 'm', name: 'Heavy', hours: 20, frequency: 'weekly' }] : [],
+      },
+    ];
     const tree = [
       { id: 'P1', name: 'Root', team: '', best: 0 },
       { id: 'P1.1', name: 'Task', team: 'T1', best: 10, factor: 1, assign: ['M1'], status: 'open' },
@@ -556,7 +553,7 @@ describe('schedule(): segment sums are conservative', () => {
   test('segments sum equals eff', () => {
     const members = [
       { id: 'M1', name: 'Alex', team: 'T1', cap: 1, vac: 0, start: '2026-01-01', end: '2026-02-13' },
-      { id: 'M2', name: 'Sam',  team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
+      { id: 'M2', name: 'Sam', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' },
     ];
     const tree = [
       { id: 'P1', name: 'Root', team: '', best: 0 },
@@ -577,7 +574,8 @@ describe('schedule(): anchor to today', () => {
     // planStart way in the past, "today" 60 days later. Without anchorToToday,
     // task would start on planStart. With it, task starts on or after today.
     const r = runSchedule({
-      tree, members,
+      tree,
+      members,
       planStart: '2026-01-05',
       planEnd: '2026-12-31',
       options: { now: '2026-03-09', anchorToToday: true },
@@ -594,7 +592,8 @@ describe('schedule(): anchor to today', () => {
     const tree = [{ id: 'A', name: 'A', team: 'T', best: 5, factor: 1, status: 'open', pinnedStart: '2026-02-01' }];
     const members = [{ id: 'm', name: 'M', team: 'T', cap: 1 }];
     const r = runSchedule({
-      tree, members,
+      tree,
+      members,
       planStart: '2026-01-05',
       planEnd: '2026-12-31',
       options: { now: '2026-03-09', anchorToToday: true },
@@ -641,8 +640,8 @@ describe('schedule(): auto-assign respects committed assigned work', () => {
   // due-date bump; the order comes from the tree now, and the floor is what
   // this test is about either way.)
   const ML = { id: 'ML', name: 'Mara', team: 'T', cap: 0.5, vac: 0, start: '2026-01-01' };
-  const TR = { id: 'TR', name: 'Tom',   team: 'T', cap: 1,   vac: 0, start: '2026-01-01' };
-  const NB = { id: 'NB', name: 'Noah',   team: 'T', cap: 1,   vac: 0, start: '2026-01-05' };
+  const TR = { id: 'TR', name: 'Tom', team: 'T', cap: 1, vac: 0, start: '2026-01-01' };
+  const NB = { id: 'NB', name: 'Noah', team: 'T', cap: 1, vac: 0, start: '2026-01-05' };
 
   test('due-bumped unassigned task lands on free body, not slow committed assignee', () => {
     // ML: 5 explicit assigned tasks of 10d each = 50d committed → ~100 work
@@ -705,7 +704,12 @@ describe('schedule(): auto-assign respects committed assigned work', () => {
       { id: 'P2.1', name: 'NB later', team: 'B', best: 45, factor: 1, assign: ['NBx'] },
       { id: 'P2.2', name: 'NB later too', team: 'B', best: 45, factor: 1, assign: ['NBx'] },
     ];
-    const r = runSchedule({ tree, members: [MLpart, NBfull], planStart: '2026-01-05', options: { now: '2026-01-05', anchorToToday: true } });
+    const r = runSchedule({
+      tree,
+      members: [MLpart, NBfull],
+      planStart: '2026-01-05',
+      options: { now: '2026-01-05', anchorToToday: true },
+    });
     const task = r.results.find(x => x.id === 'P1.2');
     expect(task.personId).toBe('NBx');
     expect(iso(task.startD) <= '2026-01-09').toBe(true);
@@ -716,7 +720,7 @@ describe('schedule(): auto-assign respects committed assigned work', () => {
 
   test('dep-blocked task carries blockedBy so UI can explain the gap', () => {
     const MLfull = { id: 'MLf', name: 'Mara', team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
-    const NBfree = { id: 'NBf', name: 'Noah',   team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
+    const NBfree = { id: 'NBf', name: 'Noah', team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
     const tree = [
       { id: 'P', name: 'Root', team: '', best: 0 },
       { id: 'P.ML', name: 'long', team: 'TT', best: 30, factor: 1, assign: ['MLf'], prio: 4, seq: 5 },
@@ -770,14 +774,14 @@ describe('schedule(): auto-assign respects committed assigned work', () => {
     // goes to whoever is barely free in time, leaving the genuinely-free
     // body for later no-dep tasks.
     const MLfull = { id: 'MLf', name: 'Mara', team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
-    const TRmid  = { id: 'TRm', name: 'Tom',   team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
-    const NBfree = { id: 'NBf', name: 'Noah',   team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
+    const TRmid = { id: 'TRm', name: 'Tom', team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
+    const NBfree = { id: 'NBf', name: 'Noah', team: 'TT', cap: 1, vac: 0, start: '2026-01-01' };
     const tree = [
       { id: 'P', name: 'Root', team: '', best: 0 },
       // ML: 40-day task → finishes ~Mar 2 (40 working days from Jan 5).
       { id: 'P.ML', name: 'long', team: 'TT', best: 40, factor: 1, assign: ['MLf'], prio: 4, seq: 5 },
       // TR: 15-day task → finishes ~Jan 23.
-      { id: 'P.TR', name: 'mid',  team: 'TT', best: 15, factor: 1, assign: ['TRm'], prio: 4, seq: 6 },
+      { id: 'P.TR', name: 'mid', team: 'TT', best: 15, factor: 1, assign: ['TRm'], prio: 4, seq: 6 },
       // Dep-blocked: depends on P.ML, can't start before P.ML ends (~Mar 2).
       { id: 'P.D', name: 'dep-blocked', team: 'TT', best: 5, factor: 1, prio: 4, seq: 10, deps: ['P.ML'] },
       // No-dep task — should fill NB's earlier free slot, not be pushed late.
@@ -855,11 +859,9 @@ describe('schedule(): seq drives global tiebreak, displayOrder does not', () => 
     const tree = [
       { id: 'P1', name: 'Root', team: '', best: 0 },
       { id: 'P1.1.1.3', name: 'Bestand', team: 'FE', best: 0, displayOrder: 3 },
-      { id: 'P1.1.1.3.14', name: 'Journal FE', team: 'FE',
-        best: 14, factor: 1.6, prio: 4, seq: 330, displayOrder: 14, status: 'open' },
+      { id: 'P1.1.1.3.14', name: 'Journal FE', team: 'FE', best: 14, factor: 1.6, prio: 4, seq: 330, displayOrder: 14, status: 'open' },
       { id: 'P1.1.4', name: 'PWA', team: 'FE', best: 0, displayOrder: 4 },
-      { id: 'P1.1.4.3', name: 'Spike PWA', team: 'FE',
-        best: 8, factor: 1.5, prio: 4, seq: 680, displayOrder: 1, status: 'open' },
+      { id: 'P1.1.4.3', name: 'Spike PWA', team: 'FE', best: 8, factor: 1.5, prio: 4, seq: 680, displayOrder: 1, status: 'open' },
     ];
     const { results } = runSchedule({ tree, members: [fe] });
     const a = results.find(r => r.id === 'P1.1.1.3.14');
@@ -912,10 +914,7 @@ describe('the tree is the order of the work', () => {
   const startOf = (r, id) => iso(r.results.find(x => x.id === id).startD);
 
   test('moving a row up in the tree moves it earlier on the timeline', () => {
-    const tree = [
-      { id: 'P', name: 'Root', team: '', best: 0 },
-      leaf('P.A'), leaf('P.B'), leaf('P.C'),
-    ];
+    const tree = [{ id: 'P', name: 'Root', team: '', best: 0 }, leaf('P.A'), leaf('P.B'), leaf('P.C')];
     const before = runSchedule({ tree, members: [one] });
     expect(startOf(before, 'P.A') < startOf(before, 'P.C')).toBe(true);
 
@@ -933,11 +932,7 @@ describe('the tree is the order of the work', () => {
     // This is the whole change in one assertion. Before, prio 1 jumped the
     // queue no matter where you put it, which is why "just move it down"
     // never worked.
-    const tree = [
-      { id: 'P', name: 'Root', team: '', best: 0 },
-      leaf('P.A', { prio: 4 }),
-      leaf('P.B', { prio: 1 }),
-    ];
+    const tree = [{ id: 'P', name: 'Root', team: '', best: 0 }, leaf('P.A', { prio: 4 }), leaf('P.B', { prio: 1 })];
     const r = runSchedule({ tree, members: [one] });
     expect(startOf(r, 'P.A') < startOf(r, 'P.B')).toBe(true);
   });
@@ -947,11 +942,7 @@ describe('the tree is the order of the work', () => {
     // A deadline that will not hold is now something the plan says out loud
     // (utils/timeline.js, `deadlineStatus`) instead of a reshuffle nobody
     // asked for.
-    const tree = [
-      { id: 'P', name: 'Root', team: '', best: 0 },
-      leaf('P.A'),
-      leaf('P.B', { due: '2026-01-20' }),
-    ];
+    const tree = [{ id: 'P', name: 'Root', team: '', best: 0 }, leaf('P.A'), leaf('P.B', { due: '2026-01-20' })];
     const r = runSchedule({ tree, members: [one], options: { now: '2026-01-05' } });
     expect(startOf(r, 'P.A') < startOf(r, 'P.B')).toBe(true);
   });
@@ -963,9 +954,11 @@ describe('the tree is the order of the work', () => {
     // project's work interleaved with the first project's by id.
     const tree = [
       { id: 'P1', name: 'First', team: '', best: 0 },
-      leaf('P1.1'), leaf('P1.2'),
+      leaf('P1.1'),
+      leaf('P1.2'),
       { id: 'P2', name: 'Second', team: '', best: 0 },
-      leaf('P2.1'), leaf('P2.2'),
+      leaf('P2.1'),
+      leaf('P2.2'),
     ];
     const r = runSchedule({ tree, members: [one] });
     expect(startOf(r, 'P1.2') <= startOf(r, 'P2.1')).toBe(true);
@@ -974,21 +967,13 @@ describe('the tree is the order of the work', () => {
   test('a dependency still wins over the tree order', () => {
     // Order is the default, not an override: if A genuinely cannot start
     // before B, the link says so and the link holds.
-    const tree = [
-      { id: 'P', name: 'Root', team: '', best: 0 },
-      leaf('P.A', { deps: ['P.B'] }),
-      leaf('P.B'),
-    ];
+    const tree = [{ id: 'P', name: 'Root', team: '', best: 0 }, leaf('P.A', { deps: ['P.B'] }), leaf('P.B')];
     const r = runSchedule({ tree, members: [one] });
     expect(startOf(r, 'P.B') < startOf(r, 'P.A')).toBe(true);
   });
 
   test('seq is no longer an input', () => {
-    const tree = [
-      { id: 'P', name: 'Root', team: '', best: 0 },
-      leaf('P.A', { seq: 999 }),
-      leaf('P.B', { seq: 1 }),
-    ];
+    const tree = [{ id: 'P', name: 'Root', team: '', best: 0 }, leaf('P.A', { seq: 999 }), leaf('P.B', { seq: 1 })];
     const r = runSchedule({ tree, members: [one] });
     expect(startOf(r, 'P.A') < startOf(r, 'P.B')).toBe(true);
   });
@@ -1005,33 +990,48 @@ describe('the tree is the order of the work', () => {
 // permutes only the slots that person's work already occupies, which is what
 // keeps it from being `seq` again: the plan's order is untouched, nobody
 // else's work moves, and the facts — dependencies, pinned dates — still win.
-describe('a person\'s own order of work', () => {
+describe("a person's own order of work", () => {
   const anna = { id: 'M1', name: 'Anna', team: 'T', cap: 1, vac: 0, start: '2026-01-01' };
   const bob = { id: 'M2', name: 'Bob', team: 'T', cap: 1, vac: 0, start: '2026-01-01' };
   const task = (id, person, extra = {}) => ({ id, name: id, team: 'T', best: 10, factor: 1, assign: [person], ...extra });
   const twoProjects = [
-    { id: 'A', name: 'Projekt A', best: 0 }, task('A.1', 'M1'), task('A.2', 'M1'),
-    { id: 'B', name: 'Projekt B', best: 0 }, task('B.1', 'M1'), task('B.2', 'M1'),
+    { id: 'A', name: 'Projekt A', best: 0 },
+    task('A.1', 'M1'),
+    task('A.2', 'M1'),
+    { id: 'B', name: 'Projekt B', best: 0 },
+    task('B.1', 'M1'),
+    task('B.2', 'M1'),
   ];
-  const run = (tree, members, personQueues) => runSchedule({
-    tree, members, planStart: '2026-01-05', planEnd: '2027-12-31',
-    options: { now: '2026-01-05', personQueues },
-  });
-  const byStart = r => r.results.slice().sort((a, b) => a.startD - b.startD).map(x => x.id);
+  const run = (tree, members, personQueues) =>
+    runSchedule({
+      tree,
+      members,
+      planStart: '2026-01-05',
+      planEnd: '2027-12-31',
+      options: { now: '2026-01-05', personQueues },
+    });
+  const byStart = r =>
+    r.results
+      .slice()
+      .sort((a, b) => a.startD - b.startD)
+      .map(x => x.id);
 
   test('without a queue, a project is a block — which is the problem', () => {
     expect(byStart(run(twoProjects, [anna]))).toEqual(['A.1', 'A.2', 'B.1', 'B.2']);
   });
 
   test('a queue pulls one task across the project boundary', () => {
-    expect(byStart(run(twoProjects, [anna], { M1: ['B.1', 'A.1', 'A.2', 'B.2'] })))
-      .toEqual(['B.1', 'A.1', 'A.2', 'B.2']);
+    expect(byStart(run(twoProjects, [anna], { M1: ['B.1', 'A.1', 'A.2', 'B.2'] }))).toEqual(['B.1', 'A.1', 'A.2', 'B.2']);
   });
 
   test('and leaves everybody else where the plan put them', () => {
     const shared = [
-      { id: 'A', name: 'Projekt A', best: 0 }, task('A.1', 'M1'), task('A.2', 'M2'),
-      { id: 'B', name: 'Projekt B', best: 0 }, task('B.1', 'M1'), task('B.2', 'M2'),
+      { id: 'A', name: 'Projekt A', best: 0 },
+      task('A.1', 'M1'),
+      task('A.2', 'M2'),
+      { id: 'B', name: 'Projekt B', best: 0 },
+      task('B.1', 'M1'),
+      task('B.2', 'M2'),
     ];
     const r = run(shared, [anna, bob], { M1: ['B.1', 'A.1'] });
     const anna1 = r.results.find(x => x.id === 'B.1');
@@ -1045,8 +1045,11 @@ describe('a person\'s own order of work', () => {
 
   test('a dependency still beats the queue — it is a fact, not a preference', () => {
     const tree = [
-      { id: 'A', name: 'Projekt A', best: 0 }, task('A.1', 'M1'), task('A.2', 'M1'),
-      { id: 'B', name: 'Projekt B', best: 0 }, task('B.1', 'M1', { deps: ['A.1'] }),
+      { id: 'A', name: 'Projekt A', best: 0 },
+      task('A.1', 'M1'),
+      task('A.2', 'M1'),
+      { id: 'B', name: 'Projekt B', best: 0 },
+      task('B.1', 'M1', { deps: ['A.1'] }),
     ];
     const r = run(tree, [anna], { M1: ['B.1', 'A.1', 'A.2'] });
     expect(iso(r.results.find(x => x.id === 'A.1').endD) < iso(r.results.find(x => x.id === 'B.1').startD)).toBe(true);

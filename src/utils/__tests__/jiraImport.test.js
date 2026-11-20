@@ -7,8 +7,13 @@
 import { describe, it, expect } from 'vitest';
 import { parseJiraTable } from '../jiraSync.js';
 import {
-  buildTreeFromJira, mapJiraPriority, mapJiraEstimate,
-  matchMember, membersForAssignees, isEpicType, isSubtaskType,
+  buildTreeFromJira,
+  mapJiraPriority,
+  mapJiraEstimate,
+  matchMember,
+  membersForAssignees,
+  isEpicType,
+  isSubtaskType,
 } from '../jiraImport.js';
 
 const CSV = [
@@ -39,16 +44,20 @@ describe('reading a Jira export', () => {
   });
 
   it('reads the hierarchy from Epic Link when the export has no Parent column', () => {
-    const rows = parse([
-      'Issue key,Summary,Epic Link',
-      'PRJ-2,Invoice list,PRJ-1',
-    ].join('\n'));
+    const rows = parse(['Issue key,Summary,Epic Link', 'PRJ-2,Invoice list,PRJ-1'].join('\n'));
     expect(rows[0].parent).toBe('PRJ-1');
   });
 });
 
 describe('a priority', () => {
-  it.each([['Highest', 1], ['Blocker', 1], ['High', 2], ['Medium', 3], ['Low', 4], ['Lowest', 4]])('maps %s to %i', (word, prio) => expect(mapJiraPriority(word)).toBe(prio));
+  it.each([
+    ['Highest', 1],
+    ['Blocker', 1],
+    ['High', 2],
+    ['Medium', 3],
+    ['Low', 4],
+    ['Lowest', 4],
+  ])('maps %s to %i', (word, prio) => expect(mapJiraPriority(word)).toBe(prio));
 
   it('lands in the middle when the word means nothing here', () => {
     // Guessing "critical" out of an unknown word would put work at the front
@@ -129,11 +138,7 @@ describe('building the tree', () => {
     // A parent's effort is the sum of its children (data-model.md), so an epic
     // that had hours on it in Jira would be counted twice.
     const { tree } = buildTreeFromJira({
-      rows: parse([
-        'Issue key,Summary,Parent,Original Estimate',
-        'PRJ-1,Epic,,5d',
-        'PRJ-2,Child,PRJ-1,2d',
-      ].join('\n')),
+      rows: parse(['Issue key,Summary,Parent,Original Estimate', 'PRJ-1,Epic,,5d', 'PRJ-2,Child,PRJ-1,2d'].join('\n')),
     });
     expect(tree.find(n => n.id === 'P1').best).toBe(0);
     expect(tree.find(n => n.id === 'P1.1').best).toBe(2);
@@ -149,8 +154,7 @@ describe('building the tree', () => {
 
   it('gives back nothing at all for an empty paste, not an empty project', () => {
     // Otherwise the dialog offers "import 1 item" for a blank textarea.
-    expect(buildTreeFromJira({ rows: [], groupUnder: 'Something' }))
-      .toMatchObject({ tree: [], imported: 0, rootCount: 0 });
+    expect(buildTreeFromJira({ rows: [], groupUnder: 'Something' })).toMatchObject({ tree: [], imported: 0, rootCount: 0 });
   });
 
   it('numbers from the first free root, so it can be added to a plan that has one', () => {
@@ -170,11 +174,7 @@ describe('building the tree', () => {
 
   it('survives a cycle instead of hanging on it', () => {
     const { tree, imported } = buildTreeFromJira({
-      rows: parse([
-        'Issue key,Summary,Parent',
-        'PRJ-1,A,PRJ-2',
-        'PRJ-2,B,PRJ-1',
-      ].join('\n')),
+      rows: parse(['Issue key,Summary,Parent', 'PRJ-1,A,PRJ-2', 'PRJ-2,B,PRJ-1'].join('\n')),
     });
     expect(imported).toBe(2);
     expect(tree.map(n => n.id).sort()).toEqual(['P1', 'P2']);

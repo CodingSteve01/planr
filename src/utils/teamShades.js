@@ -22,12 +22,13 @@ function parseHex(color) {
   return null;
 }
 
-const hex2 = n => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
+const hex2 = n =>
+  Math.max(0, Math.min(255, Math.round(n)))
+    .toString(16)
+    .padStart(2, '0');
 
 function mix(rgb, target, amount) {
-  return '#' + hex2(rgb.r + (target - rgb.r) * amount)
-    + hex2(rgb.g + (target - rgb.g) * amount)
-    + hex2(rgb.b + (target - rgb.b) * amount);
+  return '#' + hex2(rgb.r + (target - rgb.r) * amount) + hex2(rgb.g + (target - rgb.g) * amount) + hex2(rgb.b + (target - rgb.b) * amount);
 }
 
 // `count` steps from the team colour. The first step is the colour itself; the

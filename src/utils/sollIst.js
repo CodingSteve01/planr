@@ -17,10 +17,10 @@ import { workDaysBetween, offDaysBetween } from './date.js';
 export function computeSollIst(node, { workDays, holidayIso, vacationDays = 0 } = {}) {
   if (!node || node.status !== 'done') return null;
   const startStr = node.completedStart || node.completedAt;
-  const endStr   = node.completedEnd   || node.completedAt;
+  const endStr = node.completedEnd || node.completedAt;
   if (!startStr || !endStr) return null;
   const startD = new Date(startStr);
-  const endD   = new Date(endStr);
+  const endD = new Date(endStr);
 
   const best = typeof node.best === 'number' ? node.best : 0;
   const factor = typeof node.factor === 'number' ? node.factor : 1.5;
@@ -30,13 +30,14 @@ export function computeSollIst(node, { workDays, holidayIso, vacationDays = 0 } 
   const istCalDays = Math.max(1, Math.round((endD - startD) / 864e5) + 1);
   const off = offDaysBetween(startD, endD, workDays, holidayIso);
 
-  const planned = (node.plannedStart && node.plannedEnd)
-    ? {
-        startD: new Date(node.plannedStart),
-        endD: new Date(node.plannedEnd),
-        workDays: workDaysBetween(new Date(node.plannedStart), new Date(node.plannedEnd), workDays, holidayIso),
-      }
-    : null;
+  const planned =
+    node.plannedStart && node.plannedEnd
+      ? {
+          startD: new Date(node.plannedStart),
+          endD: new Date(node.plannedEnd),
+          workDays: workDaysBetween(new Date(node.plannedStart), new Date(node.plannedEnd), workDays, holidayIso),
+        }
+      : null;
 
   let delta = null;
   let ok = null;
@@ -63,7 +64,10 @@ export function computeSollIst(node, { workDays, holidayIso, vacationDays = 0 } 
 //
 //   { count, sollSum, istSum, ratio, hitRate, hits, total, overruns: [], underruns: [] }
 export function aggregateSollIst(nodes, ctx = {}) {
-  let count = 0, sollSum = 0, istSum = 0, hits = 0;
+  let count = 0,
+    sollSum = 0,
+    istSum = 0,
+    hits = 0;
   const overruns = [];
   const underruns = [];
   for (const node of nodes || []) {
@@ -81,8 +85,13 @@ export function aggregateSollIst(nodes, ctx = {}) {
   underruns.sort((a, b) => a.delta.percent - b.delta.percent);
   const ratio = sollSum > 0 ? istSum / sollSum : null;
   return {
-    count, sollSum, istSum, ratio,
-    hits, hitRate: count > 0 ? hits / count : null,
-    overruns, underruns,
+    count,
+    sollSum,
+    istSum,
+    ratio,
+    hits,
+    hitRate: count > 0 ? hits / count : null,
+    overruns,
+    underruns,
   };
 }

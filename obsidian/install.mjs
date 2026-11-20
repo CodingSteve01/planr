@@ -30,11 +30,7 @@ if (!existsSync(path.join(vault, '.obsidian'))) {
 }
 
 const target = path.join(vault, '.obsidian', 'plugins', 'planr');
-const build = spawnSync(
-  process.execPath,
-  [path.join(here, 'esbuild.config.mjs'), '--out', target, ...flags],
-  { stdio: 'inherit' },
-);
+const build = spawnSync(process.execPath, [path.join(here, 'esbuild.config.mjs'), '--out', target, ...flags], { stdio: 'inherit' });
 if (build.status !== 0) process.exit(build.status ?? 1);
 
 writeFileSync(memo, `${vault}\n`);

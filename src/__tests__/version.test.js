@@ -12,12 +12,15 @@ describe('the version files', () => {
   });
 
   it('name the disagreement rather than just failing', () => {
-    expect(versionProblems({ pkg: '1.1.0', manifest: '1.0.0', minAppVersion: '1.5.0', versionsEntry: '1.5.0' }))
-      .toEqual(['package.json says 1.1.0, manifest.json says 1.0.0']);
-    expect(versionProblems({ pkg: '1.1.0', manifest: '1.1.0', minAppVersion: '1.5.0', versionsEntry: null }))
-      .toEqual(['versions.json has no entry for 1.1.0']);
-    expect(versionProblems({ pkg: '1.1.0', manifest: '1.1.0', minAppVersion: '1.8.0', versionsEntry: '1.5.0' }))
-      .toEqual(['versions.json maps 1.1.0 to Obsidian 1.5.0, the manifest asks for 1.8.0']);
+    expect(versionProblems({ pkg: '1.1.0', manifest: '1.0.0', minAppVersion: '1.5.0', versionsEntry: '1.5.0' })).toEqual([
+      'package.json says 1.1.0, manifest.json says 1.0.0',
+    ]);
+    expect(versionProblems({ pkg: '1.1.0', manifest: '1.1.0', minAppVersion: '1.5.0', versionsEntry: null })).toEqual([
+      'versions.json has no entry for 1.1.0',
+    ]);
+    expect(versionProblems({ pkg: '1.1.0', manifest: '1.1.0', minAppVersion: '1.8.0', versionsEntry: '1.5.0' })).toEqual([
+      'versions.json maps 1.1.0 to Obsidian 1.5.0, the manifest asks for 1.8.0',
+    ]);
   });
 });
 

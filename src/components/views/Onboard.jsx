@@ -30,13 +30,17 @@ export function Onboard({ onCreate, onLoad, onLoadDemo, onJiraImport, fRef }) {
         {/* ── Hero ── */}
         <div className="ob-hero">
           <div className="ob-hero-text">
-            <div className="ob-logo">Planr<span className="ob-logo-dot">.</span></div>
+            <div className="ob-logo">
+              Planr<span className="ob-logo-dot">.</span>
+            </div>
             <div className="ob-tagline">{t('ob.tagline')}</div>
             <div className="ob-sub">{t('ob.sub')}</div>
             <div className="ob-cta">
               <button className="ob-btn ob-btn-pri" onClick={onCreate}>
                 <span>{t('ob.newProject')}</span>
-                <span className="ob-btn-arrow"><Icon name="chevronRight" size={12} /></span>
+                <span className="ob-btn-arrow">
+                  <Icon name="chevronRight" size={12} />
+                </span>
               </button>
               {onLoadDemo && (
                 <button className="ob-btn ob-btn-ghost" onClick={onLoadDemo}>
@@ -64,7 +68,9 @@ export function Onboard({ onCreate, onLoad, onLoadDemo, onJiraImport, fRef }) {
         <div className="ob-tiles">
           {HERO_FEATURES.map(([icon, title, desc, htip]) => (
             <div key={title} className="ob-tile" data-htip={htip}>
-              <div className="ob-tile-icon"><Icon name={icon} size={26} strokeWidth={1.5} /></div>
+              <div className="ob-tile-icon">
+                <Icon name={icon} size={26} strokeWidth={1.5} />
+              </div>
               <div className="ob-tile-title">{title}</div>
               <div className="ob-tile-desc">{desc}</div>
             </div>
@@ -75,7 +81,9 @@ export function Onboard({ onCreate, onLoad, onLoadDemo, onJiraImport, fRef }) {
         <div className="ob-feat-row">
           {CHIPS.map(([icon, title, htip]) => (
             <div key={title} className="ob-chip" data-htip={htip}>
-              <span className="ob-chip-icon"><Icon name={icon} size={14} /></span>
+              <span className="ob-chip-icon">
+                <Icon name={icon} size={14} />
+              </span>
               <span className="ob-chip-label">{title}</span>
             </div>
           ))}

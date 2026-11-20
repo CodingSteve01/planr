@@ -53,7 +53,10 @@ function _capacityStats({ from, to, members = [], vacations = [], holidays = {},
   _eachDay(from, to, d => {
     const dow = d.getDay();
     const iso = _isoDay(d);
-    if (holIso.has(iso)) { holidayCount++; return; }
+    if (holIso.has(iso)) {
+      holidayCount++;
+      return;
+    }
     if (wd.has(dow)) grossWorkdays++;
   });
   // Per-member: only count days while the member is on the team
@@ -79,7 +82,8 @@ function _capacityStats({ from, to, members = [], vacations = [], holidays = {},
     const m = memberById[v.person];
     if (!m) continue;
     const cap = typeof m.cap === 'number' ? m.cap : 1;
-    const vf = new Date(v.from), vt = new Date(v.to);
+    const vf = new Date(v.from),
+      vt = new Date(v.to);
     const lo = vf > from ? vf : from;
     const hi = vt < to ? vt : to;
     if (lo > hi) continue;
@@ -115,8 +119,9 @@ function _leafNodes(tree) {
 // period comparison. Real history wins for them.
 function _syntheticHistoryFromActualBars(tree, realAddedIds = new Set()) {
   const leaves = _leafNodes(tree).filter(leaf => !realAddedIds.has(leaf.id));
-  const datedLeaves = leaves.filter(leaf =>
-    leaf.completedStart || leaf.completedAt || leaf.completedEnd || leaf.plannedStart || leaf.pinnedStart);
+  const datedLeaves = leaves.filter(
+    leaf => leaf.completedStart || leaf.completedAt || leaf.completedEnd || leaf.plannedStart || leaf.pinnedStart,
+  );
   if (!datedLeaves.length) return [];
 
   const dates = datedLeaves
@@ -245,7 +250,8 @@ export function computeDiff({ tree, historyEvents, sinceDate, members, vacations
       .filter(n => n.id === root.id || n.id.startsWith(root.id + '.'))
       .filter(n => !tree.some(other => other.id !== n.id && other.id.startsWith(n.id + '.')))
       .filter(n => !droppedIds.has(n.id));
-    let totalEff = 0, doneEff = 0;
+    let totalEff = 0,
+      doneEff = 0;
     let anyPastLeaf = false;
     for (const lf of subtreeLeaves) {
       const eff = scheduleEffort(lf) || 1;
@@ -261,7 +267,8 @@ export function computeDiff({ tree, historyEvents, sinceDate, members, vacations
   }
 
   // Banner counts: tasks (leaves) newly done and total effort burnt.
-  let doneCount = 0, effortInWindow = 0;
+  let doneCount = 0,
+    effortInWindow = 0;
   for (const id of doneInWindowIds) {
     const node = tree.find(r => r.id === id);
     if (!node) continue;
@@ -272,10 +279,17 @@ export function computeDiff({ tree, historyEvents, sinceDate, members, vacations
   // Sprint-window capacity: gross calendar workdays, holidays, available
   // person-days and vacation days lost. Always computed when members are
   // available — caller can decide what to show.
-  const capStats = (members && members.length)
-    ? _capacityStats({ from: sinceDate instanceof Date ? sinceDate : new Date(sinceDate),
-        to: new Date(), members, vacations, holidays, workDays })
-    : { grossWorkdays: 0, holidayCount: 0, availablePersonDays: 0, vacationDaysInWindow: 0 };
+  const capStats =
+    members && members.length
+      ? _capacityStats({
+          from: sinceDate instanceof Date ? sinceDate : new Date(sinceDate),
+          to: new Date(),
+          members,
+          vacations,
+          holidays,
+          workDays,
+        })
+      : { grossWorkdays: 0, holidayCount: 0, availablePersonDays: 0, vacationDaysInWindow: 0 };
 
   return {
     sinceDate,
@@ -294,9 +308,10 @@ export function computeDiff({ tree, historyEvents, sinceDate, members, vacations
     vacationDaysInWindow: capStats.vacationDaysInWindow,
     // Utilisation: effort burnt vs effective capacity. Bounded [0, 999] so a
     // pure-progress sprint with no completions doesn't crash on divide-by-zero.
-    utilisation: capStats.availablePersonDays > 0
-      ? Math.min(999, Math.round((effortInWindow / Math.max(1, capStats.availablePersonDays - capStats.vacationDaysInWindow)) * 100))
-      : null,
+    utilisation:
+      capStats.availablePersonDays > 0
+        ? Math.min(999, Math.round((effortInWindow / Math.max(1, capStats.availablePersonDays - capStats.vacationDaysInWindow)) * 100))
+        : null,
   };
 }
 
@@ -308,5 +323,8 @@ export function parseSinceValue(val) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return new Date(val + 'T23:59:59');
   const n = parseInt(val, 10);
   if (!Number.isFinite(n) || n <= 0) return null;
-  const d = new Date(); d.setDate(d.getDate() - n); d.setHours(0, 0, 0, 0); return d;
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  d.setHours(0, 0, 0, 0);
+  return d;
 }

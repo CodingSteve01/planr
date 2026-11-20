@@ -55,12 +55,14 @@ export function createPhaseDraft(phase = {}) {
 }
 
 export function instantiateTemplatePhases(phases) {
-  return normalizePhases(phases).map((phase, index) => createPhaseDraft({
-    ...phase,
-    id: nextPhaseId(String(index)),
-    status: 'open',
-    assign: [],
-  }));
+  return normalizePhases(phases).map((phase, index) =>
+    createPhaseDraft({
+      ...phase,
+      id: nextPhaseId(String(index)),
+      status: 'open',
+      assign: [],
+    }),
+  );
 }
 
 export function phaseWeightShares(phases) {
@@ -71,7 +73,7 @@ export function phaseWeightShares(phases) {
   const missingCount = normalized.length - explicit.length;
   const remainder = explicit.length ? Math.max(0, 100 - explicitSum) : 100;
   const fallback = missingCount > 0 ? remainder / missingCount : 0;
-  const rawWeights = normalized.map(phase => phase.effortPct > 0 ? phase.effortPct : fallback);
+  const rawWeights = normalized.map(phase => (phase.effortPct > 0 ? phase.effortPct : fallback));
   const total = rawWeights.reduce((sum, weight) => sum + weight, 0) || normalized.length;
   return rawWeights.map(weight => weight / total);
 }
@@ -111,14 +113,25 @@ export function advancePhases(phases, back = false) {
 
   if (!back) {
     // Everything done → wrap to the start, the same way done → open does.
-    if (current < 0) { next.forEach(phase => { phase.status = 'open'; }); return next; }
+    if (current < 0) {
+      next.forEach(phase => {
+        phase.status = 'open';
+      });
+      return next;
+    }
     next[current].status = next[current].status === 'open' ? 'wip' : 'done';
     return next;
   }
 
   // Everything done → reopen the last one, the exact inverse of finishing it.
-  if (current < 0) { next[next.length - 1].status = 'wip'; return next; }
-  if (next[current].status === 'wip') { next[current].status = 'open'; return next; }
+  if (current < 0) {
+    next[next.length - 1].status = 'wip';
+    return next;
+  }
+  if (next[current].status === 'wip') {
+    next[current].status = 'open';
+    return next;
+  }
   // The current phase is untouched, so the previous step was "finished the
   // one before it" — undo that.
   if (current === 0) return null;
@@ -196,10 +209,20 @@ export function parsePhaseToken(text) {
   const effortPct = effortMatch ? roundPct(effortMatch[1]) : undefined;
   if (effortMatch) raw = raw.replace(effortMatch[0], '').trim();
   const teamMatch = raw.match(/\(([^)]*)\)/);
-  const teams = teamMatch ? teamMatch[1].split(/\s*\+\s*/).map(part => part.trim()).filter(Boolean) : [];
+  const teams = teamMatch
+    ? teamMatch[1]
+        .split(/\s*\+\s*/)
+        .map(part => part.trim())
+        .filter(Boolean)
+    : [];
   if (teamMatch) raw = raw.replace(teamMatch[0], '').trim();
   const assignMatch = raw.match(/\[([^\]]+)\]/);
-  const assign = assignMatch ? assignMatch[1].split(/\s*\+\s*/).map(part => part.trim()).filter(Boolean) : [];
+  const assign = assignMatch
+    ? assignMatch[1]
+        .split(/\s*\+\s*/)
+        .map(part => part.trim())
+        .filter(Boolean)
+    : [];
   if (assignMatch) raw = raw.replace(assignMatch[0], '').trim();
   return createPhaseDraft({ name: raw.trim(), status, teams, assign, effortPct });
 }
@@ -216,7 +239,10 @@ export function parseTemplatePhaseLine(text) {
   const parts = raw.split('—');
   const head = parsePhaseToken(parts[0] || '');
   const teams = parts[1]
-    ? parts[1].split(/\s*\+\s*/).map(part => part.trim()).filter(Boolean)
+    ? parts[1]
+        .split(/\s*\+\s*/)
+        .map(part => part.trim())
+        .filter(Boolean)
     : phaseTeamIds(head);
   return {
     name: head.name,

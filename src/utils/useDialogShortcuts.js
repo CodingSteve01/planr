@@ -11,7 +11,7 @@ import { useEffect } from 'react';
 // user can type newlines / multi-line notes without accidentally applying.
 export function useDialogShortcuts(onClose, onSubmit) {
   useEffect(() => {
-    const handler = (e) => {
+    const handler = e => {
       if (e.key === 'Escape') {
         // Some sub-controls (autocomplete, popovers) may also listen for Esc;
         // they should stopPropagation themselves. Default: close the dialog.

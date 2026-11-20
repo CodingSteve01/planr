@@ -19,17 +19,25 @@ describe('buildMarkdownText: task serialisation', () => {
   test('assign survives alongside tagStr, decideBy, pinned', () => {
     const tree = [
       { id: 'P1', name: 'Root', team: 'T1', best: 0 },
-      { id: 'P1.1', name: 'Task', team: 'T1', best: 5, factor: 1.5,
-        assign: ['M1'], prio: 2, status: 'open',
+      {
+        id: 'P1.1',
+        name: 'Task',
+        team: 'T1',
+        best: 5,
+        factor: 1.5,
+        assign: ['M1'],
+        prio: 2,
+        status: 'open',
         customValues: { jira: 'PRJ-385' },
-        decideBy: '2026-09-30', pinnedStart: '2026-09-01',
+        decideBy: '2026-09-30',
+        pinnedStart: '2026-09-01',
       },
     ];
     const md = buildMarkdownText({ ...base, tree });
     // Expect: `— Backend [AN] {cv.jira:PRJ-385} ⏰decide:2026-09-30 📌2026-09-01`
     const line = md.split('\n').find(l => l.includes('**P1.1**'));
     expect(line).toBeDefined();
-    expect(line).toMatch(/\[AN\]/);      // assign in brackets
+    expect(line).toMatch(/\[AN\]/); // assign in brackets
     expect(line).toMatch(/\{cv\.jira:PRJ-385\}/);
     expect(line).toMatch(/⏰decide:2026-09-30/);
     expect(line).toMatch(/📌2026-09-01/);
@@ -43,8 +51,18 @@ describe('buildMarkdownText: task serialisation', () => {
   test('parallel round-trips via metadata tags', () => {
     const tree = [
       { id: 'P1', name: 'Root', team: 'T1', best: 0 },
-      { id: 'P1.1', name: 'Task', team: 'T1', best: 3, factor: 1,
-        assign: ['M1'], prio: 2, status: 'open', pinnedStart: '2026-03-01', parallel: true, seq: 42,
+      {
+        id: 'P1.1',
+        name: 'Task',
+        team: 'T1',
+        best: 3,
+        factor: 1,
+        assign: ['M1'],
+        prio: 2,
+        status: 'open',
+        pinnedStart: '2026-03-01',
+        parallel: true,
+        seq: 42,
       },
     ];
     const md = buildMarkdownText({ ...base, tree });
@@ -74,10 +92,14 @@ describe('buildMarkdownText: task serialisation', () => {
       tree: [],
       data: {
         meetingPlans: [
-          { id: 'p1', name: 'Eng', meetings: [
-            { id: 'm1', name: 'Standup', hours: 0.5, frequency: 'daily' },
-            { id: 'm2', name: 'Retro', hours: 1, frequency: 'biweekly' },
-          ]},
+          {
+            id: 'p1',
+            name: 'Eng',
+            meetings: [
+              { id: 'm1', name: 'Standup', hours: 0.5, frequency: 'daily' },
+              { id: 'm2', name: 'Retro', hours: 1, frequency: 'biweekly' },
+            ],
+          },
         ],
       },
     });
@@ -115,14 +137,16 @@ describe('buildMarkdownText: task serialisation', () => {
   test('scheduled member meeting-plan changes emit effective date', () => {
     const md = buildMarkdownText({
       ...base,
-      members: [{
-        id: 'M1',
-        name: 'Alex Noor',
-        team: 'T1',
-        capMode: 'derived',
-        weeklyHours: 40,
-        meetingChanges: [{ from: '2026-07-01', meetingPlanIds: ['p1'] }],
-      }],
+      members: [
+        {
+          id: 'M1',
+          name: 'Alex Noor',
+          team: 'T1',
+          capMode: 'derived',
+          weeklyHours: 40,
+          meetingChanges: [{ from: '2026-07-01', meetingPlanIds: ['p1'] }],
+        },
+      ],
       tree: [],
       data: {
         meetingPlans: [{ id: 'p1', name: 'Eng', meetings: [] }],
@@ -134,12 +158,16 @@ describe('buildMarkdownText: task serialisation', () => {
   test('handoff-plan emitted as sub-bullet with stages', () => {
     const tree = [
       { id: 'P1', name: 'Root', team: 'T1', best: 0 },
-      { id: 'P1.1', name: 'Task', team: 'T1', best: 5, factor: 1,
-        assign: ['M1'], prio: 2, status: 'open',
-        handoffPlan: [
-          { assign: ['M1'] },
-          { team: 'T1' },
-        ],
+      {
+        id: 'P1.1',
+        name: 'Task',
+        team: 'T1',
+        best: 5,
+        factor: 1,
+        assign: ['M1'],
+        prio: 2,
+        status: 'open',
+        handoffPlan: [{ assign: ['M1'] }, { team: 'T1' }],
       },
     ];
     const md = buildMarkdownText({ ...base, tree });
@@ -203,25 +231,31 @@ describe('buildMarkdownText: task serialisation', () => {
 
   test('planning metadata is JSON-safe without lossy fields', () => {
     const data = {
-      tree: [{
-        id: 'P1.1',
-        name: 'Fixed task',
-        fixedDurationDays: 3,
-        completedStart: '2026-04-01',
-        completedEnd: '2026-04-03',
-        plannedStart: '2026-04-01',
-        plannedEnd: '2026-04-04',
-        due: '2026-04-05',
-        teamLock: true,
-        parallel: true,
-        deps: ['P1.0'],
-        softDeps: ['P1.2'],
-      }],
-      members: [{
-        id: 'M1',
-        capChanges: [{ from: '2026-06-01', cap: 0.5, weeklyHours: 20 }],
-        meetingChanges: [{ from: '2026-06-01', meetingPlanIds: ['p1'], meetings: [{ id: 'm1', name: 'Standup', hours: 0.5, frequency: 'daily' }] }],
-      }],
+      tree: [
+        {
+          id: 'P1.1',
+          name: 'Fixed task',
+          fixedDurationDays: 3,
+          completedStart: '2026-04-01',
+          completedEnd: '2026-04-03',
+          plannedStart: '2026-04-01',
+          plannedEnd: '2026-04-04',
+          due: '2026-04-05',
+          teamLock: true,
+          parallel: true,
+          deps: ['P1.0'],
+          softDeps: ['P1.2'],
+        },
+      ],
+      members: [
+        {
+          id: 'M1',
+          capChanges: [{ from: '2026-06-01', cap: 0.5, weeklyHours: 20 }],
+          meetingChanges: [
+            { from: '2026-06-01', meetingPlanIds: ['p1'], meetings: [{ id: 'm1', name: 'Standup', hours: 0.5, frequency: 'daily' }] },
+          ],
+        },
+      ],
       roadmapAssignment: { P1: { routeIdx: 2, colorIdx: 4 } },
     };
 
@@ -274,15 +308,20 @@ describe('sub-bullet tag rename is backward compatible', () => {
       ...base,
       tree: [
         { id: 'P1', name: 'Root', team: 'T1', best: 0 },
-        { id: 'P1.1', name: 'A', team: 'T1', best: 1, factor: 1, status: 'open',
-          phases: [{ id: 'ph1', name: 'RE', status: 'done' }] },
+        { id: 'P1.1', name: 'A', team: 'T1', best: 1, factor: 1, status: 'open', phases: [{ id: 'ph1', name: 'RE', status: 'done' }] },
         { id: 'P1.2', name: 'B', team: 'T1', best: 1, factor: 1, status: 'open', deps: ['P1.1'] },
       ],
-      members: [{
-        id: 'M1', name: 'Alex', team: 'T1', capMode: 'derived', weeklyHours: 40,
-        capChanges: [{ from: '2026-09-01', cap: 0.5 }],
-        meetingChanges: [{ from: '2026-07-01', meetingPlanIds: ['p1'] }],
-      }],
+      members: [
+        {
+          id: 'M1',
+          name: 'Alex',
+          team: 'T1',
+          capMode: 'derived',
+          weeklyHours: 40,
+          capChanges: [{ from: '2026-09-01', cap: 0.5 }],
+          meetingChanges: [{ from: '2026-07-01', meetingPlanIds: ['p1'] }],
+        },
+      ],
       data: { meetingPlans: [{ id: 'p1', name: 'Eng', meetings: [] }] },
     });
     expect(md).toContain('*Requires: P1.1*');
@@ -306,7 +345,9 @@ describe('root type markers', () => {
   test('the writer emits the marker the reader looks for', () => {
     const md = buildMarkdownText({
       meta: { name: 'X', planStart: '2026-01-05', planEnd: '2026-12-31', version: '2' },
-      teams: [], members: [], vacations: [],
+      teams: [],
+      members: [],
+      vacations: [],
       tree: [
         { id: 'D1', name: 'Umfirmierung', type: 'deadline', date: '2027-06-30', best: 0 },
         { id: 'G1', name: 'Mobile App', type: 'goal', best: 0 },

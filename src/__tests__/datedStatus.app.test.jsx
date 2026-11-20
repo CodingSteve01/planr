@@ -33,7 +33,13 @@ function hostFile(initial) {
     queryPermission: async () => 'granted',
     requestPermission: async () => 'granted',
     getFile: async () => ({ name: 'baseline.planr.md', lastModified: Date.now(), text: async () => state.text }),
-    createWritable: async () => ({ write: async content => { state.text = String(content); state.writes.push(state.text); }, close: async () => {} }),
+    createWritable: async () => ({
+      write: async content => {
+        state.text = String(content);
+        state.writes.push(state.text);
+      },
+      close: async () => {},
+    }),
   };
   return { handle, state };
 }
@@ -46,16 +52,35 @@ const historyOf = text => {
   return body.slice(0, end < 0 ? body.length : end).filter(l => l && l !== 'v1' && !l.startsWith('#') && !l.startsWith('<!--'));
 };
 
-
-const day = n => { const d = new Date(); d.setDate(d.getDate() - n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const day = n => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 describe('a dated status change', () => {
-  beforeEach(() => { cleanup(); localStorage.clear(); localStorage.setItem('planr_lang', 'en'); localStorage.setItem('planr_tab', 'tree'); localStorage.setItem('planr_tree_ids', 'true'); localStorage.setItem('planr_editor_dock', 'dialog'); });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tab', 'tree');
+    localStorage.setItem('planr_tree_ids', 'true');
+    localStorage.setItem('planr_editor_dock', 'dialog');
+  });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('is written once, on its day, and takes the package above it along', async () => {
     const { handle, state } = hostFile(PLAN);
-    render(<I18nProvider><ThemeProvider><App mount={handle} onFileChange={() => {}} /></ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App mount={handle} onFileChange={() => {}} />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     fireEvent.click((await screen.findByText('Alpha Task', {}, { timeout: 10000 })).closest('tr'));
     fireEvent.click(screen.getByTestId('tv-edit-selected'));
     await screen.findByTestId('node-modal');
@@ -80,21 +105,30 @@ describe('a dated status change', () => {
 
   const open = async () => {
     const { handle, state } = hostFile(PLAN);
-    render(<I18nProvider><ThemeProvider><App mount={handle} onFileChange={() => {}} /></ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App mount={handle} onFileChange={() => {}} />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     fireEvent.click((await screen.findByText('Alpha Task', {}, { timeout: 10000 })).closest('tr'));
     fireEvent.click(screen.getByTestId('tv-edit-selected'));
     await screen.findByTestId('node-modal');
     fireEvent.mouseDown(screen.getByTestId('nm-tab-workflow'), { button: 0 });
     return state;
   };
-  const written = async (state, n = 1) => waitFor(() => expect(state.writes.length).toBeGreaterThanOrEqual(n), { timeout: 15000, interval: 200 });
+  const written = async (state, n = 1) =>
+    waitFor(() => expect(state.writes.length).toBeGreaterThanOrEqual(n), { timeout: 15000, interval: 200 });
 
   it('undo takes back the change and its date: the log says nothing happened', async () => {
     const state = await open();
     fireEvent.change(screen.getByRole('slider'), { target: { value: '60' } });
     fireEvent.change(screen.getByTestId('nm-as-of'), { target: { value: day(6) } });
     fireEvent.click(screen.getByTestId('nm-save'));
-    await act(async () => { fireEvent.keyDown(document.body, { key: 'z', code: 'KeyZ', metaKey: true, ctrlKey: true }); });
+    await act(async () => {
+      fireEvent.keyDown(document.body, { key: 'z', code: 'KeyZ', metaKey: true, ctrlKey: true });
+    });
     // Something else, so that a save happens at all.
     fireEvent.click((await screen.findByText('Beta Task')).closest('tr'));
     fireEvent.click(screen.getByTestId('tv-delete-selected'));
@@ -111,7 +145,10 @@ describe('a dated status change', () => {
     fireEvent.change(screen.getByTestId('nm-as-of'), { target: { value: day(4) } });
     fireEvent.keyDown(document, { key: 'Enter', metaKey: true });
     await written(state);
-    await waitFor(() => expect(historyOf(state.text).filter(l => l.split(' ')[1] === 'P1.1')).toHaveLength(1), { timeout: 15000, interval: 200 });
+    await waitFor(() => expect(historyOf(state.text).filter(l => l.split(' ')[1] === 'P1.1')).toHaveLength(1), {
+      timeout: 15000,
+      interval: 200,
+    });
     expect(historyOf(state.text).find(l => l.split(' ')[1] === 'P1.1')).toContain(`effectiveAt=${day(4)}`);
     const before = state.writes.length;
 
@@ -122,7 +159,10 @@ describe('a dated status change', () => {
     fireEvent.mouseDown(screen.getByTestId('nm-tab-workflow'), { button: 0 });
     fireEvent.change(screen.getByRole('slider'), { target: { value: '70' } });
     fireEvent.click(screen.getByTestId('nm-save'));
-    await waitFor(() => expect(historyOf(state.text).filter(l => l.split(' ')[1] === 'P1.1')).toHaveLength(2), { timeout: 15000, interval: 200 });
+    await waitFor(() => expect(historyOf(state.text).filter(l => l.split(' ')[1] === 'P1.1')).toHaveLength(2), {
+      timeout: 15000,
+      interval: 200,
+    });
     expect(state.writes.length).toBeGreaterThan(before);
     const second = historyOf(state.text).filter(l => l.split(' ')[1] === 'P1.1')[1];
     expect(second).toContain('progress=70');

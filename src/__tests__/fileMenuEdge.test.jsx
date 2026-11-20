@@ -13,9 +13,11 @@ const rect = (left, width) => ({ left, right: left + width, width, top: 0, botto
 function mount(host) {
   return render(
     <PortalRootContext.Provider value={host}>
-      <I18nProvider><ThemeProvider>
-        <FileMenu onLoad={() => {}} onSaveAs={() => {}} onSnapshots={() => {}} onExport={() => {}} onNew={() => {}} />
-      </ThemeProvider></I18nProvider>
+      <I18nProvider>
+        <ThemeProvider>
+          <FileMenu onLoad={() => {}} onSaveAs={() => {}} onSnapshots={() => {}} onExport={() => {}} onNew={() => {}} />
+        </ThemeProvider>
+      </I18nProvider>
     </PortalRootContext.Provider>,
   );
 }
@@ -23,7 +25,9 @@ function mount(host) {
 async function openAt(triggerLeft) {
   const trigger = screen.getByTestId('file-menu-trigger');
   trigger.parentElement.getBoundingClientRect = () => rect(triggerLeft, 80);
-  await act(async () => { fireEvent.click(trigger); });
+  await act(async () => {
+    fireEvent.click(trigger);
+  });
   return screen.getByTestId('file-menu');
 }
 

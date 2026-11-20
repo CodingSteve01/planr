@@ -25,7 +25,9 @@ describe('the Jira CSV leaves dropped work behind', () => {
   beforeEach(() => {
     csv = '';
     vi.stubGlobal('URL', { ...URL, createObjectURL: () => 'blob:x', revokeObjectURL: () => {} });
-    vi.spyOn(Blob.prototype, 'text').mockImplementation(function () { return Promise.resolve(''); });
+    vi.spyOn(Blob.prototype, 'text').mockImplementation(function () {
+      return Promise.resolve('');
+    });
     // The download helper is DOM-bound; capture the Blob's text instead.
     vi.spyOn(document, 'createElement').mockImplementation(function (tag) {
       const el = Object.getPrototypeOf(document).createElement.call(document, tag);
@@ -33,14 +35,24 @@ describe('the Jira CSV leaves dropped work behind', () => {
       return el;
     });
   });
-  afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
 
   it('does not offer it as a ticket to create', async () => {
     const blobs = [];
     const RealBlob = globalThis.Blob;
-    vi.stubGlobal('Blob', class extends RealBlob {
-      constructor(parts, opts) { super(parts, opts); blobs.push(String(parts?.[0] ?? '')); }
-    });
+    vi.stubGlobal(
+      'Blob',
+      class extends RealBlob {
+        constructor(parts, opts) {
+          super(parts, opts);
+          blobs.push(String(parts?.[0] ?? ''));
+        }
+      },
+    );
     exportJiraCSV({ tree: TREE, scheduled: [], members: MEMBERS, teams: TEAMS, meta: META });
     csv = blobs.join('\n');
     expect(csv).toContain('Alpha eins');
@@ -49,9 +61,11 @@ describe('the Jira CSV leaves dropped work behind', () => {
 
   it('and does not even list it in the preview', () => {
     render(
-      <I18nProvider><ThemeProvider>
-        <JiraExportModal tree={TREE} scheduled={[]} members={MEMBERS} teams={TEAMS} meta={META} onClose={() => {}} />
-      </ThemeProvider></I18nProvider>,
+      <I18nProvider>
+        <ThemeProvider>
+          <JiraExportModal tree={TREE} scheduled={[]} members={MEMBERS} teams={TEAMS} meta={META} onClose={() => {}} />
+        </ThemeProvider>
+      </I18nProvider>,
     );
     expect(screen.queryByText('Alpha eins')).toBeTruthy();
     expect(screen.queryByText('Alpha zwei verworfen')).toBeNull();
@@ -66,9 +80,15 @@ describe('the structural exports say when something was dropped', () => {
   const capture = fn => {
     const blobs = [];
     const RealBlob = globalThis.Blob;
-    vi.stubGlobal('Blob', class extends RealBlob {
-      constructor(parts, opts) { super(parts, opts); blobs.push(String(parts?.[0] ?? '') + String(parts?.[1] ?? '')); }
-    });
+    vi.stubGlobal(
+      'Blob',
+      class extends RealBlob {
+        constructor(parts, opts) {
+          super(parts, opts);
+          blobs.push(String(parts?.[0] ?? '') + String(parts?.[1] ?? ''));
+        }
+      },
+    );
     vi.stubGlobal('URL', { ...URL, createObjectURL: () => 'blob:x', revokeObjectURL: () => {} });
     const realCreate = document.createElement.bind(document);
     vi.spyOn(document, 'createElement').mockImplementation(tag => {

@@ -38,7 +38,13 @@ for (const ch of '√●■»«^v!+-x*·×±') points.add(ch.codePointAt(0));
 
 const tmp = mkdtempSync(path.join(tmpdir(), 'plex-'));
 const unicodes = path.join(tmp, 'unicodes.txt');
-writeFileSync(unicodes, [...points].sort((a, b) => a - b).map(c => `U+${c.toString(16).toUpperCase().padStart(4, '0')}`).join(','));
+writeFileSync(
+  unicodes,
+  [...points]
+    .sort((a, b) => a - b)
+    .map(c => `U+${c.toString(16).toUpperCase().padStart(4, '0')}`)
+    .join(','),
+);
 
 const FACES = [
   ['PlexSans_Regular', 'ibm-plex-sans/400Regular/IBMPlexSans_400Regular.ttf'],
@@ -51,8 +57,19 @@ const parts = [];
 for (const [name, rel] of FACES) {
   const src = path.join(PLEX_DIR, rel.replace(/^([^/]+)\//, 'package/'));
   const out = path.join(tmp, `${name}.ttf`);
-  execFileSync(PYFTSUBSET, [src, `--unicodes-file=${unicodes}`, `--output-file=${out}`,
-    '--layout-features=', '--no-hinting', '--desubroutinize', '--drop-tables+=DSIG'], { stdio: 'inherit' });
+  execFileSync(
+    PYFTSUBSET,
+    [
+      src,
+      `--unicodes-file=${unicodes}`,
+      `--output-file=${out}`,
+      '--layout-features=',
+      '--no-hinting',
+      '--desubroutinize',
+      '--drop-tables+=DSIG',
+    ],
+    { stdio: 'inherit' },
+  );
   parts.push([name, readFileSync(out).toString('base64')]);
 }
 console.log('subset to', points.size, 'code points');

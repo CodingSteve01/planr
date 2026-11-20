@@ -4,18 +4,27 @@ import { buildReportModel } from '../report.js';
 import { computeRoadmapModel } from '../roadmap.js';
 import { treeStats } from '../scheduler.js';
 
-function d(isoStr) { return new Date(`${isoStr}T00:00:00`); }
+function d(isoStr) {
+  return new Date(`${isoStr}T00:00:00`);
+}
 
 // A deadline whose work finished AFTER the date: historically missed, but
 // nothing is at risk any more.
 const LATE_DONE = [
   { id: 'D1', name: 'Umfirmierung', type: 'deadline', date: '2026-07-01', status: 'done' },
-  { id: 'D1.1', name: 'Register', status: 'done', best: 4, factor: 1, team: 'T1',
-    completedStart: '2026-03-26', completedEnd: '2026-07-09' },
+  {
+    id: 'D1.1',
+    name: 'Register',
+    status: 'done',
+    best: 4,
+    factor: 1,
+    team: 'T1',
+    completedStart: '2026-03-26',
+    completedEnd: '2026-07-09',
+  },
 ];
 const LATE_DONE_SCHEDULED = [
-  { id: 'D1.1', treeId: 'D1.1', name: 'Register', status: 'done', team: 'T1', effort: 4,
-    startD: d('2026-03-26'), endD: d('2026-07-09') },
+  { id: 'D1.1', treeId: 'D1.1', name: 'Register', status: 'done', team: 'T1', effort: 4, startD: d('2026-03-26'), endD: d('2026-07-09') },
 ];
 
 // Same shape, still open → genuinely at risk.
@@ -24,26 +33,31 @@ const LATE_OPEN = [
   { id: 'D1.1', name: 'Register', status: 'wip', best: 4, factor: 1, team: 'T1' },
 ];
 const LATE_OPEN_SCHEDULED = [
-  { id: 'D1.1', treeId: 'D1.1', name: 'Register', status: 'wip', team: 'T1', effort: 4,
-    startD: d('2026-03-26'), endD: d('2026-07-09') },
+  { id: 'D1.1', treeId: 'D1.1', name: 'Register', status: 'wip', team: 'T1', effort: 4, startD: d('2026-03-26'), endD: d('2026-07-09') },
 ];
 
 const ON_TIME_DONE = [
   { id: 'D1', name: 'E-Rechnung', type: 'deadline', date: '2027-01-01', status: 'done' },
-  { id: 'D1.1', name: 'Rollout', status: 'done', best: 4, factor: 1, team: 'T1',
-    completedStart: '2026-01-19', completedEnd: '2026-06-03' },
+  { id: 'D1.1', name: 'Rollout', status: 'done', best: 4, factor: 1, team: 'T1', completedStart: '2026-01-19', completedEnd: '2026-06-03' },
 ];
 const ON_TIME_DONE_SCHEDULED = [
-  { id: 'D1.1', treeId: 'D1.1', name: 'Rollout', status: 'done', team: 'T1', effort: 4,
-    startD: d('2026-01-19'), endD: d('2026-06-03') },
+  { id: 'D1.1', treeId: 'D1.1', name: 'Rollout', status: 'done', team: 'T1', effort: 4, startD: d('2026-01-19'), endD: d('2026-06-03') },
 ];
 
 function ctx(tree, scheduled) {
   return {
-    data: {}, tree, scheduled, members: [{ id: 'm1', name: 'Anna', team: 'T1', cap: 1 }],
-    teams: [{ id: 'T1', name: 'Team One', color: '#2563eb' }], weeks: [],
-    cpSet: new Set(), goalPaths: {}, stats: treeStats(tree), confidence: {},
-    meta: { name: 'X', planStart: '2026-01-05' }, lang: 'de',
+    data: {},
+    tree,
+    scheduled,
+    members: [{ id: 'm1', name: 'Anna', team: 'T1', cap: 1 }],
+    teams: [{ id: 'T1', name: 'Team One', color: '#2563eb' }],
+    weeks: [],
+    cpSet: new Set(),
+    goalPaths: {},
+    stats: treeStats(tree),
+    confidence: {},
+    meta: { name: 'X', planStart: '2026-01-05' },
+    lang: 'de',
   };
 }
 
@@ -88,7 +102,7 @@ describe('exports inherit the same deadline state', () => {
     // Real plans carry a date on an ordinary project root without ever setting
     // type: 'deadline'. Filtering on the type alone meant that date was never
     // checked, and the summary claimed no target was on record.
-    const untyped = LATE_OPEN.map(n => n.id === 'D1' ? { ...n, type: undefined } : n);
+    const untyped = LATE_OPEN.map(n => (n.id === 'D1' ? { ...n, type: undefined } : n));
     const m = buildReportModel(ctx(untyped, LATE_OPEN_SCHEDULED));
     expect(m.deadlineStates.D1).toBeTruthy();
     expect(m.deadlineStates.D1.dateD).toBeTruthy();
@@ -97,10 +111,16 @@ describe('exports inherit the same deadline state', () => {
 
   test('the Subway-Map line drops its at-risk flag once the work is done', () => {
     const done = computeRoadmapModel({
-      tree: LATE_DONE, scheduled: LATE_DONE_SCHEDULED, stats: treeStats(LATE_DONE), now: d('2026-07-30'),
+      tree: LATE_DONE,
+      scheduled: LATE_DONE_SCHEDULED,
+      stats: treeStats(LATE_DONE),
+      now: d('2026-07-30'),
     });
     const open = computeRoadmapModel({
-      tree: LATE_OPEN, scheduled: LATE_OPEN_SCHEDULED, stats: treeStats(LATE_OPEN), now: d('2026-07-30'),
+      tree: LATE_OPEN,
+      scheduled: LATE_OPEN_SCHEDULED,
+      stats: treeStats(LATE_OPEN),
+      now: d('2026-07-30'),
     });
     expect(done.lines[0].atRisk).toBe(false);
     expect(open.lines[0].atRisk).toBe(true);

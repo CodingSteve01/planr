@@ -27,7 +27,9 @@ function Slide1Metro({ demo }) {
     try {
       const stats = treeStats(demo.tree);
       return renderRoadmapSvg({ tree: demo.tree, scheduled: [], stats });
-    } catch { return ''; }
+    } catch {
+      return '';
+    }
   }, [demo]);
 
   return (
@@ -47,10 +49,10 @@ function Slide2Gantt({ demo }) {
       const pe = meta.planEnd;
       const { results } = schedule(tree, members, vacations || [], ps, pe, hm, null, ps);
       // Take first 8 scheduled results that have valid dates
-      return results
-        .filter(r => r.startD && r.endD)
-        .slice(0, 8);
-    } catch { return []; }
+      return results.filter(r => r.startD && r.endD).slice(0, 8);
+    } catch {
+      return [];
+    }
   }, [demo]);
 
   if (!items.length) return null;
@@ -62,17 +64,24 @@ function Slide2Gantt({ demo }) {
   const domainEnd = Math.max(...allEnd);
   const range = domainEnd - domainStart || 1;
 
-  const W = 900, H = 290;
-  const LEFT = 160, RIGHT = 20, TOP = 28, ROW = 28, BAR_H = 14;
+  const W = 900,
+    H = 290;
+  const LEFT = 160,
+    RIGHT = 20,
+    TOP = 28,
+    ROW = 28,
+    BAR_H = 14;
   const chartW = W - LEFT - RIGHT;
 
   // Team color map from demo
   const teamColors = {};
-  (demo.teams || []).forEach(t => { teamColors[t.id] = t.color; });
+  (demo.teams || []).forEach(t => {
+    teamColors[t.id] = t.color;
+  });
   // Also map by short team string (e.g. 'T1', 'T2')
   const FALLBACK_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
 
-  const getColor = (item) => {
+  const getColor = item => {
     // item.team is the short name like 'T1' or 'T2'
     const teamEntry = (demo.teams || []).find(t => t.id === item.team || t.name === item.team);
     if (teamEntry) return teamEntry.color;
@@ -106,13 +115,24 @@ function Slide2Gantt({ demo }) {
             <g key={i}>
               <line x1={wl.x} y1={TOP} x2={wl.x} y2={H - 10} stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
               {i % 2 === 0 && (
-                <text x={wl.x + 2} y={TOP - 8} fontSize="7" fill="rgba(255,255,255,0.25)" fontFamily="monospace">{wl.label}</text>
+                <text x={wl.x + 2} y={TOP - 8} fontSize="7" fill="rgba(255,255,255,0.25)" fontFamily="monospace">
+                  {wl.label}
+                </text>
               )}
             </g>
           ))}
           {/* Today line */}
           {showToday && (
-            <line x1={todayX} y1={TOP - 10} x2={todayX} y2={H - 10} stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="3,3" opacity="0.7" />
+            <line
+              x1={todayX}
+              y1={TOP - 10}
+              x2={todayX}
+              y2={H - 10}
+              stroke="#f59e0b"
+              strokeWidth="1.5"
+              strokeDasharray="3,3"
+              opacity="0.7"
+            />
           )}
           {/* Bars */}
           {items.map((item, i) => {
@@ -128,28 +148,32 @@ function Slide2Gantt({ demo }) {
             return (
               <g key={item.id}>
                 {/* Label */}
-                <text x={LEFT - 6} y={y + ROW / 2 + 4} fontSize="8.5" fill="rgba(255,255,255,0.65)"
-                  textAnchor="end" fontFamily="-apple-system,sans-serif"
-                  style={{ overflow: 'hidden' }}>
+                <text
+                  x={LEFT - 6}
+                  y={y + ROW / 2 + 4}
+                  fontSize="8.5"
+                  fill="rgba(255,255,255,0.65)"
+                  textAnchor="end"
+                  fontFamily="-apple-system,sans-serif"
+                  style={{ overflow: 'hidden' }}
+                >
                   {item.name.length > 20 ? item.name.slice(0, 19) + '…' : item.name}
                 </text>
                 {/* Bar bg track */}
-                <rect x={x0} y={barY} width={bw} height={BAR_H} rx="3"
-                  fill={color} opacity={isDone ? 0.35 : 0.8} />
+                <rect x={x0} y={barY} width={bw} height={BAR_H} rx="3" fill={color} opacity={isDone ? 0.35 : 0.8} />
                 {/* Progress fill for wip */}
-                {isWip && (
-                  <rect x={x0} y={barY} width={bw * 0.5} height={BAR_H} rx="3"
-                    fill={color} opacity={1} />
-                )}
+                {isWip && <rect x={x0} y={barY} width={bw * 0.5} height={BAR_H} rx="3" fill={color} opacity={1} />}
                 {/* Done check */}
                 {isDone && (
-                  <text x={x0 + bw / 2} y={barY + BAR_H - 3} fontSize="8" fill={color}
-                    textAnchor="middle" opacity="0.9">●</text>
+                  <text x={x0 + bw / 2} y={barY + BAR_H - 3} fontSize="8" fill={color} textAnchor="middle" opacity="0.9">
+                    ●
+                  </text>
                 )}
                 {/* Person badge */}
                 {item.personShort && item.personShort !== '?' && (
-                  <text x={x0 + bw + 3} y={barY + BAR_H - 3} fontSize="7.5" fill="rgba(255,255,255,0.45)"
-                    fontFamily="monospace">{item.personShort}</text>
+                  <text x={x0 + bw + 3} y={barY + BAR_H - 3} fontSize="7.5" fill="rgba(255,255,255,0.45)" fontFamily="monospace">
+                    {item.personShort}
+                  </text>
                 )}
               </g>
             );
@@ -178,9 +202,11 @@ function Slide3Network({ demo }) {
     const tree = demo.tree;
     const teams = demo.teams || [];
     const teamColorMap = {};
-    teams.forEach(t => { teamColorMap[t.id] = t.color; });
+    teams.forEach(t => {
+      teamColorMap[t.id] = t.color;
+    });
     const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
-    const getColor = (teamId) => {
+    const getColor = teamId => {
       if (teamColorMap[teamId]) return teamColorMap[teamId];
       const idx = parseInt((teamId || '1').replace(/\D/g, ''), 10) - 1;
       return COLORS[Math.max(0, idx) % COLORS.length];
@@ -191,8 +217,10 @@ function Slide3Network({ demo }) {
 
     // Layout: simple grid with jitter
     const cols = 4;
-    const W = 900, H = 270;
-    const padX = 110, padY = 48;
+    const W = 900,
+      H = 270;
+    const padX = 110,
+      padY = 48;
     const spacingX = (W - 2 * padX) / (cols - 1);
     const spacingY = (H - 2 * padY) / (Math.ceil(subset.length / cols) - 1 || 1);
 
@@ -210,7 +238,9 @@ function Slide3Network({ demo }) {
     });
 
     const posMap = {};
-    positioned.forEach(n => { posMap[n.id] = n; });
+    positioned.forEach(n => {
+      posMap[n.id] = n;
+    });
 
     const edges = [];
     positioned.forEach(n => {
@@ -224,7 +254,8 @@ function Slide3Network({ demo }) {
     return { nodes: positioned, edges };
   }, [demo]);
 
-  const W = 900, H = 270;
+  const W = 900,
+    H = 270;
   const R = 20;
 
   return (
@@ -241,7 +272,8 @@ function Slide3Network({ demo }) {
             const dx = e.to.x - e.from.x;
             const dy = e.to.y - e.from.y;
             const len = Math.sqrt(dx * dx + dy * dy) || 1;
-            const ux = dx / len, uy = dy / len;
+            const ux = dx / len,
+              uy = dy / len;
             const x1 = e.from.x + ux * (R + 2);
             const y1 = e.from.y + uy * (R + 2);
             const x2 = e.to.x - ux * (R + 4);
@@ -251,7 +283,8 @@ function Slide3Network({ demo }) {
             const cx2 = x1 + (x2 - x1) * 0.6;
             const cy2 = y2;
             return (
-              <path key={i}
+              <path
+                key={i}
                 d={`M${x1},${y1} C${cx1},${cy1} ${cx2},${cy2} ${x2},${y2}`}
                 stroke="var(--tx3)"
                 strokeOpacity="0.5"
@@ -268,23 +301,29 @@ function Slide3Network({ demo }) {
             const label = n.name.length > 13 ? n.name.slice(0, 12) + '…' : n.name;
             return (
               <g key={n.id}>
-                <circle cx={n.x} cy={n.y} r={R}
+                <circle
+                  cx={n.x}
+                  cy={n.y}
+                  r={R}
                   fill={isDone ? 'transparent' : n.color}
                   stroke={n.color}
                   strokeWidth={isDone ? 2 : 1}
                   opacity={isDone ? 0.5 : 0.85}
                 />
-                {isWip && (
-                  <circle cx={n.x} cy={n.y} r={R - 4}
-                    fill="none" stroke="#fff" strokeWidth="1.5" opacity="0.35" />
-                )}
+                {isWip && <circle cx={n.x} cy={n.y} r={R - 4} fill="none" stroke="#fff" strokeWidth="1.5" opacity="0.35" />}
                 {isDone && (
-                  <text x={n.x} y={n.y + 4} textAnchor="middle" fontSize="11"
-                    fill={n.color} opacity="0.8">●</text>
+                  <text x={n.x} y={n.y + 4} textAnchor="middle" fontSize="11" fill={n.color} opacity="0.8">
+                    ●
+                  </text>
                 )}
-                <text x={n.x} y={n.y + R + 11} textAnchor="middle"
-                  fontSize="8" fill="rgba(255,255,255,0.65)"
-                  fontFamily="-apple-system,sans-serif">
+                <text
+                  x={n.x}
+                  y={n.y + R + 11}
+                  textAnchor="middle"
+                  fontSize="8"
+                  fill="rgba(255,255,255,0.65)"
+                  fontFamily="-apple-system,sans-serif"
+                >
                   {label}
                 </text>
               </g>
@@ -306,12 +345,12 @@ function Slide4PlanReview({ demo }) {
       const { confidence } = computeConfidence(tree, members);
       const leaves = leafNodes(tree);
       // Take open/wip leaves for "up next"
-      const upcoming = leaves
-        .filter(n => n.status !== 'done')
-        .slice(0, 4);
+      const upcoming = leaves.filter(n => n.status !== 'done').slice(0, 4);
 
       const memberMap = {};
-      (members || []).forEach(m => { memberMap[m.id] = m; });
+      (members || []).forEach(m => {
+        memberMap[m.id] = m;
+      });
 
       const tasks = upcoming.map(n => {
         const assignee = (n.assign || []).map(id => memberMap[id]?.name || id).join(', ') || null;
@@ -328,7 +367,9 @@ function Slide4PlanReview({ demo }) {
 
       // Count committed / estimated / exploratory among all leaves
       const leaves2 = leafNodes(tree);
-      let comm = 0, est = 0, expl = 0;
+      let comm = 0,
+        est = 0,
+        expl = 0;
       leaves2.forEach(n => {
         const c = confidence[n.id] || 'exploratory';
         if (c === 'committed') comm++;
@@ -338,7 +379,9 @@ function Slide4PlanReview({ demo }) {
       const total = leaves2.length || 1;
 
       return { tasks, confidence: { comm, est, expl, total } };
-    } catch { return { tasks: [], confidence: { comm: 0, est: 0, expl: 0, total: 1 } }; }
+    } catch {
+      return { tasks: [], confidence: { comm: 0, est: 0, expl: 0, total: 1 } };
+    }
   }, [demo]);
 
   const { comm, est, expl, total } = confidence;
@@ -364,13 +407,23 @@ function Slide4PlanReview({ demo }) {
                 <div className="ob-pr-bar-seg ob-pr-bar-est" style={{ width: `${pEst}%` }} title={`${t('conf.estimated')}: ${pEst}%`} />
               )}
               {pExpl > 0 && (
-                <div className="ob-pr-bar-seg ob-pr-bar-expl" style={{ width: `${pExpl}%` }} title={`${t('conf.exploratory')}: ${pExpl}%`} />
+                <div
+                  className="ob-pr-bar-seg ob-pr-bar-expl"
+                  style={{ width: `${pExpl}%` }}
+                  title={`${t('conf.exploratory')}: ${pExpl}%`}
+                />
               )}
             </div>
             <div className="ob-pr-bar-legend">
-              <span style={{ color: '#3b82f6' }}>● {t('conf.committed')} {pComm}%</span>
-              <span style={{ color: '#f59e0b' }}>◐ {t('conf.estimated')} {pEst}%</span>
-              <span style={{ color: '#6b7280' }}>○ {t('conf.exploratory')} {pExpl}%</span>
+              <span style={{ color: '#3b82f6' }}>
+                ● {t('conf.committed')} {pComm}%
+              </span>
+              <span style={{ color: '#f59e0b' }}>
+                ◐ {t('conf.estimated')} {pEst}%
+              </span>
+              <span style={{ color: '#6b7280' }}>
+                ○ {t('conf.exploratory')} {pExpl}%
+              </span>
             </div>
           </div>
         </div>
@@ -386,11 +439,14 @@ function Slide4PlanReview({ demo }) {
                 <span className="ob-pr-team-dot" style={{ background: task.teamColor }} />
                 <span className="ob-pr-task-name">{task.name}</span>
                 {task.assignee && (
-                  <span className="ob-pr-badge">{task.assignee.split(' ').map(w => w[0]).join('')}</span>
+                  <span className="ob-pr-badge">
+                    {task.assignee
+                      .split(' ')
+                      .map(w => w[0])
+                      .join('')}
+                  </span>
                 )}
-                <span className={`ob-pr-status ob-pr-status-${task.status}`}>
-                  {task.status === 'wip' ? t('wip') : t('open')}
-                </span>
+                <span className={`ob-pr-status ob-pr-status-${task.status}`}>{task.status === 'wip' ? t('wip') : t('open')}</span>
               </div>
             ))}
           </div>
@@ -412,10 +468,18 @@ export function FeatureCarousel() {
     import('../../utils/demoProject.js')
       .then(m => {
         if (!alive) return;
-        try { setDemo(m.buildDemoProject(t)); } catch { setDemo(null); }
+        try {
+          setDemo(m.buildDemoProject(t));
+        } catch {
+          setDemo(null);
+        }
       })
-      .catch(() => { if (alive) setDemo(null); });
-    return () => { alive = false; };
+      .catch(() => {
+        if (alive) setDemo(null);
+      });
+    return () => {
+      alive = false;
+    };
   }, [t]);
 
   const [current, setCurrent] = useState(0);
@@ -426,14 +490,9 @@ export function FeatureCarousel() {
 
   const SLIDE_COUNT = 4;
 
-  const captions = [
-    t('carousel.slide1.caption'),
-    t('carousel.slide2.caption'),
-    t('carousel.slide3.caption'),
-    t('carousel.slide4.caption'),
-  ];
+  const captions = [t('carousel.slide1.caption'), t('carousel.slide2.caption'), t('carousel.slide3.caption'), t('carousel.slide4.caption')];
 
-  const go = (idx) => setCurrent(((idx % SLIDE_COUNT) + SLIDE_COUNT) % SLIDE_COUNT);
+  const go = idx => setCurrent(((idx % SLIDE_COUNT) + SLIDE_COUNT) % SLIDE_COUNT);
 
   const handleUserInteract = () => {
     setPaused(true);
@@ -441,21 +500,38 @@ export function FeatureCarousel() {
     idleRef.current = setTimeout(() => setPaused(false), IDLE_RESTART);
   };
 
-  const prev = () => { go(current - 1); handleUserInteract(); };
-  const next = () => { go(current + 1); handleUserInteract(); };
-  const goTo = (i) => { go(i); handleUserInteract(); };
+  const prev = () => {
+    go(current - 1);
+    handleUserInteract();
+  };
+  const next = () => {
+    go(current + 1);
+    handleUserInteract();
+  };
+  const goTo = i => {
+    go(i);
+    handleUserInteract();
+  };
 
   // Auto-rotate
   useEffect(() => {
-    if (paused) { clearInterval(timerRef.current); return; }
+    if (paused) {
+      clearInterval(timerRef.current);
+      return;
+    }
     timerRef.current = setInterval(() => setCurrent(c => (c + 1) % SLIDE_COUNT), AUTO_INTERVAL);
     return () => clearInterval(timerRef.current);
   }, [paused]);
 
   // Keyboard navigation when carousel is focused
-  const handleKeyDown = (e) => {
-    if (e.key === 'ArrowLeft') { prev(); e.preventDefault(); }
-    else if (e.key === 'ArrowRight') { next(); e.preventDefault(); }
+  const handleKeyDown = e => {
+    if (e.key === 'ArrowLeft') {
+      prev();
+      e.preventDefault();
+    } else if (e.key === 'ArrowRight') {
+      next();
+      e.preventDefault();
+    }
   };
 
   if (!demo) return null;
@@ -465,7 +541,10 @@ export function FeatureCarousel() {
       className="ob-carousel"
       ref={containerRef}
       onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => { setPaused(false); clearTimeout(idleRef.current); }}
+      onMouseLeave={() => {
+        setPaused(false);
+        clearTimeout(idleRef.current);
+      }}
       onKeyDown={handleKeyDown}
       tabIndex="0"
       role="region"
@@ -473,10 +552,7 @@ export function FeatureCarousel() {
     >
       {/* Viewport clips the sliding track */}
       <div className="ob-carousel-viewport">
-        <div
-          className="ob-carousel-track"
-          style={{ transform: `translateX(-${current * 100}%)` }}
-        >
+        <div className="ob-carousel-track" style={{ transform: `translateX(-${current * 100}%)` }}>
           <div className="ob-carousel-slide">
             <Slide1Metro demo={demo} />
           </div>
@@ -492,25 +568,16 @@ export function FeatureCarousel() {
         </div>
 
         {/* Left arrow */}
-        <button
-          className="ob-carousel-arrow ob-carousel-arrow-left"
-          onClick={prev}
-          aria-label="Previous slide"
-          tabIndex="-1"
-        >
+        <button className="ob-carousel-arrow ob-carousel-arrow-left" onClick={prev} aria-label="Previous slide" tabIndex="-1">
           &#8592;
         </button>
 
         {/* Right arrow */}
-        <button
-          className="ob-carousel-arrow ob-carousel-arrow-right"
-          onClick={next}
-          aria-label="Next slide"
-          tabIndex="-1"
-        >
+        <button className="ob-carousel-arrow ob-carousel-arrow-right" onClick={next} aria-label="Next slide" tabIndex="-1">
           &#8594;
         </button>
-      </div>{/* end ob-carousel-viewport */}
+      </div>
+      {/* end ob-carousel-viewport */}
 
       {/* Caption */}
       <div className="ob-carousel-caption">{captions[current]}</div>

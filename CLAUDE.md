@@ -10,7 +10,9 @@ changing a subsystem, instead of reconstructing it from the code.
 - Tests: `npx vitest run` — in a worktree (`.claude/worktrees/*`) use
   `npx vitest run -c vitest.worktree.config.js`, the default config's
   `fs.allow` rejects worktree paths. A single file: append its path.
-- Quality: `npm run quality` (lint with baseline, duplicates, dead code,
+- Format: `npm run format` (Prettier) before committing; the pre-commit hook
+  and CI check it.
+- Quality: `npm run quality` (format, lint with baseline, duplicates, dead code,
   versions, semgrep, private terms) and `npm run test:coverage`. CI runs both on every
   pull request. After fixing a baselined finding: `npm run lint:prune`. Limits
   and the reasons: `docs/quality.md`.

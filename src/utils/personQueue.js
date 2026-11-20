@@ -77,7 +77,10 @@ export function reconcileQueue(queue, ids) {
   // before it in the plan — and goes first when nothing does.
   let lastKnown = null;
   for (const id of present) {
-    if (seen.has(id)) { lastKnown = id; continue; }
+    if (seen.has(id)) {
+      lastKnown = id;
+      continue;
+    }
     const at = lastKnown === null ? 0 : out.indexOf(lastKnown) + 1;
     out.splice(at, 0, id);
     seen.add(id);
@@ -111,7 +114,9 @@ export function applyPersonQueues(leaves, queues) {
     });
     if (slots.length < 2) continue;
     const order = reconcileQueue(queue, [...byId.keys()]);
-    order.forEach((id, i) => { out[slots[i]] = byId.get(id); });
+    order.forEach((id, i) => {
+      out[slots[i]] = byId.get(id);
+    });
   }
   return out;
 }
@@ -158,7 +163,10 @@ export function moveInQueue(order, ids, direction) {
   else if (direction === 'last') at = rest.length;
   else if (direction === 'up') {
     // The item above the block, wherever the block's holes are.
-    const above = list.slice(0, firstAt).filter(id => !moving.includes(id)).pop();
+    const above = list
+      .slice(0, firstAt)
+      .filter(id => !moving.includes(id))
+      .pop();
     if (above === undefined) return list;
     at = rest.indexOf(above);
   } else if (direction === 'down') {

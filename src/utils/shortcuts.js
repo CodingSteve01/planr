@@ -18,8 +18,7 @@
 // row here changes with it, and `shortcuts.test.js` checks that every id a
 // tooltip asks for actually exists.
 
-const isMac = typeof navigator !== 'undefined'
-  && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
 
 export const MOD = isMac ? '⌘' : 'Ctrl';
 export const ALT = isMac ? '⌥' : 'Alt';
@@ -125,7 +124,9 @@ export const SHORTCUTS = [
 
 const BY_ID = new Map(SHORTCUTS.map(s => [s.id, s]));
 
-export function shortcut(id) { return BY_ID.get(id) || null; }
+export function shortcut(id) {
+  return BY_ID.get(id) || null;
+}
 
 // The ⌘⇧ chord of a structural command in aria-keyshortcuts syntax
 // ("Meta+Shift+ArrowUp"), for the buttons that run it.
@@ -148,7 +149,7 @@ export function formatKey(key, mac = isMac) {
   let rest = key;
   for (;;) {
     const m = /^(Ctrl|Alt|⇧|⌘|⌥)/.exec(rest);
-    if (!m || m[0] === rest) break;   // a lone modifier is the key itself
+    if (!m || m[0] === rest) break; // a lone modifier is the key itself
     mods.push(KEY_WORD[m[0]] || m[0]);
     rest = rest.slice(m[0].length);
   }

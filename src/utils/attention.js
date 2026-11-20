@@ -72,28 +72,42 @@ export function computeAttention({
   // Deadline roots whose projected finish (from the current schedule) has
   // slipped past the date they're due. Finished work can't be at risk any
   // more — that's a historical fact (`doneLate`), not an open one.
-  tree.filter(root => !root.id.includes('.') && root.date && root.status !== 'done' && matchesScope(root, { rootFilter, teamFilter, personFilter }))
+  tree
+    .filter(
+      root => !root.id.includes('.') && root.date && root.status !== 'done' && matchesScope(root, { rootFilter, teamFilter, personFilter }),
+    )
     .forEach(root => {
-      const linked = root.type === 'deadline'
-        ? deadlineScopedScheduledItems(tree, scheduled, root.id)
-        : scheduled.filter(s => s.id === root.id || s.id.startsWith(root.id + '.'));
+      const linked =
+        root.type === 'deadline'
+          ? deadlineScopedScheduledItems(tree, scheduled, root.id)
+          : scheduled.filter(s => s.id === root.id || s.id.startsWith(root.id + '.'));
       if (!linked.length) return;
       const dl = localDate(root.date);
       const maxEnd = linked.reduce((m, s) => (s.endD && s.endD > m ? s.endD : m), new Date(0));
       if (maxEnd > dl) {
-        items.push({ id: root.id, name: root.name, kind: 'atRisk', reason: 'late', date: root.date, projEnd: maxEnd, status: root.status || 'open' });
+        items.push({
+          id: root.id,
+          name: root.name,
+          kind: 'atRisk',
+          reason: 'late',
+          date: root.date,
+          projEnd: maxEnd,
+          status: root.status || 'open',
+        });
       }
     });
 
   driftItems.forEach(d => items.push({ ...d, kind: 'drift', reason: 'drift' }));
 
-  return items.sort((a, b) => (ATTENTION_RANK[a.kind] - ATTENTION_RANK[b.kind]) || a.id.localeCompare(b.id));
+  return items.sort((a, b) => ATTENTION_RANK[a.kind] - ATTENTION_RANK[b.kind] || a.id.localeCompare(b.id));
 }
 
 // Counts by kind, for a summary strip. Cheap enough to derive from the same
 // list rather than caching separately.
 export function attentionCounts(items) {
   const counts = { overdue: 0, drift: 0, atRisk: 0, blocked: 0, unestimated: 0 };
-  items.forEach(item => { if (counts[item.kind] !== undefined) counts[item.kind]++; });
+  items.forEach(item => {
+    if (counts[item.kind] !== undefined) counts[item.kind]++;
+  });
   return counts;
 }

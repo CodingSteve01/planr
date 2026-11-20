@@ -61,7 +61,7 @@ describe('a queue that outlives the plan it was written for', () => {
 describe('applying a queue to the plan order', () => {
   const leaves = [leaf('A.1', 'M1'), leaf('A.2', 'M1'), leaf('B.1', 'M1'), leaf('B.2', 'M1')];
 
-  test('permutes only that person\'s own slots', () => {
+  test("permutes only that person's own slots", () => {
     // The queue names all four, so it decides all four.
     const out = applyPersonQueues(leaves, { M1: ['B.1', 'A.1', 'A.2', 'B.2'] });
     expect(out.map(l => l.id)).toEqual(['B.1', 'A.1', 'A.2', 'B.2']);
@@ -80,8 +80,7 @@ describe('applying a queue to the plan order', () => {
   });
 
   test('ignores a queue for somebody who is not on this work', () => {
-    expect(applyPersonQueues(leaves, { M9: ['B.2'] }).map(l => l.id))
-      .toEqual(['A.1', 'A.2', 'B.1', 'B.2']);
+    expect(applyPersonQueues(leaves, { M9: ['B.2'] }).map(l => l.id)).toEqual(['A.1', 'A.2', 'B.1', 'B.2']);
   });
 
   test('takes the first assignee, which is who the queue belongs to', () => {
@@ -138,8 +137,11 @@ describe('a queue in the file', () => {
     ];
     const data = { tree, personQueues: { M1: ['B.1', 'A.1'] } };
     const md = buildMarkdownText({
-      tree, members: [{ id: 'M1', name: 'Anna', team: 'T1' }],
-      teams: [{ id: 'T1', name: 'Team A' }], vacations: [], data,
+      tree,
+      members: [{ id: 'M1', name: 'Anna', team: 'T1' }],
+      teams: [{ id: 'T1', name: 'Team A' }],
+      vacations: [],
+      data,
       meta: { name: 'Queue', planStart: '2026-01-01', planEnd: '2027-01-01' },
     });
     expect(md).toContain('```planr-queues');
@@ -151,7 +153,11 @@ describe('a queue in the file', () => {
   test('writes nothing when nobody has sorted anything', () => {
     const tree = [{ id: 'A', name: 'Projekt A', best: 0 }];
     const md = buildMarkdownText({
-      tree, members: [], teams: [], vacations: [], data: { tree, personQueues: {} },
+      tree,
+      members: [],
+      teams: [],
+      vacations: [],
+      data: { tree, personQueues: {} },
       meta: { name: 'Queue', planStart: '2026-01-01', planEnd: '2027-01-01' },
     });
     expect(md).not.toContain('planr-queues');
@@ -168,7 +174,7 @@ describe('a queue in the file', () => {
 //
 // One mechanism, one map: the owner is the person if there is one, otherwise
 // the team. Not a second kind of queue with its own rules.
-describe('who an item\'s order belongs to', () => {
+describe("who an item's order belongs to", () => {
   test('the person, when somebody is on it', () => {
     expect(queueOwnerOf({ assign: ['M1'], team: 'T1' })).toBe('M1');
   });
@@ -182,7 +188,7 @@ describe('who an item\'s order belongs to', () => {
     expect(queueOwnerOf({})).toBeNull();
   });
 
-  test('a team queue orders the team\'s own work, and nothing else', () => {
+  test("a team queue orders the team's own work, and nothing else", () => {
     const rows = [
       { id: 'A.1', assign: [], team: 'T1' },
       { id: 'X.1', assign: ['M1'], team: 'T1' },
@@ -193,10 +199,13 @@ describe('who an item\'s order belongs to', () => {
     expect(out.map(r => r.id)).toEqual(['A.2', 'X.1', 'A.1']);
   });
 
-  test('assigning somebody takes the item out of the team\'s queue', () => {
+  test("assigning somebody takes the item out of the team's queue", () => {
     // Otherwise a stale team queue would keep ordering work that has an owner
     // now — two queues quietly claiming the same task.
-    const rows = [{ id: 'A.1', assign: ['M1'], team: 'T1' }, { id: 'A.2', assign: [], team: 'T1' }];
+    const rows = [
+      { id: 'A.1', assign: ['M1'], team: 'T1' },
+      { id: 'A.2', assign: [], team: 'T1' },
+    ];
     const out = applyPersonQueues(rows, { 'team:T1': ['A.2', 'A.1'] });
     expect(out.map(r => r.id)).toEqual(['A.1', 'A.2']);
   });

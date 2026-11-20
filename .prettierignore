@@ -1,0 +1,16 @@
+# Built output and what tools write.
+dist/
+dist-obsidian/
+node_modules/
+package-lock.json
+eslint-suppressions.json
+# Embedded font data: one line of base64 each.
+src/utils/pdfFonts.js
+# semgrep fixtures: a `ruleid` comment has to stay on the line above its case.
+semgrep/
+# Prose keeps the line breaks its author gave it.
+*.md
+.claude/
+# The stylesheets are written one rule per line, and a dozen tests read them
+# as text to hold the design tokens and layers in place.
+*.css

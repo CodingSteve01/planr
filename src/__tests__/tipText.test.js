@@ -12,8 +12,7 @@ describe('parseTip', () => {
   });
 
   it('marks emphasis and asides', () => {
-    expect(tones(parseTip('**Anna**: 120% · __add people__')[0]))
-      .toEqual(['bold:Anna', 'normal:: 120% · ', 'muted:add people']);
+    expect(tones(parseTip('**Anna**: 120% · __add people__')[0])).toEqual(['bold:Anna', 'normal:: 120% · ', 'muted:add people']);
   });
 
   it('breaks lines on newlines', () => {

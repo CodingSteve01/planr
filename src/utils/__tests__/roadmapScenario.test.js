@@ -11,7 +11,10 @@ const tree = [
   { id: 'P1.2', name: 'Masken', status: 'open' },
   { id: 'P1.2.1', name: 'Two', status: 'open', best: 5, factor: 1 },
 ];
-const scheduled = [['P1.1.1', 0], ['P1.2.1', 60]].map(([id, d]) => ({ id, treeId: id, startD: day(d), endD: day(d + 4), status: 'open', effort: 5 }));
+const scheduled = [
+  ['P1.1.1', 0],
+  ['P1.2.1', 60],
+].map(([id, d]) => ({ id, treeId: id, startD: day(d), endD: day(d + 4), status: 'open', effort: 5 }));
 const svg = extra => renderRoadmapSvg({ tree, scheduled, stats: treeStats(tree), ...extra });
 
 describe('scenario halos on the subway map', () => {

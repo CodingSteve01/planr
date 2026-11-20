@@ -23,15 +23,10 @@ import * as obsidian from './obsidian-stub.js';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const out = mkdtempSync(path.join(tmpdir(), 'planr-obsidian-'));
 
-
 let exported;
 
 beforeAll(() => {
-  const build = spawnSync(
-    process.execPath,
-    [path.join(here, '..', 'esbuild.config.mjs'), '--out', out],
-    { encoding: 'utf8' },
-  );
+  const build = spawnSync(process.execPath, [path.join(here, '..', 'esbuild.config.mjs'), '--out', out], { encoding: 'utf8' });
   expect(build.status, build.stderr).toBe(0);
 
   const code = readFileSync(path.join(out, 'main.js'), 'utf8');
@@ -65,8 +60,9 @@ describe('the built plugin', () => {
   // inherit half of the vault's.
   it('leaves checkboxes a real box, not a collapsed Obsidian widget', () => {
     const css = readFileSync(path.join(out, 'styles.css'), 'utf8');
-    const heightAuto = (css.match(/[^{}]*\{[^}]*height:\s*auto[^}]*\}/g) || [])
-      .filter(rule => /\.planr-view input/.test(rule.split('{')[0]));
+    const heightAuto = (css.match(/[^{}]*\{[^}]*height:\s*auto[^}]*\}/g) || []).filter(rule =>
+      /\.planr-view input/.test(rule.split('{')[0]),
+    );
     expect(heightAuto.length, 'no height reset for unclassed inputs').toBeGreaterThan(0);
     // Whatever else such a rule covers, it must not reach the checkbox.
     heightAuto
@@ -87,12 +83,16 @@ describe('the built plugin', () => {
     });
     expect(rules, 'no vault-palette rule in styles.css').toHaveLength(1);
     const [rule] = rules;
-    expect(rule.selectors).toEqual(expect.arrayContaining([
-      'html[data-theme="dark"] body.theme-dark .planr-view',
-      'html[data-theme="light"] body.theme-light .planr-view',
-    ]));
+    expect(rule.selectors).toEqual(
+      expect.arrayContaining([
+        'html[data-theme="dark"] body.theme-dark .planr-view',
+        'html[data-theme="light"] body.theme-light .planr-view',
+      ]),
+    );
     const decls = {};
-    rule.walkDecls(d => { decls[d.prop] = d.value; });
+    rule.walkDecls(d => {
+      decls[d.prop] = d.value;
+    });
     expect(decls['--bg']).toBe('var(--background-primary)');
     // Not --background-secondary: Atom paints that 6% below the ground, and
     // every zebra stripe and header row sits on --bg2.

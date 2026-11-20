@@ -49,33 +49,52 @@ describe('the active tab', () => {
     localStorage.setItem('planr_lang', 'de');
     localStorage.setItem('planr_tour_done', '1');
     localStorage.setItem('planr_tab', 'summary');
-    localStorage.setItem('planr_v2', JSON.stringify({
-      tree: [{ id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
-             { id: 'A.1', name: 'A eins', status: 'open', team: 'T1', best: 5, factor: 1 }],
-      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0 }],
-      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-      vacations: [], meetingPlans: [],
-      meta: { name: 'Tabs', planStart: '2026-01-05', planEnd: '2027-06-30' },
-    }));
+    localStorage.setItem(
+      'planr_v2',
+      JSON.stringify({
+        tree: [
+          { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
+          { id: 'A.1', name: 'A eins', status: 'open', team: 'T1', best: 5, factor: 1 },
+        ],
+        members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0 }],
+        teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+        vacations: [],
+        meetingPlans: [],
+        meta: { name: 'Tabs', planStart: '2026-01-05', planEnd: '2027-06-30' },
+      }),
+    );
   });
-  afterEach(() => { cleanup(); localStorage.clear(); vi.restoreAllMocks(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+    vi.restoreAllMocks();
+  });
 
   it('is brought into view when it changes, so it is never the one cut off', async () => {
     // Reaching a tab from the command palette or a keyboard shortcut can
     // select one that is scrolled out of sight; without this the bar looks
     // like nothing happened.
     const seen = [];
-    const spy = vi.spyOn(Element.prototype, 'scrollIntoView')
-      .mockImplementation(function () { seen.push(this); });
+    const spy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(function () {
+      seen.push(this);
+    });
 
-    render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     await waitFor(() => {
       if (!document.querySelector('.tab.on')) throw new Error('no active tab');
     });
     seen.length = 0;
 
     const last = [...document.querySelectorAll('.tab')].at(-1);
-    await act(async () => { fireEvent.mouseDown(last, { button: 0 }); });
+    await act(async () => {
+      fireEvent.mouseDown(last, { button: 0 });
+    });
 
     await waitFor(() => {
       if (!seen.some(el => el.classList?.contains('tab') && el.classList.contains('on'))) {

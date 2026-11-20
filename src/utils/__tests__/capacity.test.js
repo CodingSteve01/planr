@@ -1,8 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import {
-  FTE_HOURS, meetingWeeklyHours, sumMeetingHours,
-  resolveMemberMeetings, deriveCap, memberAtDate,
-} from '../capacity.js';
+import { FTE_HOURS, meetingWeeklyHours, sumMeetingHours, resolveMemberMeetings, deriveCap, memberAtDate } from '../capacity.js';
 
 describe('meetingWeeklyHours', () => {
   test('weekly: hours pass through', () => {
@@ -33,10 +30,10 @@ describe('meetingWeeklyHours', () => {
 describe('sumMeetingHours', () => {
   test('sums across frequencies', () => {
     const res = sumMeetingHours([
-      { hours: 0.25, frequency: 'daily' },  // 1.25
-      { hours: 1, frequency: 'weekly' },    // 1.00
-      { hours: 2, frequency: 'biweekly' },  // 1.00
-      { hours: 1, frequency: 'monthly' },   // 0.231
+      { hours: 0.25, frequency: 'daily' }, // 1.25
+      { hours: 1, frequency: 'weekly' }, // 1.00
+      { hours: 2, frequency: 'biweekly' }, // 1.00
+      { hours: 1, frequency: 'monthly' }, // 0.231
     ]);
     expect(res).toBeCloseTo(3.481, 2);
   });
@@ -76,10 +73,13 @@ describe('resolveMemberMeetings', () => {
     expect(got[0]._planSource).toBe('team');
   });
   test('member adds own ad-hoc meetings at the end', () => {
-    const got = resolveMemberMeetings({
-      team: 'T2',
-      meetings: [{ id: 'x', name: '1:1', hours: 0.5, frequency: 'weekly' }],
-    }, { plans, teams });
+    const got = resolveMemberMeetings(
+      {
+        team: 'T2',
+        meetings: [{ id: 'x', name: '1:1', hours: 0.5, frequency: 'weekly' }],
+      },
+      { plans, teams },
+    );
     expect(got).toHaveLength(1);
     expect(got[0].name).toBe('1:1');
     expect(got[0]._planName).toBeUndefined();
@@ -95,9 +95,7 @@ describe('resolveMemberMeetings', () => {
 });
 
 describe('deriveCap', () => {
-  const plans = [
-    { id: 'eng', name: 'Eng', meetings: [{ id: 's', name: 'Standup', hours: 0.25, frequency: 'daily' }] },
-  ];
+  const plans = [{ id: 'eng', name: 'Eng', meetings: [{ id: 's', name: 'Standup', hours: 0.25, frequency: 'daily' }] }];
   const teams = [{ id: 'T1', meetingPlanIds: ['eng'] }];
 
   test('null/undefined member → 1', () => {
@@ -115,13 +113,11 @@ describe('deriveCap', () => {
     expect(deriveCap({ capMode: 'derived', weeklyHours: 40 })).toBe(1);
   });
   test('derived mode subtracts meetings', () => {
-    const m = { capMode: 'derived', weeklyHours: 40,
-      meetings: [{ id: 'x', name: '1:1', hours: 1, frequency: 'weekly' }] };
+    const m = { capMode: 'derived', weeklyHours: 40, meetings: [{ id: 'x', name: '1:1', hours: 1, frequency: 'weekly' }] };
     expect(deriveCap(m)).toBeCloseTo((40 - 1) / 40, 5);
   });
   test('derived mode part-time (20h/week) with 2h meetings', () => {
-    const m = { capMode: 'derived', weeklyHours: 20,
-      meetings: [{ id: 'x', name: '1:1', hours: 2, frequency: 'weekly' }] };
+    const m = { capMode: 'derived', weeklyHours: 20, meetings: [{ id: 'x', name: '1:1', hours: 2, frequency: 'weekly' }] };
     expect(deriveCap(m)).toBeCloseTo((20 - 2) / FTE_HOURS, 5);
   });
   test('MANUAL mode still subtracts team-plan meetings (inheritance)', () => {
@@ -135,8 +131,7 @@ describe('deriveCap', () => {
     expect(deriveCap(m, { plans, teams })).toBeCloseTo((20 - 1.25) / 40, 5);
   });
   test('meetings exceeding capacity clamp to 0', () => {
-    const m = { capMode: 'derived', weeklyHours: 1,
-      meetings: [{ hours: 10, frequency: 'weekly' }] };
+    const m = { capMode: 'derived', weeklyHours: 1, meetings: [{ hours: 10, frequency: 'weekly' }] };
     expect(deriveCap(m)).toBe(0);
   });
   test('negative cap clamps to 0 availability', () => {
@@ -182,7 +177,12 @@ describe('memberAtDate', () => {
 describe('memberAtDate: a change is in effect on its own day', () => {
   test('at local midnight of the day it is dated on, not an hour or two later', async () => {
     const { memberAtDate } = await import('../capacity.js');
-    const m = { id: 'm', cap: 1, capChanges: [{ from: '2027-03-01', cap: 0.5 }], meetingChanges: [{ from: '2027-03-01', meetings: [{ id: 'x', name: 'Daily', hours: 1, frequency: 'daily' }] }] };
+    const m = {
+      id: 'm',
+      cap: 1,
+      capChanges: [{ from: '2027-03-01', cap: 0.5 }],
+      meetingChanges: [{ from: '2027-03-01', meetings: [{ id: 'x', name: 'Daily', hours: 1, frequency: 'daily' }] }],
+    };
     expect(memberAtDate(m, new Date(2027, 1, 28, 23, 59)).cap).toBe(1);
     const monday = memberAtDate(m, new Date(2027, 2, 1, 0, 0));
     expect(monday.cap).toBe(0.5);

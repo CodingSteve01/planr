@@ -1,7 +1,13 @@
 import { describe, expect, test } from 'vitest';
 import {
-  treeIndex, leafNodes, isLeafNode, directChildren, hasChildren, descendantLeaves,
-  resolveToLeafIds, treeStats,
+  treeIndex,
+  leafNodes,
+  isLeafNode,
+  directChildren,
+  hasChildren,
+  descendantLeaves,
+  resolveToLeafIds,
+  treeStats,
 } from '../scheduler.js';
 import { computeRoadmapModel } from '../roadmap.js';
 
@@ -15,8 +21,14 @@ function bigTree() {
       for (let b = 1; b <= 5; b++) {
         const done = ri < 2;
         tree.push({
-          id: `${root}.${a}.${b}`, name: `Task ${a}.${b}`, team: 'T1',
-          status: done ? 'done' : 'open', best: 5, factor: 1.5, deps: [], assign: ['M1'],
+          id: `${root}.${a}.${b}`,
+          name: `Task ${a}.${b}`,
+          team: 'T1',
+          status: done ? 'done' : 'open',
+          best: 5,
+          factor: 1.5,
+          deps: [],
+          assign: ['M1'],
           ...(done ? { completedAt: '2026-04-14', completedStart: '2026-04-01', completedEnd: '2026-04-14' } : {}),
         });
       }

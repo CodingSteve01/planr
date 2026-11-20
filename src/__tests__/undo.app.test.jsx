@@ -31,17 +31,25 @@ function seedProject() {
     meetingPlans: [],
     meta: { name: 'Undo Test', planStart: '2026-01-01', planEnd: '2027-01-01' },
   };
-  try { localStorage.setItem('planr_v2', JSON.stringify(project)); } catch { /* ignore */ }
+  try {
+    localStorage.setItem('planr_v2', JSON.stringify(project));
+  } catch {
+    /* ignore */
+  }
 }
 
 async function dispatchUndo(target) {
   const e = new KeyboardEvent('keydown', { key: 'z', metaKey: true, ctrlKey: true, bubbles: true, cancelable: true });
-  await act(async () => { (target || window).dispatchEvent(e); });
+  await act(async () => {
+    (target || window).dispatchEvent(e);
+  });
 }
 
 async function dispatchRedo(target) {
   const e = new KeyboardEvent('keydown', { key: 'z', metaKey: true, ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true });
-  await act(async () => { (target || window).dispatchEvent(e); });
+  await act(async () => {
+    (target || window).dispatchEvent(e);
+  });
 }
 
 async function goToTreeTab() {
@@ -60,12 +68,18 @@ describe('Undo/redo integration', () => {
       // tabs — the Work Tree belongs to Build, so say so rather than relying
       // on whichever mode happens to be the default.
       localStorage.setItem('planr_tab', 'tree');
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     seedProject();
   });
   afterEach(() => {
     cleanup();
-    try { localStorage.clear(); } catch { /* ignore */ }
+    try {
+      localStorage.clear();
+    } catch {
+      /* ignore */
+    }
   });
 
   it('undoes a real UI mutation (delete, confirm-free) with ⌘Z and redoes it with ⇧⌘Z', async () => {

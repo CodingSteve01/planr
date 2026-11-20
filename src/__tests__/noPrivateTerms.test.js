@@ -13,6 +13,9 @@ describe('private terms', () => {
 
   it('finds whole words without regard to case, and never prints them in full', () => {
     const terms = [/(?<![\p{L}\p{N}])Example Corp(?![\p{L}\p{N}])/iu, /TICKET-\d+/i];
-    expect(findIn('fine\nat example corp today\nexamplecorporation\nsee ticket-12', terms, 'x.js')).toEqual(['x.js:2  e**********p', 'x.js:4  t*******2']);
+    expect(findIn('fine\nat example corp today\nexamplecorporation\nsee ticket-12', terms, 'x.js')).toEqual([
+      'x.js:2  e**********p',
+      'x.js:4  t*******2',
+    ]);
   });
 });

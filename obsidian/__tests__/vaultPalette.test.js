@@ -17,29 +17,43 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 // follows the vault's accent setting, so Atom is checked with the accent this
 // vault actually uses (#ac5c39) as well as the theme's own.
 const ATOM_DARK = {
-  'background-primary': '#272b34', 'background-secondary': '#20242b',
+  'background-primary': '#272b34',
+  'background-secondary': '#20242b',
   'background-modifier-border': '#424958',
-  'text-normal': '#dcddde', 'text-muted': '#888888', 'text-faint': '#515663',
+  'text-normal': '#dcddde',
+  'text-muted': '#888888',
+  'text-faint': '#515663',
   'text-on-accent': '#dcddde',
 };
 const ATOM_LIGHT = {
-  'background-primary': '#fafafa', 'background-secondary': '#eaeaeb',
+  'background-primary': '#fafafa',
+  'background-secondary': '#eaeaeb',
   'background-modifier-border': '#dbdbdc',
-  'text-normal': '#383a42', 'text-muted': '#8e8e90', 'text-faint': '#999999',
+  'text-normal': '#383a42',
+  'text-muted': '#8e8e90',
+  'text-faint': '#999999',
   'text-on-accent': '#f2f2f2',
 };
 // Obsidian's built-in theme (the --color-base-* ramp) with its default accent.
 const DEFAULT_DARK = {
-  'background-primary': '#1e1e1e', 'background-secondary': '#262626',
+  'background-primary': '#1e1e1e',
+  'background-secondary': '#262626',
   'background-modifier-border': '#363636',
-  'text-normal': '#dadada', 'text-muted': '#b3b3b3', 'text-faint': '#666666',
-  'interactive-accent': '#8a5cf5', 'text-on-accent': '#ffffff',
+  'text-normal': '#dadada',
+  'text-muted': '#b3b3b3',
+  'text-faint': '#666666',
+  'interactive-accent': '#8a5cf5',
+  'text-on-accent': '#ffffff',
 };
 const DEFAULT_LIGHT = {
-  'background-primary': '#ffffff', 'background-secondary': '#f6f6f6',
+  'background-primary': '#ffffff',
+  'background-secondary': '#f6f6f6',
   'background-modifier-border': '#e0e0e0',
-  'text-normal': '#222222', 'text-muted': '#5c5c5c', 'text-faint': '#ababab',
-  'interactive-accent': '#7045e0', 'text-on-accent': '#ffffff',
+  'text-normal': '#222222',
+  'text-muted': '#5c5c5c',
+  'text-faint': '#ababab',
+  'interactive-accent': '#7045e0',
+  'text-on-accent': '#ffffff',
 };
 
 const THEMES = [
@@ -55,7 +69,9 @@ function declsOf(css, match) {
   const out = {};
   postcss.parse(css).walkRules(rule => {
     if (!rule.selectors.some(match)) return;
-    rule.walkDecls(d => { if (d.prop.startsWith('--')) out[d.prop.slice(2)] = d.value; });
+    rule.walkDecls(d => {
+      if (d.prop.startsWith('--')) out[d.prop.slice(2)] = d.value;
+    });
   });
   return out;
 }
@@ -141,7 +157,16 @@ describe.each(THEMES)('on %s', (_, mode, theme) => {
   // The text ladder to the same bars as Planr's own palette
   // (paletteContrast.test.js): AAA for body and secondary, 6:1 for captions.
   // Labels in a state colour and the accent stay at AA.
-  it.each([['tx', 7], ['tx2', 7], ['tx3', 6], ['ac', 4.5], ['st-done', 4.5], ['st-wip', 4.5], ['st-risk', 4.5], ['sc', 4.5]])('reads --%s on every surface', (token, bar) => {
+  it.each([
+    ['tx', 7],
+    ['tx2', 7],
+    ['tx3', 6],
+    ['ac', 4.5],
+    ['st-done', 4.5],
+    ['st-wip', 4.5],
+    ['st-risk', 4.5],
+    ['sc', 4.5],
+  ])('reads --%s on every surface', (token, bar) => {
     for (const surface of SURFACES) {
       const ratio = contrast(hex(token), hex(surface));
       expect(ratio, `--${token} on --${surface} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(bar);
@@ -154,13 +179,17 @@ describe.each(THEMES)('on %s', (_, mode, theme) => {
     expect(on('tx2')).toBeGreaterThan(on('tx3'));
   });
 
-  it.each([['st-done', 'st-done-soft'], ['st-wip', 'st-wip-soft'], ['st-risk', 'st-risk-soft'], ['ac', 'ac-soft'], ['sc', 'sc-soft'], ['tx2', 'sc-soft']])(
-    'carries --%s on its own --%s ground',
-    (ink, ground) => {
-      const ratio = contrast(hex(ink), hex(ground));
-      expect(ratio, `--${ink} on --${ground} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
-    },
-  );
+  it.each([
+    ['st-done', 'st-done-soft'],
+    ['st-wip', 'st-wip-soft'],
+    ['st-risk', 'st-risk-soft'],
+    ['ac', 'ac-soft'],
+    ['sc', 'sc-soft'],
+    ['tx2', 'sc-soft'],
+  ])('carries --%s on its own --%s ground', (ink, ground) => {
+    const ratio = contrast(hex(ink), hex(ground));
+    expect(ratio, `--${ink} on --${ground} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+  });
 
   // Button labels: bold, 11–13px. This is the theme's own pairing — Obsidian
   // paints its buttons with exactly these two — so the bar is the large-text

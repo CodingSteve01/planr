@@ -24,9 +24,14 @@ export const termsFile = () => process.env.PLANR_PRIVATE_TERMS || join(homedir()
 export function loadTerms(file = termsFile()) {
   if (!existsSync(file)) return null;
   const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return readFileSync(file, 'utf8').split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'))
-    // The patterns come from the owner's own file on this machine, not from input.
-    .map(l => (l.startsWith('re:') ? new RegExp(l.slice(3), 'i') : new RegExp(`(?<![\\p{L}\\p{N}])${esc(l)}(?![\\p{L}\\p{N}])`, 'iu')));
+  return (
+    readFileSync(file, 'utf8')
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l && !l.startsWith('#'))
+      // The patterns come from the owner's own file on this machine, not from input.
+      .map(l => (l.startsWith('re:') ? new RegExp(l.slice(3), 'i') : new RegExp(`(?<![\\p{L}\\p{N}])${esc(l)}(?![\\p{L}\\p{N}])`, 'iu')))
+  );
 }
 
 // Where the author's own name is the point: the licence and the plugin manifest.
@@ -38,19 +43,30 @@ export function findIn(text, terms, where) {
   text.split('\n').forEach((line, i) => {
     for (const re of terms) {
       const m = re.exec(line);
-      if (m) { out.push(`${where}:${i + 1}  ${mask(m[0])}`); break; }
+      if (m) {
+        out.push(`${where}:${i + 1}  ${mask(m[0])}`);
+        break;
+      }
     }
   });
   return out;
 }
 
 export function scanTracked(terms, staged = false) {
-  const list = execFileSync('git', staged ? ['diff', '--cached', '--name-only', '--diff-filter=ACMR'] : ['ls-files'], { encoding: 'utf8' }).split('\n').filter(Boolean);
+  const list = execFileSync('git', staged ? ['diff', '--cached', '--name-only', '--diff-filter=ACMR'] : ['ls-files'], { encoding: 'utf8' })
+    .split('\n')
+    .filter(Boolean);
   const finds = [];
   for (const file of list) {
     if (EXEMPT.has(file) || /\.(png|jpe?g|gif|ico|woff2?|ttf|pdf)$/i.test(file) || /pdfFonts\.js$/.test(file)) continue;
     let text;
-    try { text = staged ? execFileSync('git', ['show', `:${file}`], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }) : readFileSync(file, 'utf8'); } catch { continue; }
+    try {
+      text = staged
+        ? execFileSync('git', ['show', `:${file}`], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+        : readFileSync(file, 'utf8');
+    } catch {
+      continue;
+    }
     finds.push(...findIn(text, terms, file));
   }
   return finds;
@@ -59,10 +75,18 @@ export function scanTracked(terms, staged = false) {
 const invoked = process.argv[1] ? realpathSync(process.argv[1]) : '';
 if (invoked === realpathSync(fileURLToPath(import.meta.url))) {
   const terms = loadTerms();
-  if (!terms) { console.log(`check-private: no list at ${termsFile()}, nothing checked`); process.exit(0); }
+  if (!terms) {
+    console.log(`check-private: no list at ${termsFile()}, nothing checked`);
+    process.exit(0);
+  }
   const at = process.argv.indexOf('--message');
-  const finds = at > 0 ? findIn(readFileSync(process.argv[at + 1], 'utf8'), terms, 'commit message') : scanTracked(terms, process.argv.includes('--staged'));
+  const finds =
+    at > 0
+      ? findIn(readFileSync(process.argv[at + 1], 'utf8'), terms, 'commit message')
+      : scanTracked(terms, process.argv.includes('--staged'));
   if (!finds.length) process.exit(0);
-  console.error(`check-private: ${finds.length} private term(s) found. Replace them with invented examples.\n` + finds.slice(0, 40).join('\n'));
+  console.error(
+    `check-private: ${finds.length} private term(s) found. Replace them with invented examples.\n` + finds.slice(0, 40).join('\n'),
+  );
   process.exit(1);
 }

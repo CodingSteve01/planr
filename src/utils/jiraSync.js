@@ -19,13 +19,48 @@
 // Jira workflow names are free-form per project, so match on substrings and
 // cover the German localisation too. Anything unrecognised counts as open —
 // the conservative direction, since it never silently marks work finished.
-const DONE_WORDS = ['done', 'erledigt', 'closed', 'geschlossen', 'resolved', 'gelöst', 'geloest',
-  'fertig', 'abgeschlossen', 'complete', 'deployed', 'released', 'live', 'abgenommen'];
-const WIP_WORDS = ['progress', 'arbeit', 'bearbeitung', 'review', 'test', 'doing', 'umsetzung',
-  'implementation', 'implementierung', 'entwicklung', 'qa'];
+const DONE_WORDS = [
+  'done',
+  'erledigt',
+  'closed',
+  'geschlossen',
+  'resolved',
+  'gelöst',
+  'geloest',
+  'fertig',
+  'abgeschlossen',
+  'complete',
+  'deployed',
+  'released',
+  'live',
+  'abgenommen',
+];
+const WIP_WORDS = [
+  'progress',
+  'arbeit',
+  'bearbeitung',
+  'review',
+  'test',
+  'doing',
+  'umsetzung',
+  'implementation',
+  'implementierung',
+  'entwicklung',
+  'qa',
+];
 
-const KEY_ALIASES = ['issue key', 'issuekey', 'key', 'schlüssel', 'schluessel', 'vorgangsschlüssel',
-  'vorgangsschluessel', 'ticket', 'issue id', 'issue-id'];
+const KEY_ALIASES = [
+  'issue key',
+  'issuekey',
+  'key',
+  'schlüssel',
+  'schluessel',
+  'vorgangsschlüssel',
+  'vorgangsschluessel',
+  'ticket',
+  'issue id',
+  'issue-id',
+];
 const SUMMARY_ALIASES = ['summary', 'zusammenfassung', 'titel', 'title', 'betreff'];
 const STATUS_ALIASES = ['status', 'workflow status', 'issue status'];
 const ASSIGNEE_ALIASES = ['assignee', 'bearbeiter', 'zugewiesen an', 'zugewiesen'];
@@ -37,23 +72,33 @@ const TYPE_ALIASES = ['issue type', 'issuetype', 'vorgangstyp', 'type', 'typ'];
 // Jira writes the hierarchy under different names depending on the export and
 // the plan: "Parent" on a company-managed next-gen board, "Epic Link" on a
 // classic one, "Parent key"/"Parent id" on some CSV exports.
-const PARENT_ALIASES = ['parent', 'parent key', 'parent id', 'übergeordneter vorgang',
-  'uebergeordneter vorgang', 'übergeordnet'];
+const PARENT_ALIASES = ['parent', 'parent key', 'parent id', 'übergeordneter vorgang', 'uebergeordneter vorgang', 'übergeordnet'];
 const EPIC_ALIASES = ['epic link', 'epic', 'epic name', 'epos-link', 'epic key'];
 const PRIORITY_ALIASES = ['priority', 'priorität', 'prioritaet'];
-const ESTIMATE_ALIASES = ['original estimate', 'originalestimate', 'estimate', 'story points',
-  'ursprüngliche schätzung', 'urspruengliche schaetzung', 'story-points'];
+const ESTIMATE_ALIASES = [
+  'original estimate',
+  'originalestimate',
+  'estimate',
+  'story points',
+  'ursprüngliche schätzung',
+  'urspruengliche schaetzung',
+  'story-points',
+];
 
 const JIRA_KEY_RE = /^[A-Z][A-Z0-9_]+-\d+$/;
 
 export function normalizeKey(value) {
-  return String(value ?? '').trim().toUpperCase();
+  return String(value ?? '')
+    .trim()
+    .toUpperCase();
 }
 
 // Jira status text → Planr status. Exported so the UI can label its own
 // preview rows with the same verdict the apply step will use.
 export function mapJiraStatus(status) {
-  const text = String(status ?? '').trim().toLowerCase();
+  const text = String(status ?? '')
+    .trim()
+    .toLowerCase();
   if (!text) return null;
   if (DONE_WORDS.some(word => text.includes(word))) return 'done';
   if (WIP_WORDS.some(word => text.includes(word))) return 'wip';
@@ -64,8 +109,7 @@ export function mapJiraStatus(status) {
 // definition; falls back to whatever key the tree actually uses, so plans
 // written before the field was named still reconcile.
 export function detectJiraFieldId(customFields = [], tree = []) {
-  const named = (customFields || []).find(field =>
-    /jira|issue[_\s-]?key|ticket|vorgang/i.test(`${field?.id || ''} ${field?.name || ''}`));
+  const named = (customFields || []).find(field => /jira|issue[_\s-]?key|ticket|vorgang/i.test(`${field?.id || ''} ${field?.name || ''}`));
   if (named?.id) return named.id;
   const used = new Set();
   (tree || []).forEach(node => Object.keys(node?.customValues || {}).forEach(key => used.add(key)));
@@ -82,13 +126,22 @@ function splitLine(line, delimiter) {
     const char = line[i];
     if (quoted) {
       if (char === '"') {
-        if (line[i + 1] === '"') { cell += '"'; i++; }
-        else quoted = false;
+        if (line[i + 1] === '"') {
+          cell += '"';
+          i++;
+        } else quoted = false;
       } else cell += char;
       continue;
     }
-    if (char === '"') { quoted = true; continue; }
-    if (char === delimiter) { out.push(cell.trim()); cell = ''; continue; }
+    if (char === '"') {
+      quoted = true;
+      continue;
+    }
+    if (char === delimiter) {
+      out.push(cell.trim());
+      cell = '';
+      continue;
+    }
     cell += char;
   }
   out.push(cell.trim());
@@ -98,7 +151,8 @@ function splitLine(line, delimiter) {
 // Pick the delimiter by counting candidates outside quotes on the header line.
 function guessDelimiter(headerLine) {
   const counts = ['\t', ';', ',', '|'].map(delimiter => {
-    let count = 0, quoted = false;
+    let count = 0,
+      quoted = false;
     for (const char of headerLine) {
       if (char === '"') quoted = !quoted;
       else if (char === delimiter && !quoted) count++;
@@ -122,7 +176,10 @@ function matchColumn(headers, aliases) {
 // Headerless input still works when the first column looks like a Jira key —
 // people paste "PRJ-385  In Progress" straight out of a search result.
 export function parseJiraTable(text) {
-  const lines = String(text ?? '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  const lines = String(text ?? '')
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean);
   if (!lines.length) return { rows: [], columns: {}, skipped: 0, error: 'empty' };
 
   const delimiter = guessDelimiter(lines[0]);
@@ -148,10 +205,24 @@ export function parseJiraTable(text) {
     // by shape on the first row.
     const keyIdx = first.findIndex(cell => JIRA_KEY_RE.test(normalizeKey(cell)));
     if (keyIdx < 0) return { rows: [], columns: {}, skipped: lines.length, error: 'noKeyColumn' };
-    columns = { key: keyIdx, summary: -1, status: -1, assignee: -1, planrId: -1, type: -1, parent: -1, epic: -1, priority: -1, estimate: -1 };
+    columns = {
+      key: keyIdx,
+      summary: -1,
+      status: -1,
+      assignee: -1,
+      planrId: -1,
+      type: -1,
+      parent: -1,
+      epic: -1,
+      priority: -1,
+      estimate: -1,
+    };
     // A bare two-column paste is almost always key + status.
     if (first.length === 2) columns.status = keyIdx === 0 ? 1 : 0;
-    else if (first.length > 2) { columns.summary = keyIdx + 1; columns.status = keyIdx + 2; }
+    else if (first.length > 2) {
+      columns.summary = keyIdx + 1;
+      columns.status = keyIdx + 2;
+    }
     body = lines;
   }
 
@@ -161,8 +232,14 @@ export function parseJiraTable(text) {
   body.forEach(line => {
     const cells = splitLine(line, delimiter);
     const key = normalizeKey(cells[columns.key]);
-    if (!key || !JIRA_KEY_RE.test(key)) { skipped++; return; }
-    if (seen.has(key)) { skipped++; return; }
+    if (!key || !JIRA_KEY_RE.test(key)) {
+      skipped++;
+      return;
+    }
+    if (seen.has(key)) {
+      skipped++;
+      return;
+    }
     seen.add(key);
     const status = columns.status >= 0 ? (cells[columns.status] || '').trim() : '';
     rows.push({
@@ -176,10 +253,7 @@ export function parseJiraTable(text) {
       // A row's place in the hierarchy: whichever of the two Jira columns is
       // filled. `Parent` wins when both are, because on a board that has both
       // the epic link is the grandparent.
-      parent: normalizeKey(
-        (columns.parent >= 0 ? cells[columns.parent] : '')
-        || (columns.epic >= 0 ? cells[columns.epic] : ''),
-      ),
+      parent: normalizeKey((columns.parent >= 0 ? cells[columns.parent] : '') || (columns.epic >= 0 ? cells[columns.epic] : '')),
       priority: columns.priority >= 0 ? (cells[columns.priority] || '').trim() : '',
       estimate: columns.estimate >= 0 ? (cells[columns.estimate] || '').trim() : '',
     });
@@ -189,7 +263,11 @@ export function parseJiraTable(text) {
 }
 
 // ── Reconciliation ────────────────────────────────────────────────────────
-const norm = text => String(text ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
+const norm = text =>
+  String(text ?? '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
 const isLeaf = (tree, id) => !tree.some(node => node.id.startsWith(id + '.'));
 
 // Everything the plan itself can tell us without a Jira paste: which items
@@ -240,12 +318,19 @@ export function reconcile({ tree = [], rows = [], jiraFieldId = '' } = {}) {
 
   health.linked.forEach(row => {
     const jira = jiraByKey.get(row.key);
-    if (!jira) { missingInJira.push(row); return; }
+    if (!jira) {
+      missingInJira.push(row);
+      return;
+    }
     matched++;
     if (jira.mapped && jira.mapped !== row.status) {
       statusDiff.push({
-        id: row.id, name: row.name, key: row.key,
-        planrStatus: row.status, jiraStatus: jira.status, target: jira.mapped,
+        id: row.id,
+        name: row.name,
+        key: row.key,
+        planrStatus: row.status,
+        jiraStatus: jira.status,
+        target: jira.mapped,
       });
     }
     if (jira.summary && norm(jira.summary) !== norm(row.name)) {

@@ -23,12 +23,26 @@ const vacations = [
 
 const noop = () => {};
 function wrap(ui) {
-  return render(<I18nProvider><ThemeProvider>{ui}</ThemeProvider></I18nProvider>);
+  return render(
+    <I18nProvider>
+      <ThemeProvider>{ui}</ThemeProvider>
+    </I18nProvider>,
+  );
 }
 const baseProps = {
-  members, teams, vacations, meetingPlans: [],
-  onMeetingPlansUpd: noop, onUpd: noop, onAdd: noop, onClone: noop, onDel: noop,
-  onVac: noop, onTeamUpd: noop, onTeamAdd: noop, onTeamDel: noop,
+  members,
+  teams,
+  vacations,
+  meetingPlans: [],
+  onMeetingPlansUpd: noop,
+  onUpd: noop,
+  onAdd: noop,
+  onClone: noop,
+  onDel: noop,
+  onVac: noop,
+  onTeamUpd: noop,
+  onTeamAdd: noop,
+  onTeamDel: noop,
 };
 
 describe('ResView filter', () => {

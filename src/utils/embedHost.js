@@ -91,7 +91,7 @@ export function fixedFrame(root = portalHost()) {
   probe.appendChild(ruler);
   root.appendChild(probe);
   const box = probe.getBoundingClientRect();
-  const scale = (ruler.getBoundingClientRect().width / RULER_PX) || 1;
+  const scale = ruler.getBoundingClientRect().width / RULER_PX || 1;
   probe.remove();
 
   // A box that measured nothing was never laid out — a detached container, a
@@ -115,7 +115,6 @@ export function fixedFrame(root = portalHost()) {
 export function toFixedPoint(x, y, f = fixedFrame()) {
   return { x: (x - f.left) / f.scale, y: (y - f.top) / f.scale };
 }
-
 
 // Whether Planr is running inside a host at all. Chrome that only makes sense
 // on a page of Planr's own — the wordmark, for one — can stand down when the

@@ -4,7 +4,10 @@ const MOUNTED_FILE_KEY = 'mounted-project-file';
 
 function openDb() {
   return new Promise((resolve, reject) => {
-    if (typeof indexedDB === 'undefined') { resolve(null); return; }
+    if (typeof indexedDB === 'undefined') {
+      resolve(null);
+      return;
+    }
     const req = indexedDB.open(DB_NAME, 1);
     req.onupgradeneeded = () => {
       req.result.createObjectStore(STORE_NAME);

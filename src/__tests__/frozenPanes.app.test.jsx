@@ -35,15 +35,23 @@ describe('a hidden pane', () => {
     function Host() {
       const [n, setN] = useState(0);
       bump = () => setN(v => v + 1);
-      return <>
-        <Frozen active><Counter label={`visible-${n}`} onRender={l => renders.push(l)} /></Frozen>
-        <Frozen active={false}><Counter label={`hidden-${n}`} onRender={l => renders.push(l)} /></Frozen>
-      </>;
+      return (
+        <>
+          <Frozen active>
+            <Counter label={`visible-${n}`} onRender={l => renders.push(l)} />
+          </Frozen>
+          <Frozen active={false}>
+            <Counter label={`hidden-${n}`} onRender={l => renders.push(l)} />
+          </Frozen>
+        </>
+      );
     }
     render(<Host />);
     expect(renders).toEqual(['visible-0', 'hidden-0']);
 
-    await act(async () => { bump(); });
+    await act(async () => {
+      bump();
+    });
     // The visible one followed the change; the hidden one did not run at all.
     expect(renders).toEqual(['visible-0', 'hidden-0', 'visible-1']);
   });
@@ -54,11 +62,20 @@ describe('a hidden pane', () => {
     function Host() {
       const [n, setN] = useState(0);
       const [on, setOn] = useState(false);
-      show = () => { setN(v => v + 1); setOn(true); };
-      return <Frozen active={on}><Counter label={`pane-${n}`} onRender={l => renders.push(l)} /></Frozen>;
+      show = () => {
+        setN(v => v + 1);
+        setOn(true);
+      };
+      return (
+        <Frozen active={on}>
+          <Counter label={`pane-${n}`} onRender={l => renders.push(l)} />
+        </Frozen>
+      );
     }
     render(<Host />);
-    await act(async () => { show(); });
+    await act(async () => {
+      show();
+    });
     // Not the stale pane-0 it was holding: what it shows is current.
     expect(renders[renders.length - 1]).toBe('pane-1');
   });
@@ -76,12 +93,20 @@ describe('a hidden pane', () => {
     function Host() {
       const [on, setOn] = useState(true);
       toggle = () => setOn(v => !v);
-      return <Frozen active={on}><Keeps /></Frozen>;
+      return (
+        <Frozen active={on}>
+          <Keeps />
+        </Frozen>
+      );
     }
     render(<Host />);
     const first = seen[0];
-    await act(async () => { toggle(); });
-    await act(async () => { toggle(); });
+    await act(async () => {
+      toggle();
+    });
+    await act(async () => {
+      toggle();
+    });
     expect(seen[seen.length - 1]).toBe(first);
   });
 });

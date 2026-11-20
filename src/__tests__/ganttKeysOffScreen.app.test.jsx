@@ -10,28 +10,31 @@ import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 
 function seed() {
-  localStorage.setItem('planr_v2', JSON.stringify({
-    tree: [
-      { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
-      { id: 'A.1', name: 'A eins', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
-      { id: 'A.2', name: 'A zwei', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
-    ],
-    members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
-    teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-    vacations: [], meetingPlans: [],
-    meta: { name: 'GanttKeys', planStart: '2026-01-05', planEnd: '2027-06-30' },
-  }));
+  localStorage.setItem(
+    'planr_v2',
+    JSON.stringify({
+      tree: [
+        { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
+        { id: 'A.1', name: 'A eins', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+        { id: 'A.2', name: 'A zwei', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'] },
+      ],
+      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [],
+      meetingPlans: [],
+      meta: { name: 'GanttKeys', planStart: '2026-01-05', planEnd: '2027-06-30' },
+    }),
+  );
 }
 
-const tabNamed = name => [...document.querySelectorAll('.tab')]
-  .find(el => (el.firstChild?.textContent || '').trim() === name);
+const tabNamed = name => [...document.querySelectorAll('.tab')].find(el => (el.firstChild?.textContent || '').trim() === name);
 const press = init => {
   const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
   document.body.dispatchEvent(event);
   return event;
 };
 
-describe('the schedule\'s keys stay on the schedule', () => {
+describe("the schedule's keys stay on the schedule", () => {
   beforeEach(() => {
     cleanup();
     localStorage.clear();
@@ -40,23 +43,41 @@ describe('the schedule\'s keys stay on the schedule', () => {
     localStorage.setItem('planr_tour_done', '1');
     seed();
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('answers while the schedule is showing, and not after leaving it', async () => {
-    render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
-    await waitFor(() => { if (!document.querySelector('[data-task-id]')) throw new Error('no bars'); });
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+    await waitFor(() => {
+      if (!document.querySelector('[data-task-id]')) throw new Error('no bars');
+    });
 
     // Showing: ↓ moves the Gantt cursor, so it takes the key — once the view
     // knows its rows, which under a loaded test run can be a render after the
     // first bar is in the DOM.
     await waitFor(async () => {
       let down;
-      await act(async () => { down = press({ key: 'ArrowDown' }); });
+      await act(async () => {
+        down = press({ key: 'ArrowDown' });
+      });
       expect(down.defaultPrevented).toBe(true);
     });
 
-    await act(async () => { fireEvent.mouseDown(tabNamed('Overview'), { button: 0 }); });
-    await waitFor(() => { if (document.querySelector('[data-testid="gantt-timeline"]')?.closest('[style*="display: none"]') == null) throw new Error('gantt still shown'); });
+    await act(async () => {
+      fireEvent.mouseDown(tabNamed('Overview'), { button: 0 });
+    });
+    await waitFor(() => {
+      if (document.querySelector('[data-testid="gantt-timeline"]')?.closest('[style*="display: none"]') == null)
+        throw new Error('gantt still shown');
+    });
 
     let selectAll, arrow, open;
     await act(async () => {

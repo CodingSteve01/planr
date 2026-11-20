@@ -35,9 +35,7 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
 
   // Pull the forecasted segment chain from the scheduler. Primary segment
   // (index 0) is the original assignee; subsequent segments are cutoffs.
-  const sc = Array.isArray(scheduled)
-    ? scheduled.find(s => (s.treeId || s.id) === node.id && !s.isHandoff)
-    : null;
+  const sc = Array.isArray(scheduled) ? scheduled.find(s => (s.treeId || s.id) === node.id && !s.isHandoff) : null;
   const allSegs = sc?.segments || [];
   const cutoffs = allSegs.slice(1); // entries after the primary
 
@@ -52,7 +50,7 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
     if (idx >= next.length) return;
     next[idx] = {};
     // Strip trailing empties only — never the stage the user is editing.
-    while (next.length && !next[next.length - 1]?.team && !(next[next.length - 1]?.assign?.length)) {
+    while (next.length && !next[next.length - 1]?.team && !next[next.length - 1]?.assign?.length) {
       next.pop();
     }
     onChange(next);
@@ -74,12 +72,19 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
   // Collapsed summary: one-liner only. User opens on demand.
   if (!expanded) {
     return (
-      <div style={{
-        marginTop: 10, padding: '6px 10px', background: 'var(--bg3)',
-        border: '1px solid var(--b)', borderRadius: 'var(--r)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        fontSize: 12,
-      }}>
+      <div
+        style={{
+          marginTop: 10,
+          padding: '6px 10px',
+          background: 'var(--bg3)',
+          border: '1px solid var(--b)',
+          borderRadius: 'var(--r)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: 12,
+        }}
+      >
         <div style={{ color: 'var(--tx3)' }}>
           <span style={{ fontWeight: 600, color: 'var(--tx2)' }}>Handoff-Plan</span>
           <span style={{ marginLeft: 6 }}>
@@ -96,11 +101,18 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
   }
 
   return (
-    <div style={{
-      marginTop: 10, padding: 10, background: 'var(--bg3)',
-      border: '1px solid var(--b)', borderRadius: 'var(--r)',
-      display: 'flex', flexDirection: 'column', gap: 8,
-    }}>
+    <div
+      style={{
+        marginTop: 10,
+        padding: 10,
+        background: 'var(--bg3)',
+        border: '1px solid var(--b)',
+        borderRadius: 'var(--r)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>Handoff-Plan</div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -110,7 +122,9 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
               : `${cutoffs.length} Auto-Cutoff${cutoffs.length === 1 ? '' : 's'}${plan.length > 0 ? ` · ${plan.length} Override${plan.length === 1 ? '' : 's'}` : ''}`}
           </div>
           {focusStage == null && (
-            <button className="btn btn-ghost btn-xs" onClick={() => setExpanded(false)} style={{ padding: '0 6px', color: 'var(--tx3)' }}>ein­klappen</button>
+            <button className="btn btn-ghost btn-xs" onClick={() => setExpanded(false)} style={{ padding: '0 6px', color: 'var(--tx3)' }}>
+              ein­klappen
+            </button>
           )}
         </div>
       </div>
@@ -122,41 +136,53 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
 
       {stages.map(({ idx, predicted, override }) => {
         const stage = override || {};
-        const stageMembers = stage.team
-          ? members.filter(m => inTeam(m, stage.team))
-          : members;
+        const stageMembers = stage.team ? members.filter(m => inTeam(m, stage.team)) : members;
         const predictedLabel = predicted
           ? `Scheduler wählt: ${predicted.personName || '(unassigned)'}${predicted.unscheduled ? ' !' : ''}`
           : 'Vorgeplant (noch kein Cutoff erwartet)';
-        const predictedAfter = predicted?.handoff && allSegs[idx]?.personName
-          ? ` nach Offboarding von ${allSegs[idx].personName}`
-          : '';
+        const predictedAfter = predicted?.handoff && allSegs[idx]?.personName ? ` nach Offboarding von ${allSegs[idx].personName}` : '';
         const isFocused = focusStage === idx;
-        const predictedShort = predicted
-          ? (predicted.unscheduled ? '! keiner gefunden' : `Auto: ${predicted.personName}`)
-          : 'vorbelegt';
+        const predictedShort = predicted ? (predicted.unscheduled ? '! keiner gefunden' : `Auto: ${predicted.personName}`) : 'vorbelegt';
         const afterPerson = allSegs[idx]?.personName;
         return (
-          <div key={idx} ref={el => { stageRefs.current[idx] = el; }} style={{
-            padding: '6px 8px',
-            background: isFocused ? 'rgba(59,130,246,.10)' : 'var(--bg2)',
-            border: '1px solid var(--b)',
-            borderLeft: `3px solid ${predicted?.unscheduled ? 'var(--re)' : 'var(--ac)'}`,
-            borderRadius: 4,
-            display: 'flex', flexDirection: 'column', gap: 4,
-          }}>
+          <div
+            key={idx}
+            ref={el => {
+              stageRefs.current[idx] = el;
+            }}
+            style={{
+              padding: '6px 8px',
+              background: isFocused ? 'rgba(59,130,246,.10)' : 'var(--bg2)',
+              border: '1px solid var(--b)',
+              borderLeft: `3px solid ${predicted?.unscheduled ? 'var(--re)' : 'var(--ac)'}`,
+              borderRadius: 4,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--tx2)' }}>
               <span style={{ fontWeight: 700, color: 'var(--ac)' }}>#{idx + 1}</span>
               {afterPerson && <span style={{ color: 'var(--tx3)' }}>nach {afterPerson}</span>}
               <span style={{ flex: 1, textAlign: 'right', color: 'var(--tx3)' }}>{predictedShort}</span>
-              <button className="btn btn-ghost btn-xs" style={{ color: 'var(--tx3)', padding: '0 4px', fontSize: 14, lineHeight: 1 }}
-                onClick={() => clearStage(idx)} title={t('hp.clearOverrideTip')}><Icon name="x" size={11} /></button>
+              <button
+                className="btn btn-ghost btn-xs"
+                style={{ color: 'var(--tx3)', padding: '0 4px', fontSize: 14, lineHeight: 1 }}
+                onClick={() => clearStage(idx)}
+                title={t('hp.clearOverrideTip')}
+              >
+                <Icon name="x" size={11} />
+              </button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-              <SearchSelect value={stage.team || ''}
+              <SearchSelect
+                value={stage.team || ''}
                 options={teams.map(tm => ({ id: tm.id, label: tm.name || tm.id }))}
                 onSelect={v => setStage(idx, { team: v })}
-                placeholder={t('hp.teamAutoPlaceholder')} allowEmpty emptyLabel="(Auto)" />
+                placeholder={t('hp.teamAutoPlaceholder')}
+                allowEmpty
+                emptyLabel="(Auto)"
+              />
               <SearchSelect
                 value={(stage.assign || [])[0] || ''}
                 options={stageMembers.map(m => ({ id: m.id, label: m.name || m.id }))}
@@ -164,14 +190,19 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
                   const m = members.find(x => x.id === id);
                   setStage(idx, { assign: id ? [id] : [], team: stage.team || m?.team || '' });
                 }}
-                placeholder={t('hp.personAutoPlaceholder')} allowEmpty emptyLabel="(Auto)" />
+                placeholder={t('hp.personAutoPlaceholder')}
+                allowEmpty
+                emptyLabel="(Auto)"
+              />
             </div>
             {(stage.assign || []).length > 1 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                 {stage.assign.slice(1).map(id => (
                   <span key={id} className="tag" style={{ fontSize: 10 }}>
                     + {memberName(id)}
-                    <span className="tag-x" onClick={() => setStage(idx, { assign: (stage.assign || []).filter(a => a !== id) })}><Icon name="x" size={9} /></span>
+                    <span className="tag-x" onClick={() => setStage(idx, { assign: (stage.assign || []).filter(a => a !== id) })}>
+                      <Icon name="x" size={9} />
+                    </span>
                   </span>
                 ))}
               </div>
@@ -180,8 +211,7 @@ export function HandoffPlanEditor({ node, members, teams, scheduled, onChange, f
         );
       })}
 
-      <button className="btn btn-sec btn-xs" onClick={addExtraStage} style={{ alignSelf: 'flex-start' }}
-        data-htip={t('hp.addStageTip')}>
+      <button className="btn btn-sec btn-xs" onClick={addExtraStage} style={{ alignSelf: 'flex-start' }} data-htip={t('hp.addStageTip')}>
         + {plan.length === 0 ? 'Etappe vorbelegen' : 'Weitere Etappe'}
       </button>
     </div>

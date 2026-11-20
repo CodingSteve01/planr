@@ -29,7 +29,9 @@ const PLAN = {
   tree: TREE,
   members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
   teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-  vacations: [], holidays: [], meetingPlans: [],
+  vacations: [],
+  holidays: [],
+  meetingPlans: [],
   meta: { name: 'Fokus', planStart: '2026-01-05', planEnd: '2027-06-30', version: '2' },
 };
 
@@ -42,19 +44,33 @@ describe('the overview lists every project', () => {
     localStorage.setItem('planr_tour_done', '1');
     localStorage.setItem('planr_v2', JSON.stringify(PLAN));
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('shows a project nobody labelled a goal', async () => {
-    render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     await waitFor(() => expect(document.body.textContent).toContain('Ein Ziel'));
-    expect(document.body.textContent, 'an untyped project is missing from the overview')
-      .toContain('Namenloses Grossprojekt');
+    expect(document.body.textContent, 'an untyped project is missing from the overview').toContain('Namenloses Grossprojekt');
   });
 
   it('still leaves a dropped one out of the focus list', async () => {
     // Dropped work is visible elsewhere on purpose — you have to be able to
     // see what you decided against — but it is not a focus.
-    render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     await waitFor(() => expect(document.body.textContent).toContain('Ein Ziel'));
     const heading = [...document.querySelectorAll('.section-h')].find(el => /Fokus/.test(el.textContent));
     expect(heading, 'no focus section').toBeTruthy();
@@ -69,15 +85,24 @@ describe('the overview lists every project', () => {
 
 describe('and so does the report the PDF is built from', () => {
   it('carries the untyped project and not the dropped one', () => {
-    const html = generateReport(buildExportCtx({
-      data: PLAN, scheduled: [], weeks: [], cpSet: new Set(), goalPaths: {},
-      stats: treeStats(TREE), confidence: {}, lang: 'de',
-    }));
+    const html = generateReport(
+      buildExportCtx({
+        data: PLAN,
+        scheduled: [],
+        weeks: [],
+        cpSet: new Set(),
+        goalPaths: {},
+        stats: treeStats(TREE),
+        confidence: {},
+        lang: 'de',
+      }),
+    );
     // Scoped to the table this is about: dropped work is deliberately marked
     // rather than omitted in other sections of the same document.
-    const at = html.indexOf('Projekte, Ziele &amp; Deadlines') >= 0
-      ? html.indexOf('Projekte, Ziele &amp; Deadlines')
-      : html.indexOf('Projekte, Ziele & Deadlines');
+    const at =
+      html.indexOf('Projekte, Ziele &amp; Deadlines') >= 0
+        ? html.indexOf('Projekte, Ziele &amp; Deadlines')
+        : html.indexOf('Projekte, Ziele & Deadlines');
     expect(at, 'no projects/goals section in the report').toBeGreaterThan(-1);
     const section = html.slice(at, html.indexOf('</table>', at));
     expect(section).toContain('Namenloses Grossprojekt');

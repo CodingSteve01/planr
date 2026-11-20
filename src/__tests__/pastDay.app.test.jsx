@@ -33,7 +33,13 @@ function hostFile(initial) {
     queryPermission: async () => 'granted',
     requestPermission: async () => 'granted',
     getFile: async () => ({ name: 'baseline.planr.md', lastModified: Date.now(), text: async () => state.text }),
-    createWritable: async () => ({ write: async content => { state.text = String(content); state.writes.push(state.text); }, close: async () => {} }),
+    createWritable: async () => ({
+      write: async content => {
+        state.text = String(content);
+        state.writes.push(state.text);
+      },
+      close: async () => {},
+    }),
   };
   return { handle, state };
 }
@@ -49,25 +55,48 @@ const historyOf = text => {
 import { parseMdToProject } from '../utils/markdownParse.js';
 import { planAtEndOf } from '../utils/dayLog.js';
 
-const day = n => { const d = new Date(); d.setDate(d.getDate() - n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const day = n => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 // The plan with a log: Beta was called "Beta Old" until three days ago, and
 // Gamma was added two days ago.
-const withLog = () => PLAN.replace('  - **P1.2** Beta Task (S 5T ×1) — Dev [AN]', '  - **P1.2** Beta Task (S 5T ×1) — Dev [AN]\n  - **P1.3** Gamma Task (S 5T ×1) — Dev [AN]')
-  + `\n## Log\n\n\`\`\`planr-log\nv1\n`
-  + JSON.stringify({ day: day(3), back: { tree: { set: { 'P1.2': { name: 'Beta Old' } } } } }) + '\n'
-  + JSON.stringify({ day: day(2), back: { tree: { del: ['P1.3'] } } }) + '\n```\n';
+const withLog = () =>
+  PLAN.replace(
+    '  - **P1.2** Beta Task (S 5T ×1) — Dev [AN]',
+    '  - **P1.2** Beta Task (S 5T ×1) — Dev [AN]\n  - **P1.3** Gamma Task (S 5T ×1) — Dev [AN]',
+  ) +
+  `\n## Log\n\n\`\`\`planr-log\nv1\n` +
+  JSON.stringify({ day: day(3), back: { tree: { set: { 'P1.2': { name: 'Beta Old' } } } } }) +
+  '\n' +
+  JSON.stringify({ day: day(2), back: { tree: { del: ['P1.3'] } } }) +
+  '\n```\n';
 
 const names = () => [...document.querySelectorAll('[data-testid="tree-row-name"]')].map(n => n.textContent.trim());
 const goTo = async d => {
   fireEvent.click(screen.getByTestId('effective-switch'));
   fireEvent.change(screen.getByTestId('effective-date-input'), { target: { value: d } });
-  await act(async () => { fireEvent.click(screen.getByTestId('effective-date-ok')); });
+  await act(async () => {
+    fireEvent.click(screen.getByTestId('effective-date-ok'));
+  });
 };
-const written = async (state, n = 1) => waitFor(() => expect(state.writes.length).toBeGreaterThanOrEqual(n), { timeout: 15000, interval: 200 });
+const written = async (state, n = 1) =>
+  waitFor(() => expect(state.writes.length).toBeGreaterThanOrEqual(n), { timeout: 15000, interval: 200 });
 
 describe('an earlier day', () => {
-  beforeEach(() => { cleanup(); localStorage.clear(); localStorage.setItem('planr_lang', 'en'); localStorage.setItem('planr_tab', 'tree'); localStorage.setItem('planr_tree_ids', 'true'); localStorage.setItem('planr_editor_dock', 'dialog'); });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tab', 'tree');
+    localStorage.setItem('planr_tree_ids', 'true');
+    localStorage.setItem('planr_editor_dock', 'dialog');
+  });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('the patch shape the fixture uses is the one the app writes', () => {
     // Guards the fixture above: if the patch format changes, this says so
@@ -79,23 +108,41 @@ describe('an earlier day', () => {
 
   it('shows the whole plan as it stood, says so, and comes back unchanged', async () => {
     const { handle, state } = hostFile(withLog());
-    render(<I18nProvider><ThemeProvider><App mount={handle} onFileChange={() => {}} /></ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App mount={handle} onFileChange={() => {}} />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     await screen.findByText('Gamma Task', {}, { timeout: 10000 });
     await goTo(day(5));
     await waitFor(() => expect(names()).toEqual(['Project', 'Alpha Task', 'Beta Old']));
     expect(screen.getByTestId('effective-bar').getAttribute('data-travel')).toBe('true');
     expect(screen.queryByTestId('scenario-switch')).toBeNull();
-    await act(async () => { fireEvent.click(screen.getByTestId('effective-leave')); });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('effective-leave'));
+    });
     await waitFor(() => expect(names()).toEqual(['Project', 'Alpha Task', 'Beta Task', 'Gamma Task']));
     expect(screen.queryByTestId('effective-bar')).toBeNull();
     // Looking is not editing: nothing of the earlier day reaches the file.
     await new Promise(r => setTimeout(r, 300));
-    for (const text of state.writes) { expect(text).toContain('Beta Task'); expect(text).not.toContain('Beta Old'); expect(text).toContain('Gamma Task'); }
+    for (const text of state.writes) {
+      expect(text).toContain('Beta Task');
+      expect(text).not.toContain('Beta Old');
+      expect(text).toContain('Gamma Task');
+    }
   }, 30000);
 
-  it('an edit there counts from that day: in the file it is in today\'s plan and in every day since', async () => {
+  it("an edit there counts from that day: in the file it is in today's plan and in every day since", async () => {
     const { handle, state } = hostFile(withLog());
-    render(<I18nProvider><ThemeProvider><App mount={handle} onFileChange={() => {}} /></ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App mount={handle} onFileChange={() => {}} />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     await screen.findByText('Gamma Task', {}, { timeout: 10000 });
     await goTo(day(5));
     await waitFor(() => expect(names()).toContain('Beta Old'));
@@ -125,7 +172,13 @@ describe('an earlier day', () => {
 
   it('an ordinary edit today leaves an entry for today, and yesterday still has the old name', async () => {
     const { handle, state } = hostFile(PLAN);
-    render(<I18nProvider><ThemeProvider><App mount={handle} onFileChange={() => {}} /></ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App mount={handle} onFileChange={() => {}} />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     fireEvent.click((await screen.findByText('Beta Task', {}, { timeout: 10000 })).closest('tr'));
     fireEvent.click(screen.getByTestId('tv-delete-selected'));
     await written(state);
@@ -137,7 +190,13 @@ describe('an earlier day', () => {
 
   it('what was changed today and not saved yet stays a change of today', async () => {
     const { handle, state } = hostFile(withLog());
-    render(<I18nProvider><ThemeProvider><App mount={handle} onFileChange={() => {}} /></ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App mount={handle} onFileChange={() => {}} />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     fireEvent.click((await screen.findByText('Alpha Task', {}, { timeout: 10000 })).closest('tr'));
     fireEvent.click(screen.getByTestId('tv-edit-selected'));
     await screen.findByTestId('node-modal');
@@ -164,16 +223,26 @@ describe('an earlier day', () => {
 
   it('a look at an earlier day does not cost the undo stack', async () => {
     const { handle } = hostFile(withLog());
-    render(<I18nProvider><ThemeProvider><App mount={handle} onFileChange={() => {}} /></ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App mount={handle} onFileChange={() => {}} />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     fireEvent.click((await screen.findByText('Gamma Task', {}, { timeout: 10000 })).closest('tr'));
     fireEvent.click(screen.getByTestId('tv-delete-selected'));
     await waitFor(() => expect(names()).not.toContain('Gamma Task'));
     await goTo(day(5));
     await waitFor(() => expect(names()).toContain('Beta Old'));
-    await act(async () => { fireEvent.click(screen.getByTestId('effective-leave')); });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('effective-leave'));
+    });
     await waitFor(() => expect(names()).toEqual(['Project', 'Alpha Task', 'Beta Task']));
     expect(screen.getByTestId('undo-btn').disabled).toBe(false);
-    await act(async () => { fireEvent.click(screen.getByTestId('undo-btn')); });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('undo-btn'));
+    });
     await waitFor(() => expect(names()).toEqual(['Project', 'Alpha Task', 'Beta Task', 'Gamma Task']));
   }, 30000);
 });

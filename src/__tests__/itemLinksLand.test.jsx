@@ -21,19 +21,37 @@ const tree = [
   { id: 'P1.3', name: 'After it', status: 'open', best: 1, factor: 1, deps: ['P1.1'], assign: [] },
 ];
 const common = {
-  tree, members: [], teams: [], taskTemplates: [], sizes: [], customFields: [], scheduled: [],
-  cpSet: new Set(), stats: {}, confidence: {}, confReasons: {}, onUpdate: () => {},
+  tree,
+  members: [],
+  teams: [],
+  taskTemplates: [],
+  sizes: [],
+  customFields: [],
+  scheduled: [],
+  cpSet: new Set(),
+  stats: {},
+  confidence: {},
+  confReasons: {},
+  onUpdate: () => {},
 };
-const wrap = ui => render(<I18nProvider><ThemeProvider>{ui}</ThemeProvider></I18nProvider>);
+const wrap = ui =>
+  render(
+    <I18nProvider>
+      <ThemeProvider>{ui}</ThemeProvider>
+    </I18nProvider>,
+  );
 const selectedTab = () => document.querySelector('[role="tab"][aria-selected="true"]');
 
-beforeEach(() => { cleanup(); localStorage.clear(); localStorage.setItem('planr_lang', 'en'); });
+beforeEach(() => {
+  cleanup();
+  localStorage.clear();
+  localStorage.setItem('planr_lang', 'en');
+});
 afterEach(() => vi.unstubAllGlobals());
 
 describe('the item dialog', () => {
   it('opened from a handoff bar lands on Details and says what it edits', () => {
-    wrap(<NodeModal node={tree[1]} {...common} onClose={() => {}}
-      focusRequest={{ section: 'handoff', handoffStage: 1 }} />);
+    wrap(<NodeModal node={tree[1]} {...common} onClose={() => {}} focusRequest={{ section: 'handoff', handoffStage: 1 }} />);
     expect(selectedTab().getAttribute('data-testid')).toBe('nm-tab-overview');
     expect(screen.getByTestId('nm-handoff-hint').textContent).toBe('Handoff stage 2 of this task — the fields here edit the whole task.');
   });
@@ -54,7 +72,10 @@ describe('the item dialog', () => {
 
   it('asks before "Estimate now" discards unsaved edits', () => {
     const onEstimate = vi.fn();
-    vi.stubGlobal('confirm', vi.fn(() => false));
+    vi.stubGlobal(
+      'confirm',
+      vi.fn(() => false),
+    );
     wrap(<NodeModal node={tree[1]} {...common} onClose={() => {}} onEstimate={onEstimate} />);
     fireEvent.mouseDown(screen.getByTestId('nm-tab-overview'), { button: 0 });
     fireEvent.change(screen.getByDisplayValue('Selected task'), { target: { value: 'Renamed' } });

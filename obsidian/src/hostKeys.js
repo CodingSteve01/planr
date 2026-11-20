@@ -20,7 +20,13 @@
 import { SHORTCUTS } from '../../src/utils/shortcuts.js';
 
 const GLYPH_KEY = { '↑': 'ArrowUp', '↓': 'ArrowDown', '←': 'ArrowLeft', '→': 'ArrowRight', '↵': 'Enter', '⇥': 'Tab', '⌫': 'Backspace' };
-const PREFIX = [['⌘', 'Mod'], ['Ctrl', 'Mod'], ['⇧', 'Shift'], ['⌥', 'Alt'], ['Alt', 'Alt']];
+const PREFIX = [
+  ['⌘', 'Mod'],
+  ['Ctrl', 'Mod'],
+  ['⇧', 'Shift'],
+  ['⌥', 'Alt'],
+  ['Alt', 'Alt'],
+];
 
 /** "⇧⌘S" → { modifiers: ['Mod', 'Shift'], key: 'S' }; null for a bare key. */
 export function parseChord(label) {
@@ -30,7 +36,9 @@ export function parseChord(label) {
     hit = false;
     for (const [glyph, mod] of PREFIX) {
       if (rest.startsWith(glyph) && rest.length > glyph.length) {
-        modifiers.add(mod); rest = rest.slice(glyph.length); hit = true;
+        modifiers.add(mod);
+        rest = rest.slice(glyph.length);
+        hit = true;
       }
     }
   }

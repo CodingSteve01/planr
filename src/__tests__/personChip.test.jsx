@@ -58,7 +58,8 @@ describe('the views', () => {
 
   it.each(VIEWS)('%s does not dress a person as a primary button', file => {
     const src = readFileSync(path.join(process.cwd(), file), 'utf8');
-    const offenders = src.split('\n')
+    const offenders = src
+      .split('\n')
       .map((line, i) => ({ line, n: i + 1 }))
       .filter(({ line }) => /btn-pri/.test(line) && /memberShort|snAll|personId\)|shortMap/.test(line))
       .map(({ line, n }) => `${n}: ${line.trim().slice(0, 80)}`);
@@ -66,8 +67,12 @@ describe('the views', () => {
   });
 
   it('draws people through the one component, in every view that shows them', () => {
-    for (const file of ['src/components/views/TreeView.jsx', 'src/components/views/GanttView.jsx',
-      'src/components/views/PlanReview.jsx', 'src/components/views/WorkOrderView.jsx']) {
+    for (const file of [
+      'src/components/views/TreeView.jsx',
+      'src/components/views/GanttView.jsx',
+      'src/components/views/PlanReview.jsx',
+      'src/components/views/WorkOrderView.jsx',
+    ]) {
       const src = readFileSync(path.join(process.cwd(), file), 'utf8');
       expect(src, `${file} does not use PersonChip`).toMatch(/PersonChip/);
     }

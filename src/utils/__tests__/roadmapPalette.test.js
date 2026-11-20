@@ -15,9 +15,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const src = readFileSync(path.join(process.cwd(), 'src/utils/roadmap.js'), 'utf8');
-const PALETTE = JSON.parse(
-  src.match(/const PALETTE = (\[[^\]]*\]);/)[1].replace(/'/g, '"'),
-);
+const PALETTE = JSON.parse(src.match(/const PALETTE = (\[[^\]]*\]);/)[1].replace(/'/g, '"'));
 
 const luminance = hex => {
   const ch = i => {
@@ -61,16 +59,16 @@ describe('the roadmap line colours', () => {
   it('spreads the hues, so two lines are never the same colour at a glance', () => {
     const hueOf = hex => {
       const [r, g, b] = [0, 1, 2].map(i => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255);
-      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      const max = Math.max(r, g, b),
+        min = Math.min(r, g, b);
       if (max === min) return 0;
       const d = max - min;
-      const h = max === r ? ((g - b) / d + (g < b ? 6 : 0)) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
       return h * 60;
     };
     const hues = PALETTE.map(hueOf).sort((a, b) => a - b);
     for (let i = 1; i < hues.length; i++) {
-      expect(hues[i] - hues[i - 1], `${hues[i - 1].toFixed(0)}° and ${hues[i].toFixed(0)}° are too close`)
-        .toBeGreaterThan(12);
+      expect(hues[i] - hues[i - 1], `${hues[i - 1].toFixed(0)}° and ${hues[i].toFixed(0)}° are too close`).toBeGreaterThan(12);
     }
   });
 });

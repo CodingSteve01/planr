@@ -24,7 +24,9 @@ function fakeApp(files = {}) {
         if (folders.has(path)) return new TFolder(path);
         return null;
       },
-      async read(file) { return store.get(file.path).text; },
+      async read(file) {
+        return store.get(file.path).text;
+      },
       async modify(file, text) {
         app.modified.push(file.path);
         store.set(file.path, { file: new TFile(file.path, { mtime: ++clock, size: text.length }), text });
@@ -33,8 +35,12 @@ function fakeApp(files = {}) {
         app.created.push(path);
         store.set(path, { file: new TFile(path, { mtime: ++clock, size: text.length }), text });
       },
-      async createFolder(path) { folders.add(path); },
-      getFiles() { return [...store.values()].map(v => v.file); },
+      async createFolder(path) {
+        folders.add(path);
+      },
+      getFiles() {
+        return [...store.values()].map(v => v.file);
+      },
     },
     loadLocalStorage: key => local.get(key) ?? null,
     saveLocalStorage: (key, value) => local.set(key, value),
@@ -93,8 +99,7 @@ describe('a vault-backed file handle', () => {
   });
 
   it('raises NotFoundError for a file that is gone, which is the app cue to offer Save As', async () => {
-    await expect(handleForPath('Projekte/deleted.planr.json').getFile())
-      .rejects.toMatchObject({ name: 'NotFoundError' });
+    await expect(handleForPath('Projekte/deleted.planr.json').getFile()).rejects.toMatchObject({ name: 'NotFoundError' });
   });
 });
 
@@ -103,7 +108,7 @@ describe('what the plugin remembers between sessions', () => {
   // view its file and restores it with the workspace. The one thing worth
   // keeping is where the last plan lived, so a second one is offered a home
   // beside the first instead of at the vault root.
-  it('keeps the last plan\'s path, which is where Save As starts', () => {
+  it("keeps the last plan's path, which is where Save As starts", () => {
     setLastPlanFolder('Projekte/plan.planr.json');
     expect(lastPlanPath()).toBe('Projekte/plan.planr.json');
     setLastPlanFolder(null);

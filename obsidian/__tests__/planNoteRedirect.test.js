@@ -18,8 +18,17 @@ import PlanrPlugin, { PlanrView, VIEW_TYPE_PLANR, isPlanFile } from '../src/main
 // Obsidian's own setViewState is replaced by a recorder underneath the patch,
 // so what each leaf is *finally* asked for is what the assertions read.
 function patchedPlugin(settings = { openPlanNotes: true }) {
-  WorkspaceLeaf.prototype.setViewState = function (state) { this.asked.push(state); };
-  const plugin = { settings, fileModes: {}, cleanups: [], register(fn) { this.cleanups.push(fn); } };
+  WorkspaceLeaf.prototype.setViewState = function (state) {
+    this.asked.push(state);
+  };
+  const plugin = {
+    settings,
+    fileModes: {},
+    cleanups: [],
+    register(fn) {
+      this.cleanups.push(fn);
+    },
+  };
   PlanrPlugin.prototype.patchLeafViewState.call(plugin);
   return plugin;
 }
@@ -33,8 +42,12 @@ function leaf(id) {
 
 let original;
 
-beforeEach(() => { original = WorkspaceLeaf.prototype.setViewState; });
-afterEach(() => { WorkspaceLeaf.prototype.setViewState = original; });
+beforeEach(() => {
+  original = WorkspaceLeaf.prototype.setViewState;
+});
+afterEach(() => {
+  WorkspaceLeaf.prototype.setViewState = original;
+});
 
 describe('opening a plan note', () => {
   it('never builds the Markdown view', () => {
@@ -99,7 +112,14 @@ describe('unloading the plugin', () => {
   it('hands setViewState back', () => {
     const base = function () {};
     WorkspaceLeaf.prototype.setViewState = base;
-    const plugin = { settings: { openPlanNotes: true }, fileModes: {}, cleanups: [], register(fn) { this.cleanups.push(fn); } };
+    const plugin = {
+      settings: { openPlanNotes: true },
+      fileModes: {},
+      cleanups: [],
+      register(fn) {
+        this.cleanups.push(fn);
+      },
+    };
     PlanrPlugin.prototype.patchLeafViewState.call(plugin);
     expect(WorkspaceLeaf.prototype.setViewState).not.toBe(base);
 

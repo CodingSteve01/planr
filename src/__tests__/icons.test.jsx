@@ -26,7 +26,8 @@ const read = rel => readFileSync(path.join(process.cwd(), rel), 'utf8');
 // the EMOJI font on macOS and Windows, so ⏫ rendered as a blue box with a
 // white arrow among three flat geometric priority marks — the "silly icon"
 // that survived the first sweep because the range was not in this regex.
-const PICTOGRAPH = /[\u{1F300}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{25CE}\u{2630}\u{25AD}\u{2042}]/u;
+const PICTOGRAPH =
+  /[\u{1F300}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{25CE}\u{2630}\u{25AD}\u{2042}]/u;
 
 // Keyboard symbols from the same block are TEXT — they belong in a shortcut
 // hint, and a drawn icon there would be worse. ⌘ ⌥ ⌃ ⌫ ⎋ ⎘ ⏎.
@@ -113,7 +114,8 @@ describe('the chrome', () => {
 
   it.each(['src/App.jsx', ...COMPONENTS])('has no pictograph left in %s', file => {
     const text = read(file);
-    const hits = text.split('\n')
+    const hits = text
+      .split('\n')
       .map((line, i) => ({ line, n: i + 1 }))
       .filter(({ line }) => PICTOGRAPH.test(stripKeys(stripFormat(line))))
       .map(({ line, n }) => `${n}: ${line.trim().slice(0, 80)}`);

@@ -24,15 +24,67 @@ function d(isoStr) {
 // P1: 3 of 5 leaves done (60 % by count) but only 6 of 76 PT (7.9 % by effort).
 const TREE = [
   { id: 'P1', name: 'Heavy tail', type: 'painpoint', status: 'open', team: 'T1' },
-  { id: 'P1.1', name: 'Small A', status: 'done', best: 2, factor: 1, team: 'T1', assign: ['m1'], completedStart: '2026-01-05', completedEnd: '2026-01-06' },
-  { id: 'P1.2', name: 'Small B', status: 'done', best: 2, factor: 1, team: 'T1', assign: ['m1'], completedStart: '2026-01-07', completedEnd: '2026-01-08' },
-  { id: 'P1.3', name: 'Small C', status: 'done', best: 2, factor: 1, team: 'T1', assign: ['m1'], completedStart: '2026-01-09', completedEnd: '2026-01-12' },
+  {
+    id: 'P1.1',
+    name: 'Small A',
+    status: 'done',
+    best: 2,
+    factor: 1,
+    team: 'T1',
+    assign: ['m1'],
+    completedStart: '2026-01-05',
+    completedEnd: '2026-01-06',
+  },
+  {
+    id: 'P1.2',
+    name: 'Small B',
+    status: 'done',
+    best: 2,
+    factor: 1,
+    team: 'T1',
+    assign: ['m1'],
+    completedStart: '2026-01-07',
+    completedEnd: '2026-01-08',
+  },
+  {
+    id: 'P1.3',
+    name: 'Small C',
+    status: 'done',
+    best: 2,
+    factor: 1,
+    team: 'T1',
+    assign: ['m1'],
+    completedStart: '2026-01-09',
+    completedEnd: '2026-01-12',
+  },
   { id: 'P1.4', name: 'Rebuild', status: 'open', best: 45, factor: 1, team: 'T1' },
   { id: 'P1.5', name: 'Migration', status: 'open', best: 25, factor: 1, team: 'T1' },
   // P2: the mirror image — most tasks open, but the delivered one is the whale.
   { id: 'P2', name: 'Front-loaded', type: 'goal', status: 'open', team: 'T1' },
-  { id: 'P2.1', name: 'Whale', status: 'done', best: 60, factor: 1, team: 'T1', assign: ['m1'], completedStart: '2026-01-05', completedEnd: '2026-02-05' },
-  { id: 'P2.2', name: 'Half done', status: 'wip', best: 10, factor: 1, team: 'T1', assign: ['m1'], phases: [{ name: 'A', status: 'done' }, { name: 'B', status: 'open' }] },
+  {
+    id: 'P2.1',
+    name: 'Whale',
+    status: 'done',
+    best: 60,
+    factor: 1,
+    team: 'T1',
+    assign: ['m1'],
+    completedStart: '2026-01-05',
+    completedEnd: '2026-02-05',
+  },
+  {
+    id: 'P2.2',
+    name: 'Half done',
+    status: 'wip',
+    best: 10,
+    factor: 1,
+    team: 'T1',
+    assign: ['m1'],
+    phases: [
+      { name: 'A', status: 'done' },
+      { name: 'B', status: 'open' },
+    ],
+  },
   { id: 'P2.3', name: 'Tiny open', status: 'open', best: 1, factor: 1, team: 'T1' },
 ];
 
@@ -40,17 +92,33 @@ const TEAMS = [{ id: 'T1', name: 'Team One', color: '#2563eb' }];
 const MEMBERS = [{ id: 'm1', name: 'Anna', team: 'T1', cap: 1, vac: 25 }];
 
 const SCHEDULED = TREE.filter(r => r.id.includes('.')).map((r, i) => ({
-  id: r.id, treeId: r.id, name: r.name, status: r.status, team: 'T1',
-  person: 'Anna', personId: 'm1', effort: r.best,
-  startD: d('2026-01-05'), endD: d(`2026-02-${String(1 + i).padStart(2, '0')}`),
+  id: r.id,
+  treeId: r.id,
+  name: r.name,
+  status: r.status,
+  team: 'T1',
+  person: 'Anna',
+  personId: 'm1',
+  effort: r.best,
+  startD: d('2026-01-05'),
+  endD: d(`2026-02-${String(1 + i).padStart(2, '0')}`),
   workingDaysInWindow: r.best,
 }));
 
 function ctx() {
   return {
-    data: {}, tree: TREE, members: MEMBERS, teams: TEAMS, scheduled: SCHEDULED,
-    weeks: [], cpSet: new Set(), goalPaths: {}, stats: treeStats(TREE),
-    confidence: {}, meta: { name: 'Parity', planStart: '2026-01-05' }, lang: 'de',
+    data: {},
+    tree: TREE,
+    members: MEMBERS,
+    teams: TEAMS,
+    scheduled: SCHEDULED,
+    weeks: [],
+    cpSet: new Set(),
+    goalPaths: {},
+    stats: treeStats(TREE),
+    confidence: {},
+    meta: { name: 'Parity', planStart: '2026-01-05' },
+    lang: 'de',
   };
 }
 
@@ -61,12 +129,12 @@ function leavesOf(rootId) {
 describe('one aggregate progress formula across every surface', () => {
   test('the fixture actually separates counting tasks from weighing work', () => {
     const p1 = leavesOf('P1');
-    const byCount = Math.round(p1.filter(l => l.status === 'done').length / p1.length * 100);
+    const byCount = Math.round((p1.filter(l => l.status === 'done').length / p1.length) * 100);
     expect(byCount).toBe(60);
     expect(Math.round(aggregateProgressPct(p1))).toBe(8);
 
     const p2 = leavesOf('P2');
-    expect(Math.round(p2.filter(l => l.status === 'done').length / p2.length * 100)).toBe(33);
+    expect(Math.round((p2.filter(l => l.status === 'done').length / p2.length) * 100)).toBe(33);
     expect(Math.round(aggregateProgressPct(p2))).toBe(92);
   });
 

@@ -20,8 +20,15 @@ function ctx(tree = TREE) {
   const scheduled = tree
     .filter(r => r.id.includes('.'))
     .map((r, i) => ({
-      id: r.id, name: r.name, status: r.status, team: r.team, person: 'M1', personId: 'm1',
-      effort: r.best, startD: d('2026-01-05'), endD: d(`2026-01-${String(6 + i).padStart(2, '0')}`),
+      id: r.id,
+      name: r.name,
+      status: r.status,
+      team: r.team,
+      person: 'M1',
+      personId: 'm1',
+      effort: r.best,
+      startD: d('2026-01-05'),
+      endD: d(`2026-01-${String(6 + i).padStart(2, '0')}`),
     }));
   return {
     tree,
@@ -50,7 +57,7 @@ describe('buildReportModel progress parity with the on-screen KPI row', () => {
     // 1 of 3 leaves done would be 33 % — the old, wrong export figure.
     expect(Math.round(m.prog)).not.toBe(33);
     // (1 + 10) / 41 realistic PT ≈ 26.8 %
-    expect(m.prog).toBeCloseTo(11 / 41 * 100, 6);
+    expect(m.prog).toBeCloseTo((11 / 41) * 100, 6);
   });
 
   test('delivered and total PT match the shared helpers', () => {
@@ -79,7 +86,7 @@ describe('buildReportModel progress parity with the on-screen KPI row', () => {
     // … but the percentage weighs work, not headcount. done/total would be
     // 33 % here; only 11 of 41 PT are actually delivered.
     expect(root.prog).not.toBe(33);
-    expect(root.prog).toBeCloseTo(11 / 41 * 100, 6);
+    expect(root.prog).toBeCloseTo((11 / 41) * 100, 6);
   });
 });
 

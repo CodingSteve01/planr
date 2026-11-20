@@ -9,7 +9,7 @@
 // ordering so reorganising a plan that's already sorted is a no-op for
 // indifferent siblings.
 
-const idNum = (id) => {
+const idNum = id => {
   const last = id.split('.').pop();
   const n = parseInt(last.replace(/\D/g, ''), 10);
   return Number.isFinite(n) ? n : 0;
@@ -48,17 +48,15 @@ export function treeOrderRank(tree) {
     byParent.get(key).push(r);
   }
   for (const sibs of byParent.values()) {
-    sibs.sort((a, b) => (
-      (a.displayOrder ?? idNum(a.id)) - (b.displayOrder ?? idNum(b.id))
-      || idNum(a.id) - idNum(b.id)
-      || a.id.localeCompare(b.id)
-    ));
+    sibs.sort(
+      (a, b) => (a.displayOrder ?? idNum(a.id)) - (b.displayOrder ?? idNum(b.id)) || idNum(a.id) - idNum(b.id) || a.id.localeCompare(b.id),
+    );
   }
 
   let next = 0;
   const walk = id => {
     for (const child of byParent.get(id) || []) {
-      if (ranks.has(child.id)) continue;   // a cycle in dotted ids cannot happen, but cheap
+      if (ranks.has(child.id)) continue; // a cycle in dotted ids cannot happen, but cheap
       ranks.set(child.id, next++);
       walk(child.id);
     }
@@ -96,7 +94,10 @@ export function computeDisplayOrder(tree) {
         let cur = d;
         while (cur && !idSet.has(cur)) {
           const p = parentOf(cur);
-          if (!p) { cur = null; break; }
+          if (!p) {
+            cur = null;
+            break;
+          }
           cur = p;
         }
         if (cur && cur !== s.id && idSet.has(cur)) {
@@ -112,14 +113,17 @@ export function computeDisplayOrder(tree) {
     while (queue.length) {
       const id = queue.shift();
       out.push(id);
-      for (const next of (succs.get(id) || [])) {
+      for (const next of succs.get(id) || []) {
         incoming.set(next, incoming.get(next) - 1);
         if (incoming.get(next) === 0) {
           // insert preserving id-numeric tiebreak
           const n = idNum(next);
           let pos = queue.length;
           for (let k = 0; k < queue.length; k++) {
-            if (idNum(queue[k]) > n) { pos = k; break; }
+            if (idNum(queue[k]) > n) {
+              pos = k;
+              break;
+            }
           }
           queue.splice(pos, 0, next);
         }
@@ -127,7 +131,9 @@ export function computeDisplayOrder(tree) {
     }
     // Fallback if cycle leftovers — append in id order.
     for (const i of ids) if (!out.includes(i)) out.push(i);
-    out.forEach((id, idx) => { result[id] = idx + 1; });
+    out.forEach((id, idx) => {
+      result[id] = idx + 1;
+    });
   }
   return result;
 }

@@ -14,8 +14,7 @@ const src = readFileSync(path.join(process.cwd(), 'src/components/views/PlanRoad
 
 // The rule the view applies, lifted out so the arithmetic can be checked
 // without a layout engine.
-const tickEvery = (modelTickEvery, pxPerDay) =>
-  Math.max(modelTickEvery, Math.ceil(62 / Math.max(1, pxPerDay * 30.4)));
+const tickEvery = (modelTickEvery, pxPerDay) => Math.max(modelTickEvery, Math.ceil(62 / Math.max(1, pxPerDay * 30.4)));
 
 describe('the project lens month axis', () => {
   it('derives its spacing from pixels, not from the month count', () => {
@@ -27,9 +26,9 @@ describe('the project lens month axis', () => {
 
   it.each([
     // [px per day, months a label may cover]
-    [4, 1],     // zoomed in: every month fits
-    [2, 2],     // 61px per month — one short of the 62 a year-label needs
-    [0.5, 5],   // fit on a three-year project: quarters are far too tight
+    [4, 1], // zoomed in: every month fits
+    [2, 2], // 61px per month — one short of the 62 a year-label needs
+    [0.5, 5], // fit on a three-year project: quarters are far too tight
     [0.15, 14], // a decade on one screen
   ])('at %s px/day it labels every %s month(s)', (pxDay, expected) => {
     expect(tickEvery(1, pxDay)).toBe(expected);

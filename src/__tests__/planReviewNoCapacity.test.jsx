@@ -8,7 +8,10 @@ import { render, cleanup, fireEvent, screen } from '@testing-library/react';
 import { PlanReview } from '../components/views/PlanReview.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 
-afterEach(() => { cleanup(); localStorage.clear(); });
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+});
 
 describe('planning review warnings', () => {
   it('name a member without capacity and the work assigned to them', () => {
@@ -17,10 +20,24 @@ describe('planning review warnings', () => {
     const members = [{ id: 'ML', name: 'Mara', team: 'T1', capMode: 'derived', weeklyHours: 8, meetingPlanIds: ['dev'] }];
     const meetingPlans = [{ id: 'dev', name: 'dev', meetings: [{ id: 'm', name: 'Standup', hours: 2, frequency: 'daily' }] }];
     const scheduled = [{ id: 'P1', personId: 'ML', status: 'open', startD: new Date(2026, 0, 5), endD: new Date(2036, 0, 5) }];
-    render(<I18nProvider><ThemeProvider>
-      <PlanReview tree={tree} scheduled={scheduled} members={members} teams={[{ id: 'T1', name: 'Team' }]}
-        meetingPlans={meetingPlans} confidence={{}} cpSet={new Set()} stats={{}} onOpenItem={() => {}} onUpdate={() => {}} />
-    </ThemeProvider></I18nProvider>);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <PlanReview
+            tree={tree}
+            scheduled={scheduled}
+            members={members}
+            teams={[{ id: 'T1', name: 'Team' }]}
+            meetingPlans={meetingPlans}
+            confidence={{}}
+            cpSet={new Set()}
+            stats={{}}
+            onOpenItem={() => {}}
+            onUpdate={() => {}}
+          />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     fireEvent.click(screen.getByText(/^Warnings/));
     const row = document.querySelector('[data-no-capacity="ML"]');
     expect(row).not.toBeNull();

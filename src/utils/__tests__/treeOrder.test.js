@@ -9,26 +9,16 @@
 import { describe, test, expect } from 'vitest';
 import { treeOrderRank } from '../displayOrder.js';
 
-const order = tree => [...treeOrderRank(tree).entries()]
-  .sort((a, b) => a[1] - b[1])
-  .map(([id]) => id);
+const order = tree => [...treeOrderRank(tree).entries()].sort((a, b) => a[1] - b[1]).map(([id]) => id);
 
 describe('treeOrderRank', () => {
   test('reads depth-first: a parent, then its children, then the next parent', () => {
-    const tree = [
-      { id: 'P1' }, { id: 'P1.1' }, { id: 'P1.2' },
-      { id: 'P2' }, { id: 'P2.1' },
-    ];
+    const tree = [{ id: 'P1' }, { id: 'P1.1' }, { id: 'P1.2' }, { id: 'P2' }, { id: 'P2.1' }];
     expect(order(tree)).toEqual(['P1', 'P1.1', 'P1.2', 'P2', 'P2.1']);
   });
 
   test('follows displayOrder, not the id', () => {
-    const tree = [
-      { id: 'P1' },
-      { id: 'P1.1', displayOrder: 3 },
-      { id: 'P1.2', displayOrder: 1 },
-      { id: 'P1.3', displayOrder: 2 },
-    ];
+    const tree = [{ id: 'P1' }, { id: 'P1.1', displayOrder: 3 }, { id: 'P1.2', displayOrder: 1 }, { id: 'P1.3', displayOrder: 2 }];
     expect(order(tree)).toEqual(['P1', 'P1.2', 'P1.3', 'P1.1']);
   });
 
@@ -39,9 +29,7 @@ describe('treeOrderRank', () => {
 
   test('ranks a whole subtree before the next sibling', () => {
     // The point of depth-first: moving a package moves everything under it.
-    const tree = [
-      { id: 'P1' }, { id: 'P1.1' }, { id: 'P1.1.1' }, { id: 'P1.1.2' }, { id: 'P1.2' },
-    ];
+    const tree = [{ id: 'P1' }, { id: 'P1.1' }, { id: 'P1.1.1' }, { id: 'P1.1.2' }, { id: 'P1.2' }];
     const rank = treeOrderRank(tree);
     expect(rank.get('P1.1.2')).toBeLessThan(rank.get('P1.2'));
   });

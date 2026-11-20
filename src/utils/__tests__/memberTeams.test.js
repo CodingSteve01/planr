@@ -6,8 +6,13 @@ import { iso } from '../date.js';
 
 const PS = '2026-01-05'; // Monday
 function run(tree, members, options = {}) {
-  return schedule(tree, members, [], PS, '2026-12-31', {}, [1, 2, 3, 4, 5], PS,
-    { now: PS, anchorToToday: false, discountProgress: false, autoCascade: true, ...options }).results;
+  return schedule(tree, members, [], PS, '2026-12-31', {}, [1, 2, 3, 4, 5], PS, {
+    now: PS,
+    anchorToToday: false,
+    discountProgress: false,
+    autoCascade: true,
+    ...options,
+  }).results;
 }
 
 const teams = [
@@ -23,13 +28,15 @@ const leaf = (id, team, best, extra = {}) => ({ id, name: id, team, best, factor
 // at once means their capacity was booked twice.
 function bookedDays(rows, personId) {
   const days = new Map();
-  rows.filter(r => r.personId === personId && !r.unscheduled).forEach(r => {
-    for (let d = new Date(r.startD); d <= r.endD; d.setDate(d.getDate() + 1)) {
-      const dow = d.getDay();
-      if (dow === 0 || dow === 6) continue;
-      days.set(iso(d), (days.get(iso(d)) || 0) + 1);
-    }
-  });
+  rows
+    .filter(r => r.personId === personId && !r.unscheduled)
+    .forEach(r => {
+      for (let d = new Date(r.startD); d <= r.endD; d.setDate(d.getDate() + 1)) {
+        const dow = d.getDay();
+        if (dow === 0 || dow === 6) continue;
+        days.set(iso(d), (days.get(iso(d)) || 0) + 1);
+      }
+    });
   return days;
 }
 
@@ -72,10 +79,7 @@ describe('memberTeams helpers', () => {
 
 describe('scheduler: a member in two teams', () => {
   test('picks up tasks from both teams as a regular candidate, never as cross-team', () => {
-    const tree = [
-      leaf('B1', 'T1', 5), leaf('B2', 'T1', 5),
-      leaf('F1', 'T2', 5), leaf('F2', 'T2', 5),
-    ];
+    const tree = [leaf('B1', 'T1', 5), leaf('B2', 'T1', 5), leaf('F1', 'T2', 5), leaf('F2', 'T2', 5)];
     const rows = run(tree, [noah]);
     const byId = Object.fromEntries(rows.map(r => [r.id, r]));
     for (const id of ['B1', 'B2', 'F1', 'F2']) {
@@ -85,30 +89,27 @@ describe('scheduler: a member in two teams', () => {
   });
 
   test('total load never exceeds their single capacity', () => {
-    const tree = [
-      leaf('B1', 'T1', 5), leaf('B2', 'T1', 3),
-      leaf('F1', 'T2', 5), leaf('F2', 'T2', 4),
-    ];
+    const tree = [leaf('B1', 'T1', 5), leaf('B2', 'T1', 3), leaf('F1', 'T2', 5), leaf('F2', 'T2', 4)];
     const rows = run(tree, [noah]);
     const days = bookedDays(rows, 'M1');
     expect([...days.values()].every(n => n === 1)).toBe(true);
     // Same span as one single-team person doing all 17 PT: the two teams
     // draw on one capacity, they do not add a second one.
     const solo = { ...alice, id: 'M9' };
-    const soloRows = run(tree.map(r => ({ ...r, team: 'T1' })), [solo]);
+    const soloRows = run(
+      tree.map(r => ({ ...r, team: 'T1' })),
+      [solo],
+    );
     expect(days.size).toBe(bookedDays(soloRows, 'M9').size);
     const lastEnd = rows => Math.max(...rows.map(r => +r.endD));
     expect(lastEnd(rows)).toBe(lastEnd(soloRows));
   });
 
   test('shares a team pool with a one-team colleague without double booking', () => {
-    const tree = [
-      leaf('B1', 'T1', 5), leaf('B2', 'T1', 5), leaf('B3', 'T1', 5),
-      leaf('F1', 'T2', 5),
-    ];
+    const tree = [leaf('B1', 'T1', 5), leaf('B2', 'T1', 5), leaf('B3', 'T1', 5), leaf('F1', 'T2', 5)];
     const rows = run(tree, [noah, alice]);
     const byId = Object.fromEntries(rows.map(r => [r.id, r]));
-    expect(byId.F1.personId).toBe('M1');                 // only Noah can do Frontend
+    expect(byId.F1.personId).toBe('M1'); // only Noah can do Frontend
     expect(rows.filter(r => r.team === 'T1').some(r => r.personId === 'M1')).toBe(true);
     expect(rows.filter(r => r.team === 'T1').some(r => r.personId === 'M2')).toBe(true);
     expect([...bookedDays(rows, 'M1').values()].every(n => n === 1)).toBe(true);
@@ -122,10 +123,7 @@ describe('scheduler: a member in two teams', () => {
   });
 
   test('team-lock of their other team blocks them fully (no split capacity)', () => {
-    const tree = [
-      leaf('L1', 'T1', 3, { teamLock: true }),
-      leaf('F1', 'T2', 2, { deps: [] }),
-    ];
+    const tree = [leaf('L1', 'T1', 3, { teamLock: true }), leaf('F1', 'T2', 2, { deps: [] })];
     const rows = run(tree, [noah, alice]);
     const lock = rows.find(r => r.id === 'L1');
     const f1 = rows.find(r => r.id === 'F1');
@@ -215,6 +213,14 @@ describe('markdown: Resources line with several teams', () => {
 
   test('legacy single-team line still parses', () => {
     const parsed = parseResourceLine('- **Noah Berg** `NB` — Backend, Dev (50%), ab 2026-01-01');
-    expect(parsed).toMatchObject({ name: 'Noah Berg', short: 'NB', team: 'Backend', teams: ['Backend'], role: 'Dev', cap: 0.5, start: '2026-01-01' });
+    expect(parsed).toMatchObject({
+      name: 'Noah Berg',
+      short: 'NB',
+      team: 'Backend',
+      teams: ['Backend'],
+      role: 'Dev',
+      cap: 0.5,
+      start: '2026-01-01',
+    });
   });
 });

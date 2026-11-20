@@ -18,11 +18,27 @@ const scheduled = [
 ];
 
 const noop = () => {};
-const wrap = ui => render(<I18nProvider><ThemeProvider>{ui}</ThemeProvider></I18nProvider>);
+const wrap = ui =>
+  render(
+    <I18nProvider>
+      <ThemeProvider>{ui}</ThemeProvider>
+    </I18nProvider>,
+  );
 const baseProps = {
-  members: [noah, carla], teams, vacations: [], meetingPlans: [], scheduled,
-  onMeetingPlansUpd: noop, onUpd: noop, onAdd: noop, onClone: noop, onDel: noop,
-  onVac: noop, onTeamUpd: noop, onTeamAdd: noop, onTeamDel: noop,
+  members: [noah, carla],
+  teams,
+  vacations: [],
+  meetingPlans: [],
+  scheduled,
+  onMeetingPlansUpd: noop,
+  onUpd: noop,
+  onAdd: noop,
+  onClone: noop,
+  onDel: noop,
+  onVac: noop,
+  onTeamUpd: noop,
+  onTeamAdd: noop,
+  onTeamDel: noop,
 };
 
 describe('ResView: multi-team members', () => {
@@ -50,10 +66,11 @@ describe('ResView: multi-team members', () => {
     expect(chip('T1').closest('td').classList.contains('res-td-teams')).toBe(true);
   });
 
-  it('gives work outside the person\'s own teams a chip of its own', () => {
+  it("gives work outside the person's own teams a chip of its own", () => {
     const extra = [...scheduled, { id: 'c', team: 'T3', personId: 'M1', effort: 10 }];
-    const { container } = wrap(<ResView {...baseProps} scheduled={extra}
-      teams={[...teams, { id: 'T3', name: 'Ops', color: '#f0d342' }]} />);
+    const { container } = wrap(
+      <ResView {...baseProps} scheduled={extra} teams={[...teams, { id: 'T3', name: 'Ops', color: '#f0d342' }]} />,
+    );
     const other = container.querySelector('.res-team-badge-other[data-team-chip="T3"]');
     expect(other?.textContent).toBe('Ops50 %');
   });
@@ -80,7 +97,15 @@ describe('ResView: multi-team members', () => {
 
   it('adds a team through the editor without any percentage', () => {
     let updated = null;
-    wrap(<ResView {...baseProps} members={[carla]} onUpd={m => { updated = m; }} />);
+    wrap(
+      <ResView
+        {...baseProps}
+        members={[carla]}
+        onUpd={m => {
+          updated = m;
+        }}
+      />,
+    );
     fireEvent.click(screen.getByText('Carla'));
     const input = screen.getAllByPlaceholderText(/add team|team hinzufügen/i)[0];
     fireEvent.focus(input);

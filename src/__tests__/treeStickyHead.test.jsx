@@ -83,10 +83,11 @@ describe('the tree view', () => {
 
   it('writes no pixel offset of its own into the stack', () => {
     // The regression this replaces, in the exact shape it had.
-    const stuck = src.split('\n').filter(l => /position: 'sticky'/.test(l));
+    // Read as text, whatever the line breaks: what follows each sticky position.
+    const stuck = [...src.matchAll(/position: 'sticky',\s*([^}]{0,120})/g)].map(m => m[1]);
     expect(stuck.length, 'the sticky bars moved or disappeared').toBeGreaterThanOrEqual(2);
-    stuck.forEach(line => {
-      expect(line, `a hard-coded offset is back: ${line.trim()}`).toMatch(/top: (0|'var\(--tv-bar\d-top)/);
+    stuck.forEach(after => {
+      expect(after, `a hard-coded offset is back: ${after.trim()}`).toMatch(/^top: (0|'var\(--tv-bar\d-top)/);
     });
     expect(src).not.toMatch(/top: 3[23]\b/);
   });
@@ -94,8 +95,7 @@ describe('the tree view', () => {
   it('stacks the bars over the head, and the selection bar over the toolbar', () => {
     // Each one covers what scrolls under it, so a lower bar must not paint
     // over the one above it when they touch.
-    const z = [...src.matchAll(/position: 'sticky', top: '?(var\(--tv-bar(\d)-top[^']*|0)'?, zIndex: (\d+)/g)]
-      .map(m => Number(m[3]));
+    const z = [...src.matchAll(/position: 'sticky',\s*top: '?(var\(--tv-bar(\d)-top[^']*|0)'?,\s*zIndex: (\d+)/g)].map(m => Number(m[3]));
     expect(z.length).toBe(2);
     expect(z[0]).toBeGreaterThan(z[1]);
   });
@@ -115,7 +115,8 @@ describe('the stylesheet', () => {
     const at = css.indexOf('.tv-surface{');
     const rule = css.slice(at, css.indexOf('}', at));
     ['--tv-bar0-top', '--tv-bar1-top', '--tv-head-top'].forEach(v =>
-      expect(rule, `${v} is not declared`).toMatch(new RegExp(`${v}:\\s*\\d+px`)));
+      expect(rule, `${v} is not declared`).toMatch(new RegExp(`${v}:\\s*\\d+px`)),
+    );
   });
 
   it('leaves the other tables sticking to the top of their own scroller', () => {

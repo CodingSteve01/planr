@@ -22,54 +22,93 @@ const phases = () => [
   { id: 'ph1', name: 'Build', status: 'open', effort: 1 },
   { id: 'ph2', name: 'Test', status: 'open', effort: 1 },
 ];
-const leaf = (id, name, extra = {}) => ({ id, name, status: 'open', progress: 0, team: 'FE', best: 5, factor: 1.5, assign: [], deps: [], ...extra });
+const leaf = (id, name, extra = {}) => ({
+  id,
+  name,
+  status: 'open',
+  progress: 0,
+  team: 'FE',
+  best: 5,
+  factor: 1.5,
+  assign: [],
+  deps: [],
+  ...extra,
+});
 
 function seed(tree) {
   localStorage.clear();
   localStorage.setItem('planr_lang', 'en');
   localStorage.setItem('planr_tab', 'tree');
   localStorage.setItem('planr_tour_done', '1');
-  localStorage.setItem('planr_v2', JSON.stringify({
-    tree: [{ id: 'P1', name: 'Billing', status: 'open', team: 'FE' }, ...tree],
-    // Mia works in Frontend AND Backend; Backend is her primary team.
-    members: [{ id: 'M1', name: 'Mia', team: 'BE', teams: ['FE'], cap: 1 }],
-    teams: [{ id: 'FE', name: 'Frontend', color: '#3b82f6' }, { id: 'BE', name: 'Backend', color: '#10b981' }],
-    vacations: [], meetingPlans: [],
-    meta: { name: 'Bulk', planStart: '2026-01-01', planEnd: '2027-01-01' },
-  }));
+  localStorage.setItem(
+    'planr_v2',
+    JSON.stringify({
+      tree: [{ id: 'P1', name: 'Billing', status: 'open', team: 'FE' }, ...tree],
+      // Mia works in Frontend AND Backend; Backend is her primary team.
+      members: [{ id: 'M1', name: 'Mia', team: 'BE', teams: ['FE'], cap: 1 }],
+      teams: [
+        { id: 'FE', name: 'Frontend', color: '#3b82f6' },
+        { id: 'BE', name: 'Backend', color: '#10b981' },
+      ],
+      vacations: [],
+      meetingPlans: [],
+      meta: { name: 'Bulk', planStart: '2026-01-01', planEnd: '2027-01-01' },
+    }),
+  );
 }
 
 const stored = id => JSON.parse(localStorage.getItem('planr_v2')).tree.find(n => n.id === id);
-const rowNamed = name => [...document.querySelectorAll('[data-testid="tree-row-name"]')]
-  .find(n => n.textContent.trim() === name)?.closest('tr');
-const click = async (name, init = {}) => { await act(async () => { fireEvent.click(rowNamed(name), init); }); };
+const rowNamed = name =>
+  [...document.querySelectorAll('[data-testid="tree-row-name"]')].find(n => n.textContent.trim() === name)?.closest('tr');
+const click = async (name, init = {}) => {
+  await act(async () => {
+    fireEvent.click(rowNamed(name), init);
+  });
+};
 
 async function selectBoth() {
-  render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
+  render(
+    <I18nProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </I18nProvider>,
+  );
   await screen.findByTestId('tree-editor-surface');
-  await waitFor(() => { if (!rowNamed('Bravo')) throw new Error('no rows'); });
+  await waitFor(() => {
+    if (!rowNamed('Bravo')) throw new Error('no rows');
+  });
   await click('Alpha');
   await click('Bravo', { metaKey: true });
-  await waitFor(() => { if (!document.querySelector('.side-body [role="tab"]')) throw new Error('no bulk panel'); });
+  await waitFor(() => {
+    if (!document.querySelector('.side-body [role="tab"]')) throw new Error('no bulk panel');
+  });
 }
 async function pick(placeholder, label) {
   const input = document.querySelector(`.side-body input[placeholder="${placeholder}"]`);
-  await act(async () => { fireEvent.focus(input); fireEvent.click(input); });
+  await act(async () => {
+    fireEvent.focus(input);
+    fireEvent.click(input);
+  });
   const option = [...document.querySelectorAll('[data-searchselect-popup] [data-ss-idx]')].find(o => o.textContent.endsWith(label));
-  await act(async () => { fireEvent.click(option); });
+  await act(async () => {
+    fireEvent.click(option);
+  });
 }
 const openTab = async label => {
   const tab = [...document.querySelectorAll('.side-body [role="tab"]')].find(t => t.textContent === label);
-  await act(async () => { fireEvent.click(tab); });
+  await act(async () => {
+    fireEvent.click(tab);
+  });
 };
 
-afterEach(() => { cleanup(); localStorage.clear(); });
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+});
 
 describe('bulk edits behave like single edits', () => {
-  beforeEach(() => seed([
-    leaf('P1.1', 'Alpha', { status: 'wip', progress: 40 }),
-    leaf('P1.2', 'Bravo', { phases: phases() }),
-  ]));
+  beforeEach(() => seed([leaf('P1.1', 'Alpha', { status: 'wip', progress: 40 }), leaf('P1.2', 'Bravo', { phases: phases() })]));
 
   it('bulk "done" stamps completion and 100 %, and leaves a phased task to its phases', async () => {
     await selectBoth();
@@ -82,15 +121,14 @@ describe('bulk edits behave like single edits', () => {
 });
 
 describe('bulk phase dots derive progress like the single editors', () => {
-  beforeEach(() => seed([
-    leaf('P1.1', 'Alpha', { phases: phases() }),
-    leaf('P1.2', 'Bravo', { phases: phases() }),
-  ]));
+  beforeEach(() => seed([leaf('P1.1', 'Alpha', { phases: phases() }), leaf('P1.2', 'Bravo', { phases: phases() })]));
 
   it('a wip phase counts for its share', async () => {
     await selectBoth();
     const dot = [...document.querySelectorAll('.side-body span')].find(s => s.textContent === '○');
-    await act(async () => { fireEvent.click(dot); });   // Build: open → wip
+    await act(async () => {
+      fireEvent.click(dot);
+    }); // Build: open → wip
     const expected = derivePhaseStatus([{ ...phases()[0], status: 'wip' }, phases()[1]]);
     await waitFor(() => expect(stored('P1.1').status).toBe('wip'));
     expect(stored('P1.1').progress).toBe(expected.progress);
@@ -98,7 +136,7 @@ describe('bulk phase dots derive progress like the single editors', () => {
   });
 });
 
-describe('assigning in bulk keeps the task\'s team when the person works in it', () => {
+describe("assigning in bulk keeps the task's team when the person works in it", () => {
   beforeEach(() => seed([leaf('P1.1', 'Alpha'), leaf('P1.2', 'Bravo')]));
 
   it('Mia on a Frontend task keeps it Frontend', async () => {

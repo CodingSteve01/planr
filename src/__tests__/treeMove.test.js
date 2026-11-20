@@ -24,16 +24,33 @@ const n = (id, name, extra = {}) => ({ id, name, status: 'open', deps: [], ...ex
 //                    ├─ B2
 //                    └─ B3
 const FIXTURE = [
-  n('P1', 'A'), n('P1.1', 'A1'), n('P1.1.1', 'A1.1'), n('P1.1.1.1', 'A1.1.1'), n('P1.1.1.2', 'A1.1.2'),
-  n('P1.1.2', 'A1.2'), n('P1.2', 'A2'),
-  n('P2', 'B'), n('P2.1', 'B1'), n('P2.1.1', 'B1.1'),
-  n('P2.1.1.1', 'MoveMe'), n('P2.1.1.1.1', 'Child'), n('P2.1.1.1.1.1', 'Grandchild'), n('P2.1.1.1.2', 'Child2'),
-  n('P2.1.1.2', 'B1.1.2'), n('P2.1.2', 'B1.2'), n('P2.2', 'B2'), n('P2.3', 'B3'),
-  n('P3', 'C'), n('P3.1', 'C1'),
+  n('P1', 'A'),
+  n('P1.1', 'A1'),
+  n('P1.1.1', 'A1.1'),
+  n('P1.1.1.1', 'A1.1.1'),
+  n('P1.1.1.2', 'A1.1.2'),
+  n('P1.1.2', 'A1.2'),
+  n('P1.2', 'A2'),
+  n('P2', 'B'),
+  n('P2.1', 'B1'),
+  n('P2.1.1', 'B1.1'),
+  n('P2.1.1.1', 'MoveMe'),
+  n('P2.1.1.1.1', 'Child'),
+  n('P2.1.1.1.1.1', 'Grandchild'),
+  n('P2.1.1.1.2', 'Child2'),
+  n('P2.1.1.2', 'B1.1.2'),
+  n('P2.1.2', 'B1.2'),
+  n('P2.2', 'B2'),
+  n('P2.3', 'B3'),
+  n('P3', 'C'),
+  n('P3.1', 'C1'),
 ];
 
 const depth = id => id.split('.').length;
-const outline = tree => sortTree(tree).map(r => '  '.repeat(depth(r.id) - 1) + r.name).join('\n');
+const outline = tree =>
+  sortTree(tree)
+    .map(r => '  '.repeat(depth(r.id) - 1) + r.name)
+    .join('\n');
 const idOf = (tree, name) => tree.find(r => r.name === name)?.id;
 const byName = (tree, name) => tree.find(r => r.name === name);
 
@@ -53,7 +70,12 @@ function run(tree, command) {
   expect(res, `${command} was expected to run`).not.toBeNull();
   return res;
 }
-const can = (tree, command) => canTreeCommand(sortTree(tree).map(r => r.id), idOf(tree, 'MoveMe'), command);
+const can = (tree, command) =>
+  canTreeCommand(
+    sortTree(tree).map(r => r.id),
+    idOf(tree, 'MoveMe'),
+    command,
+  );
 
 describe('move up / move down', () => {
   it('moves MoveMe down within B1.1, and back up again', () => {
@@ -82,65 +104,73 @@ describe('move up / move down', () => {
 
   it('moves among the siblings the user can see, stepping over hidden ones', () => {
     // B2 hidden (a finished task, say): B1 → down lands after B3 in one press.
-    const visible = sortTree(FIXTURE).map(r => r.id).filter(id => id !== 'P2.2');
+    const visible = sortTree(FIXTURE)
+      .map(r => r.id)
+      .filter(id => id !== 'P2.2');
     const res = applyTreeCommand(FIXTURE, 'P2.1', 'moveDown', visible);
-    const tops = sortTree(res.tree).filter(r => depth(r.id) === 2 && r.id.startsWith('P2.')).map(r => r.name);
+    const tops = sortTree(res.tree)
+      .filter(r => depth(r.id) === 2 && r.id.startsWith('P2.'))
+      .map(r => r.name);
     expect(tops).toEqual(['B2', 'B3', 'B1']);
   });
 
   it('reorders top-level rows too', () => {
     const res = applyTreeCommand(FIXTURE, 'P3', 'moveUp');
-    expect(sortTree(res.tree).filter(r => depth(r.id) === 1).map(r => r.name)).toEqual(['A', 'C', 'B']);
+    expect(
+      sortTree(res.tree)
+        .filter(r => depth(r.id) === 1)
+        .map(r => r.name),
+    ).toEqual(['A', 'C', 'B']);
   });
 });
 
 describe('indent', () => {
   it('makes the row the last child of its previous sibling', () => {
-    const down = run(FIXTURE, 'moveDown');            // B1.1: B1.1.2, MoveMe
+    const down = run(FIXTURE, 'moveDown'); // B1.1: B1.1.2, MoveMe
     const res = run(down.tree, 'indent');
-    expect(outline(res.tree)).toContain([
-      '      B1.1.2',
-      '        MoveMe',
-      '          Child',
-      '            Grandchild',
-      '          Child2',
-    ].join('\n'));
+    expect(outline(res.tree)).toContain(
+      ['      B1.1.2', '        MoveMe', '          Child', '            Grandchild', '          Child2'].join('\n'),
+    );
     expect(res.id).toBe('P2.1.1.2.1');
   });
 
   it('appends after the children the previous sibling already has', () => {
     // B2 under B1, which already holds B1.1 and B1.2.
     const res = applyTreeCommand(FIXTURE, 'P2.2', 'indent');
-    const kids = sortTree(res.tree).filter(r => depth(r.id) === 3 && r.id.startsWith('P2.1.')).map(r => r.name);
+    const kids = sortTree(res.tree)
+      .filter(r => depth(r.id) === 3 && r.id.startsWith('P2.1.'))
+      .map(r => r.name);
     expect(kids).toEqual(['B1.1', 'B1.2', 'B2']);
   });
 
   it('lands last even when the new siblings carry a displayOrder and the row carries a stale one', () => {
-    let tree = applyTreeCommand(FIXTURE, 'P2.1.2', 'moveUp').tree;   // B1: B1.2, B1.1 — displayOrder written
+    let tree = applyTreeCommand(FIXTURE, 'P2.1.2', 'moveUp').tree; // B1: B1.2, B1.1 — displayOrder written
     tree = tree.map(r => (r.id === 'P2.2' ? { ...r, displayOrder: 1 } : r));
     const res = applyTreeCommand(tree, 'P2.2', 'indent');
-    const kids = sortTree(res.tree).filter(r => depth(r.id) === 3 && r.id.startsWith('P2.1.')).map(r => r.name);
+    const kids = sortTree(res.tree)
+      .filter(r => depth(r.id) === 3 && r.id.startsWith('P2.1.'))
+      .map(r => r.name);
     expect(kids).toEqual(['B1.2', 'B1.1', 'B2']);
   });
 
   it('is disabled for the first sibling', () => {
     expect(can(FIXTURE, 'indent')).toBe(false);
-    expect(planTreeCommand(sortTree(FIXTURE).map(r => r.id), 'P2.1', 'indent')).toBeNull();
+    expect(
+      planTreeCommand(
+        sortTree(FIXTURE).map(r => r.id),
+        'P2.1',
+        'indent',
+      ),
+    ).toBeNull();
   });
 });
 
 describe('outdent', () => {
   it('goes from depth 4 to depth 3, immediately after the old parent', () => {
     const res = run(FIXTURE, 'outdent');
-    expect(outline(res.tree)).toContain([
-      '    B1.1',
-      '      B1.1.2',
-      '    MoveMe',
-      '      Child',
-      '        Grandchild',
-      '      Child2',
-      '    B1.2',
-    ].join('\n'));
+    expect(outline(res.tree)).toContain(
+      ['    B1.1', '      B1.1.2', '    MoveMe', '      Child', '        Grandchild', '      Child2', '    B1.2'].join('\n'),
+    );
     expect(depth(res.id)).toBe(3);
   });
 
@@ -155,11 +185,21 @@ describe('outdent', () => {
     expect(trail).toEqual([3, 2, 1]);
     // After the old ancestor each time: B1.1 → B1 → B, so MoveMe ends up
     // between B and C.
-    expect(sortTree(tree).filter(r => depth(r.id) === 1).map(r => r.name)).toEqual(['A', 'B', 'MoveMe', 'C']);
+    expect(
+      sortTree(tree)
+        .filter(r => depth(r.id) === 1)
+        .map(r => r.name),
+    ).toEqual(['A', 'B', 'MoveMe', 'C']);
   });
 
   it('is disabled at the top level', () => {
-    expect(canTreeCommand(sortTree(FIXTURE).map(r => r.id), 'P3', 'outdent')).toBe(false);
+    expect(
+      canTreeCommand(
+        sortTree(FIXTURE).map(r => r.id),
+        'P3',
+        'outdent',
+      ),
+    ).toBe(false);
   });
 });
 
@@ -221,7 +261,7 @@ describe('the primitives', () => {
   it('moveSubtree refuses a move into the row itself or its own subtree', () => {
     expect(moveSubtree(FIXTURE, 'P2.1', 'P2.1')).toBeNull();
     expect(moveSubtree(FIXTURE, 'P2.1', 'P2.1.1')).toBeNull();
-    expect(moveSubtree(FIXTURE, 'P2.1', 'P2')).toBeNull();   // already there
+    expect(moveSubtree(FIXTURE, 'P2.1', 'P2')).toBeNull(); // already there
   });
 
   it('placeAmongSiblings reports a no-op as null', () => {

@@ -14,29 +14,41 @@ import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 import { schedule } from '../utils/scheduler.js';
 
 function seedProject() {
-  localStorage.setItem('planr_v2', JSON.stringify({
-    tree: [
-      { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
-      { id: 'A.1', name: 'A eins', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
-      { id: 'A.2', name: 'A zwei', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
-      { id: 'B', name: 'Projekt B', status: 'wip', team: 'T1' },
-      { id: 'B.1', name: 'B eins', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
-    ],
-    members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
-    teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-    vacations: [], meetingPlans: [],
-    meta: { name: 'Binding', planStart: '2026-01-05', planEnd: '2027-06-30' },
-  }));
+  localStorage.setItem(
+    'planr_v2',
+    JSON.stringify({
+      tree: [
+        { id: 'A', name: 'Projekt A', status: 'wip', team: 'T1' },
+        { id: 'A.1', name: 'A eins', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+        { id: 'A.2', name: 'A zwei', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+        { id: 'B', name: 'Projekt B', status: 'wip', team: 'T1' },
+        { id: 'B.1', name: 'B eins', status: 'open', team: 'T1', best: 10, factor: 1, assign: ['M1'] },
+      ],
+      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [],
+      meetingPlans: [],
+      meta: { name: 'Binding', planStart: '2026-01-05', planEnd: '2027-06-30' },
+    }),
+  );
 }
 
-const renderApp = () => render(
-  <I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>,
-);
-const tabNamed = name => [...document.querySelectorAll('.tab')]
-  .find(el => (el.firstChild?.textContent || '').trim() === name);
+const renderApp = () =>
+  render(
+    <I18nProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </I18nProvider>,
+  );
+const tabNamed = name => [...document.querySelectorAll('.tab')].find(el => (el.firstChild?.textContent || '').trim() === name);
 const goToTab = async name => {
-  await waitFor(() => { if (!tabNamed(name)) throw new Error(`no tab ${name}`); });
-  await act(async () => { fireEvent.mouseDown(tabNamed(name), { button: 0 }); });
+  await waitFor(() => {
+    if (!tabNamed(name)) throw new Error(`no tab ${name}`);
+  });
+  await act(async () => {
+    fireEvent.mouseDown(tabNamed(name), { button: 0 });
+  });
 };
 
 describe('the order is binding', () => {
@@ -51,16 +63,23 @@ describe('the order is binding', () => {
     localStorage.setItem('planr_gantt_collapsed', JSON.stringify({ resource: [], project: [] }));
     seedProject();
   });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('the schedule follows it, not the tree', async () => {
     renderApp();
-    await waitFor(() => { if (!document.querySelector('[data-queue-row]')) throw new Error('no rows'); });
+    await waitFor(() => {
+      if (!document.querySelector('[data-queue-row]')) throw new Error('no rows');
+    });
 
     // B.1 to the front of Anna's queue — impossible in the tree, since B.1 and
     // the A tasks are not siblings.
     const row = document.querySelector('[data-queue-row="B.1"]');
-    await act(async () => { fireEvent.keyDown(row, { key: 'ArrowUp', altKey: true, shiftKey: true, bubbles: true }); });
+    await act(async () => {
+      fireEvent.keyDown(row, { key: 'ArrowUp', altKey: true, shiftKey: true, bubbles: true });
+    });
     await waitFor(() => {
       const ids = [...document.querySelectorAll('[data-queue-row]')].map(r => r.getAttribute('data-queue-row'));
       if (ids[0] !== 'B.1') throw new Error(ids.join());
@@ -70,18 +89,28 @@ describe('the order is binding', () => {
     // is the plan's structure, a separate question — so "B.1 is drawn first"
     // would be the wrong evidence for the right claim. Take what the app
     // actually stored and run the real scheduler on it.
-    const stored = await waitFor(() => {
-      const d = JSON.parse(localStorage.getItem('planr_v2') || '{}');
-      if (!d.personQueues) throw new Error('queue not stored');
-      return d;
-    }, { timeout: 4000 });
+    const stored = await waitFor(
+      () => {
+        const d = JSON.parse(localStorage.getItem('planr_v2') || '{}');
+        if (!d.personQueues) throw new Error('queue not stored');
+        return d;
+      },
+      { timeout: 4000 },
+    );
     expect(stored.personQueues.M1[0]).toBe('B.1');
 
-    const withQueue = schedule(stored.tree, stored.members, [], '2026-01-05', '2027-06-30', {}, [1, 2, 3, 4, 5],
-      '2026-01-05', { now: '2026-01-05', personQueues: stored.personQueues });
-    const without = schedule(stored.tree, stored.members, [], '2026-01-05', '2027-06-30', {}, [1, 2, 3, 4, 5],
-      '2026-01-05', { now: '2026-01-05' });
-    const order = r => r.results.slice().sort((a, b) => a.startD - b.startD).map(x => x.id);
+    const withQueue = schedule(stored.tree, stored.members, [], '2026-01-05', '2027-06-30', {}, [1, 2, 3, 4, 5], '2026-01-05', {
+      now: '2026-01-05',
+      personQueues: stored.personQueues,
+    });
+    const without = schedule(stored.tree, stored.members, [], '2026-01-05', '2027-06-30', {}, [1, 2, 3, 4, 5], '2026-01-05', {
+      now: '2026-01-05',
+    });
+    const order = r =>
+      r.results
+        .slice()
+        .sort((a, b) => a.startD - b.startD)
+        .map(x => x.id);
 
     expect(order(withQueue)[0]).toBe('B.1');
     expect(order(without)[0]).toBe('A.1');
@@ -89,12 +118,18 @@ describe('the order is binding', () => {
 
   it('and the tree, which knows nothing about queues, is untouched', async () => {
     renderApp();
-    await waitFor(() => { if (!document.querySelector('[data-queue-row]')) throw new Error('no rows'); });
+    await waitFor(() => {
+      if (!document.querySelector('[data-queue-row]')) throw new Error('no rows');
+    });
     const row = document.querySelector('[data-queue-row="B.1"]');
-    await act(async () => { fireEvent.keyDown(row, { key: 'ArrowUp', altKey: true, shiftKey: true, bubbles: true }); });
+    await act(async () => {
+      fireEvent.keyDown(row, { key: 'ArrowUp', altKey: true, shiftKey: true, bubbles: true });
+    });
 
     await goToTab('Work Tree');
-    await waitFor(() => { if (!document.querySelector('[data-testid="tree-editor-surface"]')) throw new Error('no tree'); });
+    await waitFor(() => {
+      if (!document.querySelector('[data-testid="tree-editor-surface"]')) throw new Error('no tree');
+    });
     // Scoped to the tree's own table: the work order pane stays mounted
     // behind it (that is what makes switching instant) and its rows are <tr>
     // too.

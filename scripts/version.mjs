@@ -21,9 +21,7 @@ const writeJson = async (name, data) => writeFile(file(name), `${JSON.stringify(
 
 /** What the three files currently say. */
 export async function readVersions() {
-  const [pkg, manifest, versions] = await Promise.all([
-    readJson('package.json'), readJson('manifest.json'), readJson('versions.json'),
-  ]);
+  const [pkg, manifest, versions] = await Promise.all([readJson('package.json'), readJson('manifest.json'), readJson('versions.json')]);
   return {
     pkg: pkg.version,
     manifest: manifest.version,
@@ -84,7 +82,9 @@ async function setVersion(next) {
     lock.version = next;
     if (lock.packages?.['']) lock.packages[''].version = next;
     await writeJson('package-lock.json', lock);
-  } catch { /* no lockfile checked in, or not ours to touch */ }
+  } catch {
+    /* no lockfile checked in, or not ours to touch */
+  }
 
   console.log(`${next} — commit this, and the release follows the push to main.`);
 }

@@ -15,7 +15,10 @@ const captured = [];
 vi.mock('pdfmake/build/pdfmake', () => ({
   default: {
     addVirtualFileSystem: () => {},
-    createPdf: dd => { captured.push(dd); return { download: () => {} }; },
+    createPdf: dd => {
+      captured.push(dd);
+      return { download: () => {} };
+    },
   },
 }));
 vi.mock('pdfmake/build/vfs_fonts', () => ({ default: { pdfMake: { vfs: {} } }, pdfMake: { vfs: {} }, vfs: {} }));
@@ -26,8 +29,10 @@ vi.mock('pdfmake/build/vfs_fonts', () => ({ default: { pdfMake: { vfs: {} } }, p
 const tree = [];
 ['F1', 'P2', 'D1'].forEach((root, ri) => {
   tree.push({
-    id: root, name: `Projekt ${root} — Überführung mit einem absichtlich sehr langen Namen`,
-    type: ri === 2 ? 'deadline' : 'goal', status: 'wip',
+    id: root,
+    name: `Projekt ${root} — Überführung mit einem absichtlich sehr langen Namen`,
+    type: ri === 2 ? 'deadline' : 'goal',
+    status: 'wip',
     // D1's date sits BEFORE the work under it can finish, so the model
     // produces a late-deadline risk. Without one the summary builds no
     // findings table at all and every guard over it passes vacuously — which
@@ -39,8 +44,14 @@ const tree = [];
     for (let b = 1; b <= 3; b++) {
       const done = ri === 0 && a === 1;
       tree.push({
-        id: `${root}.${a}.${b}`, name: `Aufgabe ${a}.${b} Release → UAT · Prüfung`,
-        status: done ? 'done' : 'open', team: 'T1', best: 4, factor: 1.5, assign: ['m1'], deps: [],
+        id: `${root}.${a}.${b}`,
+        name: `Aufgabe ${a}.${b} Release → UAT · Prüfung`,
+        status: done ? 'done' : 'open',
+        team: 'T1',
+        best: 4,
+        factor: 1.5,
+        assign: ['m1'],
+        deps: [],
         ...(done ? { completedAt: '2026-05-14', completedStart: '2026-05-01', completedEnd: '2026-05-14' } : {}),
       });
     }
@@ -51,7 +62,8 @@ const data = {
   tree,
   members: [{ id: 'm1', name: 'Anna Bäuerle', team: 'T1', cap: 2, vac: 0 }],
   teams: [{ id: 'T1', name: 'Backend', color: '#2563eb' }],
-  vacations: [], holidays: [],
+  vacations: [],
+  holidays: [],
 };
 
 function ctx() {
@@ -59,8 +71,14 @@ function ctx() {
   const stats = treeStats(data.tree);
   enrichParentSchedules(stats, data.tree, results);
   return buildExportCtx({
-    data, scheduled: results, stats, weeks: [], cpSet: new Set(), goalPaths: {},
-    confidence: {}, lang: 'de',
+    data,
+    scheduled: results,
+    stats,
+    weeks: [],
+    cpSet: new Set(),
+    goalPaths: {},
+    confidence: {},
+    lang: 'de',
   });
 }
 
@@ -68,9 +86,15 @@ function ctx() {
 // those with its own font logic, and the roadmap preparers substitute there).
 function pdfStrings(node, out = []) {
   if (node == null) return out;
-  if (typeof node === 'string') { if (!node.startsWith('<svg')) out.push(node); return out; }
+  if (typeof node === 'string') {
+    if (!node.startsWith('<svg')) out.push(node);
+    return out;
+  }
   if (typeof node === 'number') return out;
-  if (Array.isArray(node)) { node.forEach(n => pdfStrings(n, out)); return out; }
+  if (Array.isArray(node)) {
+    node.forEach(n => pdfStrings(n, out));
+    return out;
+  }
   if (typeof node === 'object') Object.values(node).forEach(value => pdfStrings(value, out));
   return out;
 }
@@ -93,10 +117,8 @@ describe('the supported set matches the bundled font', () => {
     // Spot checks against the cmap of the embedded, subsetted faces
     // (utils/pdfFonts.js). The trade against Roboto is visible here: real
     // arrows and a real tick arrived, the geometric shapes went.
-    '·—…×Üäöü•–Δ√±≤≥≈°§✓→←↑↓◊'.split('').forEach(ch =>
-      expect(isPdfSafeCodePoint(ch.codePointAt(0)), ch).toBe(true));
-    '●○■◐▪✔⚠⊕★▲🚆'.split('').forEach(ch =>
-      expect(isPdfSafeCodePoint(ch.codePointAt(0)), ch).toBe(false));
+    '·—…×Üäöü•–Δ√±≤≥≈°§✓→←↑↓◊'.split('').forEach(ch => expect(isPdfSafeCodePoint(ch.codePointAt(0)), ch).toBe(true));
+    '●○■◐▪✔⚠⊕★▲🚆'.split('').forEach(ch => expect(isPdfSafeCodePoint(ch.codePointAt(0)), ch).toBe(false));
   });
 
   it('substitutes every unsupported glyph it maps with a supported one', () => {
@@ -131,7 +153,7 @@ describe('sanitizePdfText', () => {
     expect(sanitizePdfText('Status 🟢 grün')).toBe('Status grün');
   });
 
-  it('does not leave the dropped symbol\'s space in front of punctuation', () => {
+  it("does not leave the dropped symbol's space in front of punctuation", () => {
     // A project named with a trailing icon printed inside quotes as
     // „Rechnungen im Portal " — the gap where the icon had been.
     expect(sanitizePdfText('„Rechnungen im Portal ⏰\u201c')).toBe('„Rechnungen im Portal\u201c');
@@ -171,8 +193,11 @@ const SKIP = ['layout', 'styles', 'defaultStyle', 'images', 'info'];
 
 function judge(node, path, out) {
   if (node == null) return;
-  if (typeof node === 'string' || typeof node === 'number') return;  // bare text is fine
-  if (Array.isArray(node)) { node.forEach((n, i) => judge(n, `${path}[${i}]`, out)); return; }
+  if (typeof node === 'string' || typeof node === 'number') return; // bare text is fine
+  if (Array.isArray(node)) {
+    node.forEach((n, i) => judge(n, `${path}[${i}]`, out));
+    return;
+  }
   if (typeof node !== 'object' || node instanceof Date) return;
   const keys = Object.keys(node);
   if (keys.length && !keys.some(k => DRAWABLE.includes(k))) {
@@ -197,7 +222,10 @@ function badNodes(node, path = '$', out = []) {
 }
 
 describe('every export builds a document pdfmake can draw', () => {
-  beforeEach(() => { captured.length = 0; localStorage.clear(); });
+  beforeEach(() => {
+    captured.length = 0;
+    localStorage.clear();
+  });
 
   it.each([
     ['exportSummaryPDF', [{ includeTimetable: true, includeProjectRoadmaps: true }]],
@@ -248,16 +276,41 @@ describe('every export builds a document pdfmake can draw', () => {
 // every other PDF: a structure pdfmake accepts, no glyph the font lacks, and
 // the footer that says where it came from.
 describe('the scenario comparison PDF obeys the same rules', () => {
-  beforeEach(() => { captured.length = 0; });
+  beforeEach(() => {
+    captured.length = 0;
+  });
   const model = () => ({
-    lang: 'de', planName: 'Acme', scenarioName: 'Ohne Ben', footerName: 'Acme · Szenario „Ohne Ben“',
-    kind: 'Szenario', title: 'Szenario-Vergleich', subtitle: 'Acme gegen das Szenario „Ohne Ben“ · Stand 20.11.26',
+    lang: 'de',
+    planName: 'Acme',
+    scenarioName: 'Ohne Ben',
+    footerName: 'Acme · Szenario „Ohne Ben“',
+    kind: 'Szenario',
+    title: 'Szenario-Vergleich',
+    subtitle: 'Acme gegen das Szenario „Ohne Ben“ · Stand 20.11.26',
     story: [{ name: 'Frontend', text: '4 → 3 Personen (−26 % Kapazität). 37 von 38 offenen Aufgaben verschieben sich.' }],
     conflict: '1 Änderung greift nicht mehr.',
     kpis: [{ label: 'Termine', sub: 'Projekte mit Zieltermin', figures: [{ n: '1', label: 'neu verspätet', tone: 'risk' }, { n: '±0' }] }],
     sections: [
-      { id: 'changes', title: 'Annahmen', headers: ['', 'Art', 'Was', 'Änderung'], widths: [10, 95, 230, '*'], rows: [['−', 'Personen', 'Ben Ortiz', 'entfernt'], ['~', 'Arbeitspakete', 'P1.2  Größe', 'Schätzung: 5 PT → 8 PT']] },
-      { id: 'projects', title: 'Projekte', headers: ['Projekt', 'Verschiebung', ''], widths: ['*', 60, 80], rows: [['P6  App', { text: '+40 Wo', bold: true, tone: 'risk' }, ''], ['P8  NAV', { text: '±0', bold: true }, 'verspätet · Ende bleibt']] },
+      {
+        id: 'changes',
+        title: 'Annahmen',
+        headers: ['', 'Art', 'Was', 'Änderung'],
+        widths: [10, 95, 230, '*'],
+        rows: [
+          ['−', 'Personen', 'Ben Ortiz', 'entfernt'],
+          ['~', 'Arbeitspakete', 'P1.2  Größe', 'Schätzung: 5 PT → 8 PT'],
+        ],
+      },
+      {
+        id: 'projects',
+        title: 'Projekte',
+        headers: ['Projekt', 'Verschiebung', ''],
+        widths: ['*', 60, 80],
+        rows: [
+          ['P6  App', { text: '+40 Wo', bold: true, tone: 'risk' }, ''],
+          ['P8  NAV', { text: '±0', bold: true }, 'verspätet · Ende bleibt'],
+        ],
+      },
       { id: 'teams', title: 'Teams', empty: 'Kein Team ist anders.', headers: ['Team'], widths: ['*'], rows: [] },
     ],
     foot: 'Ein Szenario ist ein Was-wäre-wenn.',
@@ -289,7 +342,10 @@ describe('the scenario comparison PDF obeys the same rules', () => {
 });
 
 describe('no PDF reaches the user with a missing-glyph box', () => {
-  beforeEach(() => { captured.length = 0; localStorage.clear(); });
+  beforeEach(() => {
+    captured.length = 0;
+    localStorage.clear();
+  });
 
   it.each([
     ['exportSummaryPDF', [{ includeTimetable: true, includeProjectRoadmaps: true }]],
@@ -315,7 +371,7 @@ describe('no PDF reaches the user with a missing-glyph box', () => {
     await exportTodoPDF(ctx(), 90);
     const rendered = pdfStrings(captured[0].content).join(' ');
 
-    expect(rendered).toContain('•');       // was ●
+    expect(rendered).toContain('•'); // was ●
     expect(rendered).not.toContain('●');
   });
 });
@@ -323,7 +379,10 @@ describe('no PDF reaches the user with a missing-glyph box', () => {
 // A PDF is read by people who have never opened Planr. Every page says what
 // made it, and the wordmark is a link to where it comes from.
 describe('every PDF footer says it was made with Planr', () => {
-  beforeEach(() => { captured.length = 0; localStorage.clear(); });
+  beforeEach(() => {
+    captured.length = 0;
+    localStorage.clear();
+  });
 
   it.each([
     ['exportSummaryPDF', [{ includeTimetable: false, includeProjectRoadmaps: false }]],
@@ -336,15 +395,17 @@ describe('every PDF footer says it was made with Planr', () => {
 
     const footer = captured[0].footer(2, 5);
     const strings = pdfStrings(footer);
-    const textOf = node => typeof node === 'string' ? node
-      : Array.isArray(node) ? node.map(textOf).join('') : textOf(node?.text ?? '');
+    const textOf = node => (typeof node === 'string' ? node : Array.isArray(node) ? node.map(textOf).join('') : textOf(node?.text ?? ''));
     expect(footer.columns.map(textOf).join(' | ')).toContain('erstellt mit Planr.');
     expect(offenders(strings)).toEqual([]);
 
     const linked = [];
     (function walk(node) {
       if (Array.isArray(node)) return node.forEach(walk);
-      if (node && typeof node === 'object') { if (node.link) linked.push(node); Object.values(node).forEach(walk); }
+      if (node && typeof node === 'object') {
+        if (node.link) linked.push(node);
+        Object.values(node).forEach(walk);
+      }
     })(footer);
     expect(linked.map(n => n.text).join('')).toBe('Planr.');
     expect(linked.every(n => n.link === mod.PLANR_URL)).toBe(true);

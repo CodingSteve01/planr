@@ -24,18 +24,23 @@ const MARKS = /(\*\*[^*\n]+\*\*|__[^_\n]+__)/g;
  *          One entry per line, ready to render as elements.
  */
 export function parseTip(text) {
-  return String(text ?? '').split('\n').map(line => ({
-    indent: line.startsWith('- '),
-    parts: line.split(MARKS).filter(Boolean).map(chunk => {
-      if (chunk.length > 4 && chunk.startsWith('**') && chunk.endsWith('**')) {
-        return { text: chunk.slice(2, -2), tone: 'bold' };
-      }
-      if (chunk.length > 4 && chunk.startsWith('__') && chunk.endsWith('__')) {
-        return { text: chunk.slice(2, -2), tone: 'muted' };
-      }
-      return { text: chunk, tone: 'normal' };
-    }),
-  }));
+  return String(text ?? '')
+    .split('\n')
+    .map(line => ({
+      indent: line.startsWith('- '),
+      parts: line
+        .split(MARKS)
+        .filter(Boolean)
+        .map(chunk => {
+          if (chunk.length > 4 && chunk.startsWith('**') && chunk.endsWith('**')) {
+            return { text: chunk.slice(2, -2), tone: 'bold' };
+          }
+          if (chunk.length > 4 && chunk.startsWith('__') && chunk.endsWith('__')) {
+            return { text: chunk.slice(2, -2), tone: 'muted' };
+          }
+          return { text: chunk, tone: 'normal' };
+        }),
+    }));
 }
 
 /**

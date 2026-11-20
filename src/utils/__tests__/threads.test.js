@@ -45,44 +45,25 @@ describe('buildThreadStructure', () => {
 
     const threads = buildThreadStructure({ allItems, tree });
 
-    expect(threadSets(threads)).toEqual([
-      ['P1.1.1', 'P1.1.2', 'P1.1.3'],
-    ]);
+    expect(threadSets(threads)).toEqual([['P1.1.1', 'P1.1.2', 'P1.1.3']]);
   });
 
   test('groups parallel start siblings inside one coarse WBS branch', () => {
-    const tree = [
-      item('P1'),
-      item('P1.1'),
-      item('P1.1.1'),
-      item('P1.1.2'),
-      item('P1.1.3'),
-    ];
+    const tree = [item('P1'), item('P1.1'), item('P1.1.1'), item('P1.1.2'), item('P1.1.3')];
     const allItems = tree.filter(n => n.id.split('.').length === 3);
 
     const threads = buildThreadStructure({ allItems, tree });
 
-    expect(threadSets(threads)).toEqual([
-      ['P1.1.1', 'P1.1.2', 'P1.1.3'],
-    ]);
+    expect(threadSets(threads)).toEqual([['P1.1.1', 'P1.1.2', 'P1.1.3']]);
   });
 
   test('does not group parallel starts across coarse WBS branches', () => {
-    const tree = [
-      item('P1'),
-      item('P1.1'),
-      item('P1.1.1'),
-      item('P1.2'),
-      item('P1.2.1'),
-    ];
+    const tree = [item('P1'), item('P1.1'), item('P1.1.1'), item('P1.2'), item('P1.2.1')];
     const allItems = tree.filter(n => n.id.split('.').length === 3);
 
     const threads = buildThreadStructure({ allItems, tree });
 
-    expect(threadSets(threads)).toEqual([
-      ['P1.1.1'],
-      ['P1.2.1'],
-    ]);
+    expect(threadSets(threads)).toEqual([['P1.1.1'], ['P1.2.1']]);
   });
 
   test('merges paths when they are connected by a hard dep', () => {
@@ -98,9 +79,7 @@ describe('buildThreadStructure', () => {
 
     const threads = buildThreadStructure({ allItems, tree });
 
-    expect(threadSets(threads)).toEqual([
-      ['P1.1', 'P1.2', 'P2.1', 'P2.2'],
-    ]);
+    expect(threadSets(threads)).toEqual([['P1.1', 'P1.2', 'P2.1', 'P2.2']]);
   });
 
   test('does not merge threads through inherited parent soft deps', () => {
@@ -135,9 +114,7 @@ describe('buildThreadStructure', () => {
 
     const threads = buildThreadStructure({ allItems, tree });
 
-    expect(threadSets(threads)).toEqual([
-      ['P1.1', 'P1.2', 'P2.1', 'P2.2'],
-    ]);
+    expect(threadSets(threads)).toEqual([['P1.1', 'P1.2', 'P2.1', 'P2.2']]);
   });
 
   test('attaches a singleton with cross-branch soft predecessor to that thread', () => {
@@ -153,9 +130,7 @@ describe('buildThreadStructure', () => {
 
     const threads = buildThreadStructure({ allItems, tree });
 
-    expect(threadSets(threads)).toEqual([
-      ['P1.1.1', 'P1.1.2', 'P2.1'],
-    ]);
+    expect(threadSets(threads)).toEqual([['P1.1.1', 'P1.1.2', 'P2.1']]);
   });
 
   test('attaches a singleton predecessor to the downstream cross-branch thread', () => {
@@ -171,9 +146,7 @@ describe('buildThreadStructure', () => {
 
     const threads = buildThreadStructure({ allItems, tree });
 
-    expect(threadSets(threads)).toEqual([
-      ['P1.1.1', 'P2.1', 'P2.2'],
-    ]);
+    expect(threadSets(threads)).toEqual([['P1.1.1', 'P2.1', 'P2.2']]);
   });
 
   test('keeps related branch items together inside a connected thread', () => {
@@ -257,14 +230,10 @@ describe('buildThreadStructure', () => {
     // Old behaviour created three Solo threads cluttering the Gantt; user
     // wants them grouped because they share the same workstream.
     const iMap = {};
-    const tree = [
-      item('Pr1'),
-      item('Pr1.1'),
-      item('Pr1.2'),
-      item('Pr1.3'),
-      item('Pr1.4'),
-    ];
-    tree.forEach(n => { iMap[n.id] = n; });
+    const tree = [item('Pr1'), item('Pr1.1'), item('Pr1.2'), item('Pr1.3'), item('Pr1.4')];
+    tree.forEach(n => {
+      iMap[n.id] = n;
+    });
     const allItems = tree.filter(n => n.id.includes('.'));
 
     const threads = buildThreadStructure({ allItems, tree, iMap });
@@ -279,14 +248,10 @@ describe('buildThreadStructure', () => {
     // Pr1.1, Pr1.4 are loose. All four share parent Pr1, so they belong
     // together; the linked chain anchors the merged thread.
     const iMap = {};
-    const tree = [
-      item('Pr1'),
-      item('Pr1.1'),
-      item('Pr1.2'),
-      item('Pr1.3', { deps: ['Pr1.2'] }),
-      item('Pr1.4'),
-    ];
-    tree.forEach(n => { iMap[n.id] = n; });
+    const tree = [item('Pr1'), item('Pr1.1'), item('Pr1.2'), item('Pr1.3', { deps: ['Pr1.2'] }), item('Pr1.4')];
+    tree.forEach(n => {
+      iMap[n.id] = n;
+    });
     const allItems = tree.filter(n => n.id.includes('.'));
 
     const threads = buildThreadStructure({ allItems, tree, iMap });
@@ -298,15 +263,10 @@ describe('buildThreadStructure', () => {
   test('siblings under DIFFERENT parents stay in separate threads', () => {
     // Pr1.x and P3.x are unrelated workstreams.
     const iMap = {};
-    const tree = [
-      item('Pr1'),
-      item('Pr1.1'),
-      item('Pr1.2'),
-      item('P3'),
-      item('P3.1'),
-      item('P3.2'),
-    ];
-    tree.forEach(n => { iMap[n.id] = n; });
+    const tree = [item('Pr1'), item('Pr1.1'), item('Pr1.2'), item('P3'), item('P3.1'), item('P3.2')];
+    tree.forEach(n => {
+      iMap[n.id] = n;
+    });
     const allItems = tree.filter(n => n.id.includes('.'));
 
     const threads = buildThreadStructure({ allItems, tree, iMap });

@@ -22,7 +22,8 @@ const PLAN = {
   ],
   members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1 }],
   teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-  vacations: [], meetingPlans: [],
+  vacations: [],
+  meetingPlans: [],
 };
 
 // The same shape obsidian/src/vaultFs.js hands the app.
@@ -38,43 +39,73 @@ function vaultHandle(written) {
     async createWritable() {
       let buf = '';
       return {
-        async write(chunk) { buf += String(chunk); },
-        async close() { content = buf; written.push(buf); },
+        async write(chunk) {
+          buf += String(chunk);
+        },
+        async close() {
+          content = buf;
+          written.push(buf);
+        },
         async abort() {},
       };
     },
-    async isSameEntry(other) { return other?.path === this.path; },
+    async isSameEntry(other) {
+      return other?.path === this.path;
+    },
   };
 }
 
 describe('the plugin writes the plan back to its file', () => {
-  beforeEach(() => { cleanup(); localStorage.clear(); localStorage.setItem('planr_lang', 'en'); localStorage.setItem('planr_tour_done', '1'); localStorage.setItem('planr_tab', 'tree'); });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  beforeEach(() => {
+    cleanup();
+    localStorage.clear();
+    localStorage.setItem('planr_lang', 'en');
+    localStorage.setItem('planr_tour_done', '1');
+    localStorage.setItem('planr_tab', 'tree');
+  });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('auto-saves an edit without anyone pressing save', { timeout: 20000 }, async () => {
     const written = [];
     const handle = vaultHandle(written);
 
     render(
-      <I18nProvider><ThemeProvider>
-        <App mount={handle} onFileChange={() => {}} />
-      </ThemeProvider></I18nProvider>,
+      <I18nProvider>
+        <ThemeProvider>
+          <App mount={handle} onFileChange={() => {}} />
+        </ThemeProvider>
+      </I18nProvider>,
     );
 
     // The mounted plan has loaded.
     await screen.findByTestId('view-filters-trigger');
-    await waitFor(async () => {
-      const names = await screen.findAllByTestId('tree-row-name');
-      if (!names.some(el => /Prices/.test(el.textContent))) throw new Error('plan not loaded');
-    }, { timeout: 8000 });
+    await waitFor(
+      async () => {
+        const names = await screen.findAllByTestId('tree-row-name');
+        if (!names.some(el => /Prices/.test(el.textContent))) throw new Error('plan not loaded');
+      },
+      { timeout: 8000 },
+    );
 
     const row = (await screen.findAllByTestId('tree-row-name')).find(el => /Prices/.test(el.textContent));
     const { fireEvent } = await import('@testing-library/react');
-    await act(async () => { fireEvent.click(row); });
-    await act(async () => { fireEvent.keyDown(row, { key: ' ', bubbles: true }); });
+    await act(async () => {
+      fireEvent.click(row);
+    });
+    await act(async () => {
+      fireEvent.keyDown(row, { key: ' ', bubbles: true });
+    });
 
     // Auto-save is debounced 5s.
-    await waitFor(() => { if (!written.length) throw new Error('nothing written to the file'); }, { timeout: 12000 });
+    await waitFor(
+      () => {
+        if (!written.length) throw new Error('nothing written to the file');
+      },
+      { timeout: 12000 },
+    );
     expect(JSON.parse(written[written.length - 1]).tree.find(n => n.id === 'P1.1').status).not.toBe('open');
   });
 });

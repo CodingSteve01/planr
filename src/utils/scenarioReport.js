@@ -38,7 +38,8 @@ function kpiTile(kpi) {
             ...(f.label ? [{ text: f.label, fontSize: 8, color: PRINT.ink2 }] : []),
           ],
         })),
-        columnGap: 14, margin: [0, 2, 0, 2],
+        columnGap: 14,
+        margin: [0, 2, 0, 2],
       },
       ...(kpi.sub ? [{ text: kpi.sub, style: 'cap' }] : []),
     ],
@@ -46,8 +47,12 @@ function kpiTile(kpi) {
 }
 
 const TILE_LAYOUT = {
-  hLineWidth: () => 0, vLineWidth: () => 0,
-  paddingTop: () => 8, paddingBottom: () => 8, paddingLeft: () => 10, paddingRight: () => 10,
+  hLineWidth: () => 0,
+  vLineWidth: () => 0,
+  paddingTop: () => 8,
+  paddingBottom: () => 8,
+  paddingLeft: () => 10,
+  paddingRight: () => 10,
   fillColor: () => PRINT.band,
 };
 
@@ -59,7 +64,15 @@ export function buildScenarioReportDoc(model) {
     {
       columns: [
         { width: '*', text: model.planName || 'Project', style: 'h1' },
-        { width: 'auto', text: `${model.kind}`.toUpperCase(), fontSize: 9, bold: true, color: PRINT.scenario, characterSpacing: 0.8, margin: [0, 8, 0, 0] },
+        {
+          width: 'auto',
+          text: `${model.kind}`.toUpperCase(),
+          fontSize: 9,
+          bold: true,
+          color: PRINT.scenario,
+          characterSpacing: 0.8,
+          margin: [0, 8, 0, 0],
+        },
       ],
     },
     { text: model.title, fontSize: 13, bold: true, color: PRINT.scenario, margin: [0, 0, 0, 2] },
@@ -69,15 +82,31 @@ export function buildScenarioReportDoc(model) {
     content.push({
       table: {
         widths: [3, '*'],
-        body: [[
-          { text: '', fillColor: PRINT.scenario, border: [false, false, false, false] },
-          {
-            stack: model.story.map(line => ({ text: [{ text: `${line.name}: `, bold: true }, line.text], fontSize: 10.5, color: PRINT.ink, margin: [0, 1, 0, 1] })),
-            fillColor: PRINT.scenarioSoft, border: [false, false, false, false], margin: [6, 5, 6, 5],
-          },
-        ]],
+        body: [
+          [
+            { text: '', fillColor: PRINT.scenario, border: [false, false, false, false] },
+            {
+              stack: model.story.map(line => ({
+                text: [{ text: `${line.name}: `, bold: true }, line.text],
+                fontSize: 10.5,
+                color: PRINT.ink,
+                margin: [0, 1, 0, 1],
+              })),
+              fillColor: PRINT.scenarioSoft,
+              border: [false, false, false, false],
+              margin: [6, 5, 6, 5],
+            },
+          ],
+        ],
       },
-      layout: { hLineWidth: () => 0, vLineWidth: () => 0, paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0 },
+      layout: {
+        hLineWidth: () => 0,
+        vLineWidth: () => 0,
+        paddingLeft: () => 0,
+        paddingRight: () => 0,
+        paddingTop: () => 0,
+        paddingBottom: () => 0,
+      },
       margin: [0, 0, 0, 10],
     });
   }
@@ -96,7 +125,14 @@ export function buildScenarioReportDoc(model) {
       continue;
     }
     content.push({ text: '', margin: [0, 6, 0, 0] });
-    content.push(headerTable(section.headers, section.rows.map(row => row.map(cell)), section.widths, `${section.title}  ·  ${section.rows.length}`));
+    content.push(
+      headerTable(
+        section.headers,
+        section.rows.map(row => row.map(cell)),
+        section.widths,
+        `${section.title}  ·  ${section.rows.length}`,
+      ),
+    );
     if (section.note) content.push({ text: section.note, style: 'cap', margin: [0, -4, 0, 6] });
   }
   if (model.foot) content.push({ text: model.foot, style: 'cap', margin: [0, 8, 0, 0] });

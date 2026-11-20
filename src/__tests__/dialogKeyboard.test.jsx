@@ -13,18 +13,41 @@ const tree = [
   { id: 'P1.1', name: 'Selected task', status: 'open', best: 2, factor: 1, team: 'T1', deps: [], assign: ['m1'] },
 ];
 const common = {
-  tree, members: [{ id: 'm1', name: 'Noah', team: 'T1', cap: 1 }], teams: [{ id: 'T1', name: 'Backend' }],
-  taskTemplates: [], sizes: [], customFields: [], scheduled: [],
-  cpSet: new Set(), stats: {}, confidence: {}, confReasons: {},
+  tree,
+  members: [{ id: 'm1', name: 'Noah', team: 'T1', cap: 1 }],
+  teams: [{ id: 'T1', name: 'Backend' }],
+  taskTemplates: [],
+  sizes: [],
+  customFields: [],
+  scheduled: [],
+  cpSet: new Set(),
+  stats: {},
+  confidence: {},
+  confReasons: {},
 };
-const open = props => render(<I18nProvider><ThemeProvider>
-  <NodeModal node={tree[1]} {...common} onUpdate={() => {}} onClose={() => {}} {...props} />
-</ThemeProvider></I18nProvider>);
+const open = props =>
+  render(
+    <I18nProvider>
+      <ThemeProvider>
+        <NodeModal node={tree[1]} {...common} onUpdate={() => {}} onClose={() => {}} {...props} />
+      </ThemeProvider>
+    </I18nProvider>,
+  );
 const selectedTab = () => document.querySelector('[role="tab"][aria-selected="true"]');
-const key = init => act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })); });
-const frame = () => act(async () => { await new Promise(r => requestAnimationFrame(() => r())); });
+const key = init =>
+  act(async () => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init }));
+  });
+const frame = () =>
+  act(async () => {
+    await new Promise(r => requestAnimationFrame(() => r()));
+  });
 
-beforeEach(() => { cleanup(); localStorage.clear(); localStorage.setItem('planr_lang', 'en'); });
+beforeEach(() => {
+  cleanup();
+  localStorage.clear();
+  localStorage.setItem('planr_lang', 'en');
+});
 afterEach(() => vi.unstubAllGlobals());
 
 describe('the item dialog by keyboard', () => {
@@ -37,10 +60,14 @@ describe('the item dialog by keyboard', () => {
   it('switches tabs with the arrows on the tab bar and with ⌥1–⌥7 anywhere', async () => {
     open();
     await frame();
-    await act(async () => { fireEvent.keyDown(selectedTab(), { key: 'ArrowRight' }); });
+    await act(async () => {
+      fireEvent.keyDown(selectedTab(), { key: 'ArrowRight' });
+    });
     // It opens on Status; the order is Summary, Status, Details, Schedule, Estimate.
     expect(selectedTab().getAttribute('data-testid')).toBe('nm-tab-overview');
-    await act(async () => { fireEvent.keyDown(selectedTab(), { key: 'End' }); });
+    await act(async () => {
+      fireEvent.keyDown(selectedTab(), { key: 'End' });
+    });
     expect(selectedTab().getAttribute('data-testid')).toBe('nm-tab-effort');
     await key({ key: '¡', code: 'Digit1', altKey: true });
     expect(selectedTab().getAttribute('data-testid')).toBe('nm-tab-insights');
@@ -53,13 +80,16 @@ describe('the item dialog by keyboard', () => {
     fireEvent.mouseDown(screen.getByTestId('nm-tab-insights'), { button: 0 });
     const people = screen.getByRole('button', { name: /^People/ });
     expect(people.tabIndex).toBe(0);
-    await act(async () => { fireEvent.keyDown(people, { key: 'Enter' }); });
+    await act(async () => {
+      fireEvent.keyDown(people, { key: 'Enter' });
+    });
     // Where it lands is insightJumps.test.jsx's business; here: it went.
     expect(selectedTab().getAttribute('data-testid')).not.toBe('nm-tab-insights');
   });
 
   it('saves and closes with ⌘↵', async () => {
-    const onUpdate = vi.fn(), onClose = vi.fn();
+    const onUpdate = vi.fn(),
+      onClose = vi.fn();
     open({ onUpdate, onClose });
     fireEvent.mouseDown(screen.getByTestId('nm-tab-overview'), { button: 0 });
     fireEvent.change(screen.getByDisplayValue('Selected task'), { target: { value: 'Renamed' } });
@@ -72,7 +102,9 @@ describe('the item dialog by keyboard', () => {
     open();
     await frame();
     const modal = screen.getByTestId('node-modal');
-    const focusables = [...modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled);
+    const focusables = [...modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter(
+      el => !el.disabled,
+    );
     focusables[focusables.length - 1].focus();
     await key({ key: 'Tab' });
     expect(document.activeElement).toBe(focusables[0]);
@@ -85,8 +117,13 @@ describe('the item dialog by keyboard', () => {
     open({ onClose });
     fireEvent.mouseDown(screen.getByTestId('nm-tab-overview'), { button: 0 });
     const input = screen.getByPlaceholderText('Assign person...');
-    await act(async () => { fireEvent.focus(input); fireEvent.click(input); });
-    await act(async () => { fireEvent.keyDown(input, { key: 'Escape' }); });
+    await act(async () => {
+      fireEvent.focus(input);
+      fireEvent.click(input);
+    });
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Escape' });
+    });
     expect(onClose).not.toHaveBeenCalled();
     await key({ key: 'Escape' });
     expect(onClose).toHaveBeenCalled();

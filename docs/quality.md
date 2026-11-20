@@ -4,11 +4,23 @@ What the pipeline holds the code to, and how to work with it. One command runs
 everything that does not need the test suite:
 
 ```bash
-npm run quality        # lint, duplicates, dead code, versions, semgrep, private terms
+npm run quality        # format, lint, duplicates, dead code, versions, semgrep, private terms
 npm run test:coverage  # the suite, with the coverage floor
 ```
 
 `.github/workflows/ci.yml` runs the same on every pull request and on `main`.
+
+## Formatting
+
+Prettier formats the code (`npm run format`), and `npm run format:check` fails
+when a file is not as Prettier would write it. The settings are four lines in
+`.prettierrc.json`: single quotes, 140 columns, trailing commas, no parentheses
+around a single arrow parameter. Left alone on purpose (`.prettierignore`):
+the stylesheets, which are written one rule per line and read as text by a
+dozen tests; Markdown, which keeps its author's line breaks; the embedded
+fonts; and the semgrep fixtures.
+
+Nobody argues about layout in a review, and a diff shows what changed.
 
 ## The baseline, and why the numbers only go down
 
@@ -48,7 +60,8 @@ size limits: one is a dictionary, the other is data.
 `npm install` installs three git hooks (`scripts/install-hooks.mjs`, also
 `npm run hooks`):
 
-- **pre-commit** lints the staged files and checks them for private terms;
+- **pre-commit** checks that the staged files are formatted, lints them and
+  checks them for private terms;
 - **commit-msg** checks the message for private terms;
 - **pre-push** runs `npm run quality`.
 

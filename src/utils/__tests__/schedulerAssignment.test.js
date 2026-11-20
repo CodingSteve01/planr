@@ -19,8 +19,12 @@ import { iso } from '../date.js';
 
 const PS = '2026-01-05'; // Monday
 function run(tree, members, options = {}) {
-  return schedule(tree, members, [], PS, '2027-12-31', {}, [1, 2, 3, 4, 5], PS,
-    { now: PS, anchorToToday: false, discountProgress: false, ...options }).results;
+  return schedule(tree, members, [], PS, '2027-12-31', {}, [1, 2, 3, 4, 5], PS, {
+    now: PS,
+    anchorToToday: false,
+    discountProgress: false,
+    ...options,
+  }).results;
 }
 const leaf = (id, team, best, extra = {}) => ({ id, name: id, team, best, factor: 1, status: 'open', ...extra });
 const byId = rows => Object.fromEntries(rows.map(r => [r.id, r]));
@@ -56,10 +60,7 @@ describe('unassigned work', () => {
   test('goes to whoever finishes it first, not whoever is free first', () => {
     const part = { id: 'S', name: 'Part-timer', team: 'B', cap: 0.2, vac: 0, start: '2026-01-01' };
     const full = { id: 'J', name: 'Full-timer', team: 'B', cap: 1, vac: 0, start: '2026-01-01' };
-    const tree = [
-      leaf('A', 'B', 3, { assign: ['J'] }),
-      leaf('L', 'B', 15),
-    ];
+    const tree = [leaf('A', 'B', 3, { assign: ['J'] }), leaf('L', 'B', 15)];
     const rows = byId(run(tree, [part, full]));
     expect(rows.L.personId).toBe('J');
     expect(iso(rows.L.endD) < '2026-02-28').toBe(true);
@@ -79,12 +80,7 @@ describe('a member in two teams', () => {
   test('works their first team first while it has work in the same project', () => {
     const noah = teamsOf('NB', 'Noah', ['BE', 'FE']);
     const ben = teamsOf('BO', 'Ben', ['FE']);
-    const tree = [
-      { id: 'P', name: 'Project' },
-      leaf('P.1', 'FE', 10, { assign: ['BO'] }),
-      leaf('P.2', 'FE', 5),
-      leaf('P.3', 'BE', 5),
-    ];
+    const tree = [{ id: 'P', name: 'Project' }, leaf('P.1', 'FE', 10, { assign: ['BO'] }), leaf('P.2', 'FE', 5), leaf('P.3', 'BE', 5)];
     const rows = byId(run(tree, [noah, ben]));
     expect(rows['P.2'].personId).toBe('BO');
     expect(rows['P.3'].personId).toBe('NB');
@@ -94,12 +90,7 @@ describe('a member in two teams', () => {
   test('helps out in the other team once their own has nothing left there', () => {
     const noah = teamsOf('NB', 'Noah', ['BE', 'FE']);
     const ben = teamsOf('BO', 'Ben', ['FE']);
-    const tree = [
-      { id: 'P', name: 'Project' },
-      leaf('P.1', 'BE', 3),
-      leaf('P.2', 'FE', 10, { assign: ['BO'] }),
-      leaf('P.3', 'FE', 5),
-    ];
+    const tree = [{ id: 'P', name: 'Project' }, leaf('P.1', 'BE', 3), leaf('P.2', 'FE', 10, { assign: ['BO'] }), leaf('P.3', 'FE', 5)];
     expect(byId(run(tree, [noah, ben]))['P.3'].personId).toBe('NB');
   });
 
@@ -112,7 +103,16 @@ describe('a member in two teams', () => {
 
 describe('a member without capacity', () => {
   const plans = [{ id: 'dev', name: 'dev', meetings: [{ id: 'm', name: 'Standup', hours: 2, frequency: 'daily' }] }];
-  const lead = { id: 'ML', name: 'Mara', team: 'B', capMode: 'derived', weeklyHours: 8, meetingPlanIds: ['dev'], vac: 0, start: '2026-01-01' };
+  const lead = {
+    id: 'ML',
+    name: 'Mara',
+    team: 'B',
+    capMode: 'derived',
+    weeklyHours: 8,
+    meetingPlanIds: ['dev'],
+    vac: 0,
+    start: '2026-01-01',
+  };
   const dev = { id: 'NB', name: 'Noah', team: 'B', cap: 1, vac: 0, start: '2026-01-01' };
   const withMeetings = m => ({ ...m, meetings: m.meetingPlanIds ? plans[0].meetings : [] });
 

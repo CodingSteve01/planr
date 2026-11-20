@@ -9,9 +9,7 @@ import { memberTeamNames } from '../../utils/memberTeams.js';
 function initials(name) {
   if (!name) return '?';
   const parts = name.trim().split(/\s+/);
-  return parts.length >= 2
-    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-    : name.slice(0, 2).toUpperCase();
+  return parts.length >= 2 ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() : name.slice(0, 2).toUpperCase();
 }
 
 function Avatar({ member, teams }) {
@@ -29,7 +27,7 @@ function weekNum(d) {
   x.setHours(0, 0, 0, 0);
   x.setDate(x.getDate() + 4 - (x.getDay() || 7));
   const yearStart = new Date(x.getFullYear(), 0, 1);
-  return Math.ceil((((x - yearStart) / 86400000) + 1) / 7);
+  return Math.ceil(((x - yearStart) / 86400000 + 1) / 7);
 }
 
 // The tint and the border carry the band; the TEXT does not. It used to be set
@@ -134,15 +132,14 @@ export function buildResourceLoadMatrix({ members, teams, vacations, meetingPlan
     });
   });
 
-  Object.values(result).forEach(rows => rows.forEach(row => {
-    row.percent = row.availability > 0
-      ? Math.round((row.load / row.availability) * 100)
-      : row.load > 0 ? 999 : 0;
-    row.tasks.sort((a, b) => b.load - a.load || a.id.localeCompare(b.id, undefined, { numeric: true }));
-  }));
+  Object.values(result).forEach(rows =>
+    rows.forEach(row => {
+      row.percent = row.availability > 0 ? Math.round((row.load / row.availability) * 100) : row.load > 0 ? 999 : 0;
+      row.tasks.sort((a, b) => b.load - a.load || a.id.localeCompare(b.id, undefined, { numeric: true }));
+    }),
+  );
   return result;
 }
-
 
 export function ResourceLoadMatrix({ members: allMembers, teams, weeks, vacations, meetingPlans, scheduled }) {
   const { t } = useT();
@@ -169,13 +166,31 @@ export function ResourceLoadMatrix({ members: allMembers, teams, weeks, vacation
   }, [weeks]);
   const weekCols = useMemo(() => (weeks || []).slice(weekOffset), [weeks, weekOffset]);
   const [overloadOnly, setOverloadOnly] = useState(() => {
-    try { return localStorage.getItem('planr_load_overload_only') === 'true'; } catch { return false; }
+    try {
+      return localStorage.getItem('planr_load_overload_only') === 'true';
+    } catch {
+      return false;
+    }
   });
   const [sortMode, setSortMode] = useState(() => {
-    try { return localStorage.getItem('planr_load_sort') || 'overload'; } catch { return 'overload'; }
+    try {
+      return localStorage.getItem('planr_load_sort') || 'overload';
+    } catch {
+      return 'overload';
+    }
   });
-  const persistOverloadOnly = (v) => { setOverloadOnly(v); try { localStorage.setItem('planr_load_overload_only', String(v)); } catch {} };
-  const persistSortMode = (v) => { setSortMode(v); try { localStorage.setItem('planr_load_sort', v); } catch {} };
+  const persistOverloadOnly = v => {
+    setOverloadOnly(v);
+    try {
+      localStorage.setItem('planr_load_overload_only', String(v));
+    } catch {}
+  };
+  const persistSortMode = v => {
+    setSortMode(v);
+    try {
+      localStorage.setItem('planr_load_sort', v);
+    } catch {}
+  };
   const peakByMember = useMemo(() => {
     const m = {};
     (members || []).forEach(member => {
@@ -186,18 +201,20 @@ export function ResourceLoadMatrix({ members: allMembers, teams, weeks, vacation
     });
     return m;
   }, [members, loadByPerson]);
-  const overloads = (members || []).reduce((sum, member) => (
-    sum + (loadByPerson[member.id] || []).filter(cell => cell.percent > 110).length
-  ), 0);
+  const overloads = (members || []).reduce(
+    (sum, member) => sum + (loadByPerson[member.id] || []).filter(cell => cell.percent > 110).length,
+    0,
+  );
   const overloadedMemberCount = (members || []).filter(m => (peakByMember[m.id] || 0) > 110).length;
   const orderedMembers = useMemo(() => {
     const list = (members || []).slice();
     if (sortMode === 'overload') {
-      list.sort((a, b) => (peakByMember[b.id] || 0) - (peakByMember[a.id] || 0)
-        || (a.name || a.id).localeCompare(b.name || b.id));
+      list.sort((a, b) => (peakByMember[b.id] || 0) - (peakByMember[a.id] || 0) || (a.name || a.id).localeCompare(b.name || b.id));
     } else if (sortMode === 'team') {
-      list.sort((a, b) => (teamById[a.team]?.name || '').localeCompare(teamById[b.team]?.name || '')
-        || (a.name || a.id).localeCompare(b.name || b.id));
+      list.sort(
+        (a, b) =>
+          (teamById[a.team]?.name || '').localeCompare(teamById[b.team]?.name || '') || (a.name || a.id).localeCompare(b.name || b.id),
+      );
     } else {
       list.sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
     }
@@ -228,25 +245,32 @@ export function ResourceLoadMatrix({ members: allMembers, teams, weeks, vacation
   };
 
   if (!(members || []).length || !weekCols.length) {
-    return (
-      <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>
-        —
-      </div>
-    );
+    return <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>—</div>;
   }
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-        <span className="helper" style={{ margin: 0, flex: '1 1 320px' }}>{t('rv.loadHint')}</span>
+        <span className="helper" style={{ margin: 0, flex: '1 1 320px' }}>
+          {t('rv.loadHint')}
+        </span>
         {overloadedMemberCount > 0 && (
           <button
             type="button"
             className="badge bc"
             onClick={() => persistOverloadOnly(!overloadOnly)}
             data-htip={t('rv.loadOnlyOverloadedTip')}
-            style={{ fontSize: 11, padding: '2px 7px', cursor: 'pointer', border: overloadOnly ? '1px solid var(--re)' : '', background: overloadOnly ? 'var(--re)' : '', color: overloadOnly ? '#fff' : '' }}>
-            ! {overloadedMemberCount} {t('rv.loadOverPeople')}{overloadOnly ? ' · only' : ''}
+            style={{
+              fontSize: 11,
+              padding: '2px 7px',
+              cursor: 'pointer',
+              border: overloadOnly ? '1px solid var(--re)' : '',
+              background: overloadOnly ? 'var(--re)' : '',
+              color: overloadOnly ? '#fff' : '',
+            }}
+          >
+            ! {overloadedMemberCount} {t('rv.loadOverPeople')}
+            {overloadOnly ? ' · only' : ''}
           </button>
         )}
         <span style={{ display: 'inline-flex', gap: 2, alignItems: 'center', fontSize: 11, color: 'var(--tx3)' }}>
@@ -256,10 +280,15 @@ export function ResourceLoadMatrix({ members: allMembers, teams, weeks, vacation
             ['team', t('rv.loadSortTeam') || 'team'],
             ['name', t('rv.loadSortName') || 'name'],
           ].map(([k, label]) => (
-            <button key={k} type="button"
+            <button
+              key={k}
+              type="button"
               className={`btn btn-xs ${sortMode === k ? 'btn-pri' : 'btn-sec'}`}
               style={{ padding: '1px 6px', fontSize: 11 }}
-              onClick={() => persistSortMode(k)}>{label}</button>
+              onClick={() => persistSortMode(k)}
+            >
+              {label}
+            </button>
           ))}
         </span>
         <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: overloads > 0 ? 'var(--re)' : 'var(--tx3)' }}>
@@ -278,16 +307,21 @@ export function ResourceLoadMatrix({ members: allMembers, teams, weeks, vacation
         })}
       </div>
       <div style={{ overflowX: 'auto', border: '1px solid var(--b)', borderRadius: 'var(--r)', background: 'var(--bg2)' }}>
-        <table className="res-table" style={{ minWidth: Math.max(820, 168 + weekCols.length * 86), borderCollapse: 'separate', borderSpacing: 0 }}>
+        <table
+          className="res-table"
+          style={{ minWidth: Math.max(820, 168 + weekCols.length * 86), borderCollapse: 'separate', borderSpacing: 0 }}
+        >
           <thead>
             <tr>
-              <th style={{ position: 'sticky', left: 0, zIndex: 2, background: 'var(--bg2)', minWidth: 170 }}>
-                {t('rv.person')}
-              </th>
+              <th style={{ position: 'sticky', left: 0, zIndex: 2, background: 'var(--bg2)', minWidth: 170 }}>{t('rv.person')}</th>
               {weekCols.map((week, wi) => (
                 <th key={`${week.mon || ''}-${wi}`} style={{ width: 86, textAlign: 'center', whiteSpace: 'nowrap' }}>
-                  <div style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{t('rv.loadWeek')} {week.kw || weekNum(week.mon)}</div>
-                  <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', marginTop: 2 }}>{week.mon ? iso(week.mon).slice(5) : ''}</div>
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>
+                    {t('rv.loadWeek')} {week.kw || weekNum(week.mon)}
+                  </div>
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--tx3)', marginTop: 2 }}>
+                    {week.mon ? iso(week.mon).slice(5) : ''}
+                  </div>
                 </th>
               ))}
             </tr>
@@ -305,7 +339,15 @@ export function ResourceLoadMatrix({ members: allMembers, teams, weeks, vacation
                         <div style={{ fontWeight: 600, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {member.name || member.id}
                         </div>
-                        <div style={{ fontSize: 11, color: team?.color || 'var(--tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: team?.color || 'var(--tx3)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
                           {team ? memberTeamNames(member, teams).join(' + ') : t('noTeam')}
                         </div>
                       </div>
@@ -315,7 +357,14 @@ export function ResourceLoadMatrix({ members: allMembers, teams, weeks, vacation
                     // `cells` is indexed against the FULL week list, so the
                     // offset has to be added back or every row would show the
                     // load of a different week than its column header.
-                    const cell = cells[wi + weekOffset] || { availability: 0, load: 0, percent: 0, tasks: [], kw: week.kw || weekNum(week.mon), start: week.mon ? iso(week.mon) : '' };
+                    const cell = cells[wi + weekOffset] || {
+                      availability: 0,
+                      load: 0,
+                      percent: 0,
+                      tasks: [],
+                      kw: week.kw || weekNum(week.mon),
+                      start: week.mon ? iso(week.mon) : '',
+                    };
                     const tone = loadTone(cell.percent);
                     const overloaded = cell.percent > 110;
                     const empty = cell.load <= 0;
@@ -335,10 +384,15 @@ export function ResourceLoadMatrix({ members: allMembers, teams, weeks, vacation
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 4 }}>
-                            <span style={{ fontFamily: 'var(--mono)', fontWeight: 800, fontSize: 12 }}>
-                              {cell.percent}%
-                            </span>
-                            <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: empty ? 'var(--tx3)' : 'inherit', opacity: empty ? .75 : .9 }}>
+                            <span style={{ fontFamily: 'var(--mono)', fontWeight: 800, fontSize: 12 }}>{cell.percent}%</span>
+                            <span
+                              style={{
+                                fontFamily: 'var(--mono)',
+                                fontSize: 10,
+                                color: empty ? 'var(--tx3)' : 'inherit',
+                                opacity: empty ? 0.75 : 0.9,
+                              }}
+                            >
                               {cell.tasks.length || ''}
                             </span>
                           </div>

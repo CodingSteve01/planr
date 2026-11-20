@@ -19,7 +19,12 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
   const memberShort = id => shortMap[id] || memberName(id);
   const activeSizes = data?.sizes?.length ? data.sizes : DEFAULT_SIZES;
   const SZ = Object.fromEntries(activeSizes.map(s => [s.days, s.label]));
-  const sz = b => { const k = Object.keys(SZ).map(Number).sort((a, c) => Math.abs(a - b) - Math.abs(c - b)); return SZ[k[0]] || ''; };
+  const sz = b => {
+    const k = Object.keys(SZ)
+      .map(Number)
+      .sort((a, c) => Math.abs(a - b) - Math.abs(c - b));
+    return SZ[k[0]] || '';
+  };
   const esc = s => (s || '').toString().replace(/\|/g, '\\|').replace(/\n/g, ' ');
   let md = `# ${meta.name || 'Project'}\n\n`;
 
@@ -42,7 +47,9 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
       });
     } else {
       md += `## Teams\n\n| Name | Color |\n|---|---|\n`;
-      teams.forEach(t => { md += `| ${esc(t.name)} | \`${t.color || '#3b82f6'}\` |\n`; });
+      teams.forEach(t => {
+        md += `| ${esc(t.name)} | \`${t.color || '#3b82f6'}\` |\n`;
+      });
     }
     md += '\n';
   }
@@ -51,7 +58,7 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
   // resources reference them.
   if ((data?.meetingPlans || []).length) {
     md += `## Meeting Plans\n\n`;
-    const freqSuffix = f => f === 'daily' ? '/d' : f === 'biweekly' ? '/2w' : f === 'monthly' ? '/mo' : '/w';
+    const freqSuffix = f => (f === 'daily' ? '/d' : f === 'biweekly' ? '/2w' : f === 'monthly' ? '/mo' : '/w');
     data.meetingPlans.forEach(plan => {
       md += `### ${esc(plan.name)}\n`;
       (plan.meetings || []).forEach(mt => {
@@ -65,18 +72,16 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     md += `## Resources\n`;
     members.forEach(m => {
       const isDerived = m.capMode === 'derived';
-      const cap = (!isDerived && m.cap < 1) ? ` (${Math.round(m.cap * 100)}%)` : '';
+      const cap = !isDerived && m.cap < 1 ? ` (${Math.round(m.cap * 100)}%)` : '';
       const hours = isDerived && typeof m.weeklyHours === 'number' ? `, ${m.weeklyHours}h/w` : '';
-      const vac = (m.vac && m.vac !== 25) ? `, ${m.vac}d/y` : '';
+      const vac = m.vac && m.vac !== 25 ? `, ${m.vac}d/y` : '';
       md += `- **${m.name}** \`${shortMap[m.id]}\` — ${memberTeams(m).map(teamName).join(' + ')}${m.role ? ', ' + m.role : ''}${cap}${hours}${vac}${m.start ? ', ab ' + m.start : ''}${m.end ? ', bis ' + m.end : ''}\n`;
       if (isDerived && (m.meetings || []).length) {
-        const freqSuffix = f => f === 'daily' ? '/d' : f === 'biweekly' ? '/2w' : f === 'monthly' ? '/mo' : '/w';
+        const freqSuffix = f => (f === 'daily' ? '/d' : f === 'biweekly' ? '/2w' : f === 'monthly' ? '/mo' : '/w');
         md += `  *Meetings: ${m.meetings.map(mt => `${mt.name}${mt.hours != null ? ` ${mt.hours}h` : ''}${freqSuffix(mt.frequency)}`).join(', ')}*\n`;
       }
       if ((m.meetingPlanIds || []).length) {
-        const planNames = m.meetingPlanIds
-          .map(pid => (data?.meetingPlans || []).find(p => p.id === pid)?.name || pid)
-          .join(', ');
+        const planNames = m.meetingPlanIds.map(pid => (data?.meetingPlans || []).find(p => p.id === pid)?.name || pid).join(', ');
         md += `  *Plans: ${planNames}*\n`;
       }
       // Scheduled capacity changes — each "{from}→{cap%}|{Xh/w}" entry
@@ -97,7 +102,7 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
       // meeting list from `from` onward. Format mirrors the *Meetings:*
       // line so existing parsers can read either.
       if (Array.isArray(m.meetingChanges) && m.meetingChanges.length) {
-        const freqSuffix = f => f === 'daily' ? '/d' : f === 'biweekly' ? '/2w' : f === 'monthly' ? '/mo' : '/w';
+        const freqSuffix = f => (f === 'daily' ? '/d' : f === 'biweekly' ? '/2w' : f === 'monthly' ? '/mo' : '/w');
         const lines = m.meetingChanges
           .filter(c => c && c.from && (Array.isArray(c.meetings) || Array.isArray(c.meetingPlanIds)))
           .map(c => {
@@ -117,12 +122,16 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
   }
   if ((vacations || []).length) {
     md += `## Vacations\n\n| Person | From | To | Note |\n|---|---|---|---|\n`;
-    vacations.forEach(v => { md += `| ${esc(memberName(v.person))} | ${v.from || ''} | ${v.to || ''} | ${esc(v.note)} |\n`; });
+    vacations.forEach(v => {
+      md += `| ${esc(memberName(v.person))} | ${v.from || ''} | ${v.to || ''} | ${esc(v.note)} |\n`;
+    });
     md += '\n';
   }
   if ((data?.holidays || []).length) {
     md += `## Holidays\n\n| Date | Name | Source |\n|---|---|---|\n`;
-    data.holidays.forEach(h => { md += `| ${h.date} | ${esc(h.name)} | ${h.auto ? 'auto' : 'custom'} |\n`; });
+    data.holidays.forEach(h => {
+      md += `| ${h.date} | ${esc(h.name)} | ${h.auto ? 'auto' : 'custom'} |\n`;
+    });
     md += '\n';
   }
 
@@ -130,11 +139,11 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
   // carries a custom value (so field metadata travels with the value for roundtrip).
   // If neither → stay silent: MD stays identical to pre-feature files.
   const anyCustomValues = tree.some(r => r.customValues && Object.values(r.customValues).some(v => v != null && v !== ''));
-  const customFields = data?.customFields?.length ? data.customFields : (anyCustomValues ? DEFAULT_CUSTOM_FIELDS : null);
+  const customFields = data?.customFields?.length ? data.customFields : anyCustomValues ? DEFAULT_CUSTOM_FIELDS : null;
   if (customFields?.length) {
     md += `## Custom Fields\n\n| ID | Name | Type | Template/Options |\n|---|---|---|---|\n`;
     customFields.forEach(cf => {
-      const extra = cf.type === 'uri' ? (cf.uriTemplate || '') : cf.type === 'select' ? (cf.options || []).join(',') : '';
+      const extra = cf.type === 'uri' ? cf.uriTemplate || '' : cf.type === 'select' ? (cf.options || []).join(',') : '';
       md += `| ${esc(cf.id)} | ${esc(cf.name)} | ${cf.type} | ${esc(extra)} |\n`;
     });
     md += '\n';
@@ -145,7 +154,7 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     const d = r.id.split('.').length;
     const indent = '  '.repeat(d - 1);
     const done = r.status === 'done' ? '✅ ' : r.status === 'wip' ? '🟡 ' : '';
-    const factorPart = (r.factor && r.factor !== 1.5) ? ` ×${r.factor}` : '';
+    const factorPart = r.factor && r.factor !== 1.5 ? ` ×${r.factor}` : '';
     const est = r.best > 0 ? ` (${sz(r.best)} ${r.best}T${factorPart})` : '';
     const prog = r.progress > 0 && r.progress < 100 ? ` ${r.progress}%` : '';
     const team = r.team ? ` — ${teamName(r.team)}` : '';
@@ -173,23 +182,34 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
     // All deps are hard now. Old softDeps merge into the single bucket so
     // existing plans flatten on the next save. `~id` prefix retired.
     const allDepIds = [...new Set([...(r.deps || []), ...(r.softDeps || [])])];
-    const depItems = allDepIds.map(d => { const lbl = (r._depLabels || {})[d]; return lbl ? `${d} (${lbl})` : d; });
+    const depItems = allDepIds.map(d => {
+      const lbl = (r._depLabels || {})[d];
+      return lbl ? `${d} (${lbl})` : d;
+    });
     const deps = depItems.length ? `\n${indent}  *Requires: ${depItems.join(', ')}*` : '';
-    const phases = (r.phases || []).length ? `\n${indent}  *Phases: ${r.phases.map(p => formatPhaseToken(p, {
-      teamName,
-      memberLabel: memberShort,
-    })).join(', ')}*` : '';
+    const phases = (r.phases || []).length
+      ? `\n${indent}  *Phases: ${r.phases
+          .map(p =>
+            formatPhaseToken(p, {
+              teamName,
+              memberLabel: memberShort,
+            }),
+          )
+          .join(', ')}*`
+      : '';
     // Handoff plan: `*Handoff: → Max (FE); → Anna*` — one chevron per stage.
     // Each stage emits team in parens (if set) and assignee short codes.
     const handoffPlan = Array.isArray(r.handoffPlan) ? r.handoffPlan.filter(st => st && (st.team || (st.assign || []).length)) : [];
     const handoff = handoffPlan.length
-      ? `\n${indent}  *Handoff: ${handoffPlan.map(st => {
-          const names = (st.assign || []).map(memberShort).join(', ');
-          const tn = st.team ? teamName(st.team) : '';
-          if (names && tn) return `→ ${names} (${tn})`;
-          if (names) return `→ ${names}`;
-          return `→ (${tn})`;
-        }).join('; ')}*`
+      ? `\n${indent}  *Handoff: ${handoffPlan
+          .map(st => {
+            const names = (st.assign || []).map(memberShort).join(', ');
+            const tn = st.team ? teamName(st.team) : '';
+            if (names && tn) return `→ ${names} (${tn})`;
+            if (names) return `→ ${names}`;
+            return `→ (${tn})`;
+          })
+          .join('; ')}*`
       : '';
     const note = r.note ? `\n${indent}  *${r.note}*` : '';
     // GT, not a third private copy of the map: this wrote ⏰ for a deadline
@@ -208,12 +228,12 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
   if ((data?.taskTemplates || []).length) {
     md += `\n## Task Templates\n\n`;
     data.taskTemplates.forEach(tpl => {
-    md += `### ${tpl.name}\n`;
-    tpl.phases.forEach((p, i) => {
-      md += `${i + 1}. ${formatTemplatePhaseLine(p, teamName)}\n`;
+      md += `### ${tpl.name}\n`;
+      tpl.phases.forEach((p, i) => {
+        md += `${i + 1}. ${formatTemplatePhaseLine(p, teamName)}\n`;
+      });
+      md += '\n';
     });
-    md += '\n';
-  });
   }
 
   // History — append-only event log for "what changed since <date>" reviews.
@@ -229,8 +249,9 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
   // colour} assignment so projects keep their visual identity across
   // data edits. Format mirrors the history block for consistency.
   if (data?.roadmapAssignment && typeof data.roadmapAssignment === 'object') {
-    const entries = Object.entries(data.roadmapAssignment)
-      .filter(([, v]) => v && Number.isFinite(v.routeIdx) && Number.isFinite(v.colorIdx));
+    const entries = Object.entries(data.roadmapAssignment).filter(
+      ([, v]) => v && Number.isFinite(v.routeIdx) && Number.isFinite(v.colorIdx),
+    );
     if (entries.length) {
       md += `\n## Roadmap\n\n<!-- Auto-generated. Locks Subway-Map line colours + lanes so they stay stable. -->\n\n`;
       md += '```planr-roadmap\nv1\n';
@@ -258,7 +279,7 @@ export function buildMarkdownText({ tree, members, teams, vacations, data, meta 
       if (!Array.isArray(ids) || ids.length < 2) return;
       const teamId = owner.startsWith('team:') ? owner.slice(5) : null;
       const team = teamId != null ? teams.find(t => t.id === teamId) : null;
-      const label = team ? `#${team.name}` : (teamId == null && shortMap[owner]) ? `@${shortMap[owner]}` : null;
+      const label = team ? `#${team.name}` : teamId == null && shortMap[owner] ? `@${shortMap[owner]}` : null;
       if (label) lines.push(`${label} | ${ids.join(' ')}\n`);
     });
     if (lines.length) {
@@ -312,8 +333,16 @@ export function parseResourceLine(line) {
   const meta = rm[3] || '';
   const parts = meta.split(',').map(s => s.trim());
   const teamPart = (parts[0] || '').replace(/\s*\(\d+%\)\s*/g, '').trim();
-  const roleParts = parts.slice(1)
-    .filter(p => !/^\(?\d+%\)?$/.test(p) && !/^ab\s/.test(p) && !/^bis\s/.test(p) && !/^\d+(?:\.\d+)?d\/y$/.test(p) && !/^\d+(?:\.\d+)?h\/w$/.test(p))
+  const roleParts = parts
+    .slice(1)
+    .filter(
+      p =>
+        !/^\(?\d+%\)?$/.test(p) &&
+        !/^ab\s/.test(p) &&
+        !/^bis\s/.test(p) &&
+        !/^\d+(?:\.\d+)?d\/y$/.test(p) &&
+        !/^\d+(?:\.\d+)?h\/w$/.test(p),
+    )
     .map(p => p.replace(/\s*\(\d+%\)\s*/g, '').trim())
     .filter(Boolean);
   const capM = meta.match(/\((\d+)%\)/);
@@ -321,12 +350,25 @@ export function parseResourceLine(line) {
   const vacM = meta.match(/(\d+(?:\.\d+)?)d\/y/);
   const startM = meta.match(/ab\s+(\d{4}-\d{2}-\d{2})/);
   const endM = meta.match(/bis\s+(\d{4}-\d{2}-\d{2})/);
-  const teams = teamPart.split(/\s+\+\s+/).map(s => s.trim()).filter(Boolean);
+  const teams = teamPart
+    .split(/\s+\+\s+/)
+    .map(s => s.trim())
+    .filter(Boolean);
   const out = {
-    name: rm[1].trim(), short: rm[2] || '', teams, team: teams[0] || '',
-    role: roleParts.join(', '), cap: capM ? +capM[1] / 100 : 1, vac: vacM ? +vacM[1] : 25,
-    start: startM?.[1] || '', end: endM?.[1] || '',
+    name: rm[1].trim(),
+    short: rm[2] || '',
+    teams,
+    team: teams[0] || '',
+    role: roleParts.join(', '),
+    cap: capM ? +capM[1] / 100 : 1,
+    vac: vacM ? +vacM[1] : 25,
+    start: startM?.[1] || '',
+    end: endM?.[1] || '',
   };
-  if (hoursM) { out.weeklyHours = parseFloat(hoursM[1]); out.capMode = 'derived'; out.meetings = []; }
+  if (hoursM) {
+    out.weeklyHours = parseFloat(hoursM[1]);
+    out.capMode = 'derived';
+    out.meetings = [];
+  }
   return out;
 }

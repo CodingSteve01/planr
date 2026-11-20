@@ -14,11 +14,23 @@ const selftest = process.argv.includes('--selftest');
 const targets = ['src', 'obsidian', 'scripts', 'tools', '.github'];
 const args = selftest
   ? ['--test', 'semgrep/']
-  : ['scan', '--config', advice ? 'p/default' : 'semgrep/planr.yml', '--metrics', 'off', '--quiet', ...(advice ? [] : ['--error']), ...targets];
+  : [
+      'scan',
+      '--config',
+      advice ? 'p/default' : 'semgrep/planr.yml',
+      '--metrics',
+      'off',
+      '--quiet',
+      ...(advice ? [] : ['--error']),
+      ...targets,
+    ];
 
 const probe = spawnSync('semgrep', ['--version'], { encoding: 'utf8' });
 if (probe.error || probe.status !== 0) {
-  if (process.env.CI) { console.error('security: semgrep is not installed'); process.exit(1); }
+  if (process.env.CI) {
+    console.error('security: semgrep is not installed');
+    process.exit(1);
+  }
   console.log('security: semgrep is not installed here, skipped (CI runs it). Install: https://semgrep.dev/docs/getting-started/');
   process.exit(0);
 }

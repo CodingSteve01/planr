@@ -51,7 +51,10 @@ export function isPlanFile(file) {
 /** The plan's name, without the machinery: "2026-09-10 team.planr.md" → "2026-09-10 team". */
 function planTitle(path) {
   const name = path.split('/').pop();
-  return name.replace(/\.planr\.md$/, '').replace(/\.planr$/, '').replace(/\.planr\.json$/, '');
+  return name
+    .replace(/\.planr\.md$/, '')
+    .replace(/\.planr$/, '')
+    .replace(/\.planr\.json$/, '');
 }
 
 // The turbodocx browser bundle reads `global` and `process` at top level —
@@ -78,9 +81,15 @@ export class PlanrView extends FileView {
     this.scope = claimPlanrKeys(new Scope(this.app?.scope));
   }
 
-  getViewType() { return VIEW_TYPE_PLANR; }
-  getIcon() { return 'planr'; }
-  getDisplayText() { return this.file ? planTitle(this.file.path) : 'Planr'; }
+  getViewType() {
+    return VIEW_TYPE_PLANR;
+  }
+  getIcon() {
+    return 'planr';
+  }
+  getDisplayText() {
+    return this.file ? planTitle(this.file.path) : 'Planr';
+  }
 
   canAcceptExtension(extension) {
     // Only the extension Planr owns outright. This used to answer yes for
@@ -181,19 +190,21 @@ export class PlanrView extends FileView {
   onPaneMenu(menu, source) {
     super.onPaneMenu(menu, source);
     if (!isPlanNotePath(this.file?.path)) return;
-    menu.addItem(item => item
-      .setTitle('Open as Markdown')
-      .setIcon('file-text')
-      .onClick(() => {
-        // Remembered per leaf, or the redirect below would turn it straight
-        // back into a Planr view.
-        this.plugin.fileModes[this.leaf.id] = 'markdown';
-        this.leaf.setViewState({
-          type: 'markdown',
-          state: { file: this.file.path, mode: 'source' },
-          active: true,
-        });
-      }));
+    menu.addItem(item =>
+      item
+        .setTitle('Open as Markdown')
+        .setIcon('file-text')
+        .onClick(() => {
+          // Remembered per leaf, or the redirect below would turn it straight
+          // back into a Planr view.
+          this.plugin.fileModes[this.leaf.id] = 'markdown';
+          this.leaf.setViewState({
+            type: 'markdown',
+            state: { file: this.file.path, mode: 'source' },
+            active: true,
+          });
+        }),
+    );
   }
 }
 
@@ -218,7 +229,9 @@ export default class PlanrPlugin extends Plugin {
         return () => observer.disconnect();
       },
     };
-    this.register(() => { delete window.__planrHost; });
+    this.register(() => {
+      delete window.__planrHost;
+    });
 
     this.registerView(VIEW_TYPE_PLANR, leaf => new PlanrView(leaf, this));
     // Nobody else claims `.planr`, and without this Obsidian will not even
@@ -232,13 +245,17 @@ export default class PlanrPlugin extends Plugin {
     this.addCommand({ id: 'open', name: 'Open plan file…', callback: () => this.openPlanPrompt() });
 
     // A `.json` plan, or a `.planr.md` with the redirect switched off.
-    this.registerEvent(this.app.workspace.on('file-menu', (menu, file) => {
-      if (!file?.name || !/\.(json|md|planr)$/i.test(file.name)) return;
-      menu.addItem(item => item
-        .setTitle('Open in Planr')
-        .setIcon('planr')
-        .onClick(() => this.openPlan(file.path, { newLeaf: 'tab' })));
-    }));
+    this.registerEvent(
+      this.app.workspace.on('file-menu', (menu, file) => {
+        if (!file?.name || !/\.(json|md|planr)$/i.test(file.name)) return;
+        menu.addItem(item =>
+          item
+            .setTitle('Open in Planr')
+            .setIcon('planr')
+            .onClick(() => this.openPlan(file.path, { newLeaf: 'tab' })),
+        );
+      }),
+    );
   }
 
   /**
@@ -257,10 +274,7 @@ export default class PlanrPlugin extends Plugin {
     const original = proto.setViewState;
     const patched = function (state, ...rest) {
       const path = state?.state?.file;
-      if (plugin.settings.openPlanNotes
-        && state?.type === 'markdown'
-        && isPlanNotePath(path)
-        && plugin.fileModes[this.id] !== 'markdown') {
+      if (plugin.settings.openPlanNotes && state?.type === 'markdown' && isPlanNotePath(path) && plugin.fileModes[this.id] !== 'markdown') {
         plugin.fileModes[this.id] = VIEW_TYPE_PLANR;
         return original.apply(this, [{ ...state, type: VIEW_TYPE_PLANR }, ...rest]);
       }
@@ -294,7 +308,10 @@ export default class PlanrPlugin extends Plugin {
   /** Open `path` as a plan, in its own tab unless told otherwise. */
   async openPlan(path, { newLeaf = false } = {}) {
     const file = this.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof TFile)) { new Notice(`Planr: not in this vault — ${path}`); return; }
+    if (!(file instanceof TFile)) {
+      new Notice(`Planr: not in this vault — ${path}`);
+      return;
+    }
     const leaf = this.app.workspace.getLeaf(newLeaf);
     this.fileModes[leaf.id] = VIEW_TYPE_PLANR;
     await leaf.setViewState({ type: VIEW_TYPE_PLANR, state: { file: file.path }, active: true });
@@ -315,15 +332,15 @@ class PlanrSettingTab extends PluginSettingTab {
     new Setting(this.containerEl)
       .setName('Open .planr.md files in Planr')
       .setDesc(
-        'A plan saved as Markdown is still a note, so Obsidian would open it in the editor. '
-        + 'With this on, files ending in .planr.md open in the Planr view instead. '
-        + 'The tab menu always offers "Open as Markdown".',
+        'A plan saved as Markdown is still a note, so Obsidian would open it in the editor. ' +
+          'With this on, files ending in .planr.md open in the Planr view instead. ' +
+          'The tab menu always offers "Open as Markdown".',
       )
-      .addToggle(toggle => toggle
-        .setValue(this.plugin.settings.openPlanNotes)
-        .onChange(async value => {
+      .addToggle(toggle =>
+        toggle.setValue(this.plugin.settings.openPlanNotes).onChange(async value => {
           this.plugin.settings.openPlanNotes = value;
           await this.plugin.saveSettings();
-        }));
+        }),
+      );
   }
 }

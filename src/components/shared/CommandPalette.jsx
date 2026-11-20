@@ -28,7 +28,7 @@ export function CommandPalette({ commands }) {
   const inputRef = useRef(null);
 
   useEffect(() => {
-    const onKeyDown = (e) => {
+    const onKeyDown = e => {
       if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
         setOpen(o => !o);
@@ -61,21 +61,18 @@ export function CommandPalette({ commands }) {
     return () => clearTimeout(id);
   }, [open]);
 
-  const resolved = useMemo(
-    () => (commands || []).map(c => ({ ...c, label: c.label ?? t(c.labelKey) })),
-    [commands, t],
-  );
+  const resolved = useMemo(() => (commands || []).map(c => ({ ...c, label: c.label ?? t(c.labelKey) })), [commands, t]);
   const filtered = useMemo(() => filterCommands(resolved, query), [resolved, query]);
   const safeIdx = filtered.length ? Math.min(idx, filtered.length - 1) : 0;
 
   if (!open) return null;
 
-  const run = (cmd) => {
+  const run = cmd => {
     setOpen(false);
     cmd?.run?.();
   };
 
-  const onInputKeyDown = (e) => {
+  const onInputKeyDown = e => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setIdx(i => (filtered.length ? Math.min(i + 1, filtered.length - 1) : 0));
@@ -104,26 +101,43 @@ export function CommandPalette({ commands }) {
           data-testid="palette-input"
           type="text"
           value={query}
-          onChange={e => { setQuery(e.target.value); setIdx(0); }}
+          onChange={e => {
+            setQuery(e.target.value);
+            setIdx(0);
+          }}
           onKeyDown={onInputKeyDown}
           placeholder={t('palette.placeholder')}
           aria-label={t('palette.placeholder')}
           style={{
-            width: '100%', boxSizing: 'border-box', border: 'none', borderBottom: '1px solid var(--b)',
-            background: 'transparent', color: 'var(--tx)', fontSize: 13, padding: '12px 14px', outline: 'none',
+            width: '100%',
+            boxSizing: 'border-box',
+            border: 'none',
+            borderBottom: '1px solid var(--b)',
+            background: 'transparent',
+            color: 'var(--tx)',
+            fontSize: 13,
+            padding: '12px 14px',
+            outline: 'none',
           }}
         />
         <div style={{ maxHeight: 360, overflowY: 'auto', padding: '6px 0' }}>
-          {filtered.length === 0 && (
-            <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--tx3)' }}>{t('palette.noResults')}</div>
-          )}
+          {filtered.length === 0 && <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--tx3)' }}>{t('palette.noResults')}</div>}
           {filtered.map((cmd, i) => {
             const showGroup = cmd.group !== lastGroup;
             lastGroup = cmd.group;
             return (
               <div key={cmd.id}>
                 {showGroup && cmd.groupLabel && (
-                  <div style={{ padding: '8px 14px 3px', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tx3)' }}>
+                  <div
+                    style={{
+                      padding: '8px 14px 3px',
+                      fontSize: 10,
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                      letterSpacing: '.08em',
+                      color: 'var(--tx3)',
+                    }}
+                  >
                     {cmd.groupLabel}
                   </div>
                 )}
@@ -133,8 +147,12 @@ export function CommandPalette({ commands }) {
                   onMouseEnter={() => setIdx(i)}
                   onClick={() => run(cmd)}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '7px 14px', fontSize: 12.5, cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '7px 14px',
+                    fontSize: 12.5,
+                    cursor: 'pointer',
                     background: i === safeIdx ? 'rgba(59,130,246,.16)' : 'transparent',
                     color: 'var(--tx)',
                   }}
@@ -143,14 +161,27 @@ export function CommandPalette({ commands }) {
                       bare text are a list you read rather than one you scan.
                       Both are optional per command; the column is reserved
                       either way so the labels stay aligned. */}
-                  <span style={{ width: 16, display: 'flex', justifyContent: 'center', flexShrink: 0, opacity: .9 }}>
+                  <span style={{ width: 16, display: 'flex', justifyContent: 'center', flexShrink: 0, opacity: 0.9 }}>
                     <Icon name={cmd.icon} size={14} />
                   </span>
-                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cmd.label}</span>
-                  {cmd.key && keyHint(cmd.key) && <kbd style={{
-                    fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)',
-                    border: '1px solid var(--b2)', borderRadius: 3, padding: '0 4px', flexShrink: 0,
-                  }}>{keyHint(cmd.key)}</kbd>}
+                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {cmd.label}
+                  </span>
+                  {cmd.key && keyHint(cmd.key) && (
+                    <kbd
+                      style={{
+                        fontFamily: 'var(--mono)',
+                        fontSize: 11,
+                        color: 'var(--tx3)',
+                        border: '1px solid var(--b2)',
+                        borderRadius: 3,
+                        padding: '0 4px',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {keyHint(cmd.key)}
+                    </kbd>
+                  )}
                 </div>
               </div>
             );

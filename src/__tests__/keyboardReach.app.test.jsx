@@ -17,40 +17,56 @@ import App from '../App.jsx';
 import { I18nProvider, ThemeProvider } from '../i18n.jsx';
 
 function seedProject() {
-  localStorage.setItem('planr_v2', JSON.stringify({
-    tree: [
-      { id: 'P1', name: 'Billing', status: 'wip', team: 'T1' },
-      { id: 'P1.1', name: 'Prices', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'], deps: [] },
-      { id: 'P1.2', name: 'Masks', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'], deps: [] },
-      { id: 'P1.3', name: 'Invoices', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'], deps: [] },
-    ],
-    members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
-    teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-    vacations: [], meetingPlans: [],
-    meta: { name: 'Keyboard reach', planStart: '2026-01-05', planEnd: '2027-01-01' },
-  }));
+  localStorage.setItem(
+    'planr_v2',
+    JSON.stringify({
+      tree: [
+        { id: 'P1', name: 'Billing', status: 'wip', team: 'T1' },
+        { id: 'P1.1', name: 'Prices', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'], deps: [] },
+        { id: 'P1.2', name: 'Masks', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'], deps: [] },
+        { id: 'P1.3', name: 'Invoices', status: 'open', team: 'T1', best: 5, factor: 1, assign: ['M1'], deps: [] },
+      ],
+      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [],
+      meetingPlans: [],
+      meta: { name: 'Keyboard reach', planStart: '2026-01-05', planEnd: '2027-01-01' },
+    }),
+  );
 }
 
-const renderApp = () => render(
-  <I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>,
-);
+const renderApp = () =>
+  render(
+    <I18nProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </I18nProvider>,
+  );
 
 const grid = () => document.querySelector('[data-testid="tree-editor-surface"]');
-const tabNamed = name => [...document.querySelectorAll('.tab')]
-  .find(el => (el.firstChild?.textContent || '').trim() === name);
+const tabNamed = name => [...document.querySelectorAll('.tab')].find(el => (el.firstChild?.textContent || '').trim() === name);
 
 async function goToTab(name) {
-  await waitFor(() => { if (!tabNamed(name)) throw new Error(`no tab: ${name}`); });
-  await act(async () => { fireEvent.mouseDown(tabNamed(name), { button: 0 }); });
+  await waitFor(() => {
+    if (!tabNamed(name)) throw new Error(`no tab: ${name}`);
+  });
+  await act(async () => {
+    fireEvent.mouseDown(tabNamed(name), { button: 0 });
+  });
 }
 
 async function press(target, key, opts = {}) {
-  await act(async () => { fireEvent.keyDown(target, { key, bubbles: true, ...opts }); });
+  await act(async () => {
+    fireEvent.keyDown(target, { key, bubbles: true, ...opts });
+  });
 }
 
 async function selectRow(id) {
   const cell = await screen.findByText(id);
-  await act(async () => { fireEvent.click(cell.closest('tr')); });
+  await act(async () => {
+    fireEvent.click(cell.closest('tr'));
+  });
 }
 
 const setup = () => {
@@ -63,8 +79,14 @@ const setup = () => {
 };
 
 describe('opening the full editor from the keyboard', () => {
-  beforeEach(() => { setup(); localStorage.setItem('planr_tab', 'tree'); });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  beforeEach(() => {
+    setup();
+    localStorage.setItem('planr_tab', 'tree');
+  });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   it('E on the cursor row opens the dialog for that item', async () => {
     renderApp();
@@ -83,7 +105,9 @@ describe('opening the full editor from the keyboard', () => {
     await selectRow('P1.2');
     await press(grid(), 'Enter');
     const input = await screen.findByTestId('tree-name-input-P1.2');
-    await act(async () => { fireEvent.change(input, { target: { value: 'Preise' } }); });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Preise' } });
+    });
     await press(input, 'e');
 
     expect(screen.queryByTestId('node-modal')).toBeNull();
@@ -92,15 +116,23 @@ describe('opening the full editor from the keyboard', () => {
 });
 
 describe('the schedule can be worked without a mouse', () => {
-  beforeEach(() => { setup(); localStorage.setItem('planr_tab', 'gantt'); });
-  afterEach(() => { cleanup(); localStorage.clear(); });
+  beforeEach(() => {
+    setup();
+    localStorage.setItem('planr_tab', 'gantt');
+  });
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
 
   const cursorId = () => document.querySelector('[data-gantt-cursor="1"]')?.getAttribute('data-task-id') || null;
 
   it('↓ and ↑ move a cursor through the bars', async () => {
     renderApp();
     await goToTab('Schedule');
-    await waitFor(() => { if (!document.querySelector('[data-task-id]')) throw new Error('no bars'); });
+    await waitFor(() => {
+      if (!document.querySelector('[data-task-id]')) throw new Error('no bars');
+    });
 
     await press(window, 'ArrowDown');
     const first = cursorId();
@@ -116,7 +148,9 @@ describe('the schedule can be worked without a mouse', () => {
   it('E opens the item under the cursor', async () => {
     renderApp();
     await goToTab('Schedule');
-    await waitFor(() => { if (!document.querySelector('[data-task-id]')) throw new Error('no bars'); });
+    await waitFor(() => {
+      if (!document.querySelector('[data-task-id]')) throw new Error('no bars');
+    });
 
     await press(window, 'ArrowDown');
     const id = cursorId();
@@ -132,7 +166,9 @@ describe('the schedule can be worked without a mouse', () => {
     // the complaint was that it could not be arranged.
     renderApp();
     await goToTab('Schedule');
-    await waitFor(() => { if (!document.querySelector('[data-task-id]')) throw new Error('no bars'); });
+    await waitFor(() => {
+      if (!document.querySelector('[data-task-id]')) throw new Error('no bars');
+    });
 
     await press(window, 'ArrowDown');
     const moved = cursorId();

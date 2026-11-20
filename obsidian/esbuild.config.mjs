@@ -25,9 +25,7 @@ const require_ = createRequire(import.meta.url);
 
 const argv = process.argv.slice(2);
 const outArg = argv.indexOf('--out');
-const outDir = outArg === -1
-  ? path.join(repo, 'dist-obsidian')
-  : path.resolve(argv[outArg + 1]);
+const outDir = outArg === -1 ? path.join(repo, 'dist-obsidian') : path.resolve(argv[outArg + 1]);
 
 /** Vite's `?url` asset imports, as a blob URL baked into the bundle. */
 const viteUrlImports = {
@@ -35,9 +33,7 @@ const viteUrlImports = {
   setup(build) {
     build.onResolve({ filter: /\?url$/ }, args => {
       const spec = args.path.slice(0, -'?url'.length);
-      const resolved = spec.startsWith('.')
-        ? path.resolve(args.resolveDir, spec)
-        : require_.resolve(spec, { paths: [repo] });
+      const resolved = spec.startsWith('.') ? path.resolve(args.resolveDir, spec) : require_.resolve(spec, { paths: [repo] });
       return { path: resolved, namespace: 'vite-url' };
     });
     build.onLoad({ filter: /.*/, namespace: 'vite-url' }, async args => {
@@ -97,10 +93,7 @@ const pluginCss = await readFile(path.join(here, 'src', 'obsidian.css'), 'utf8')
 await writeFile(path.join(outDir, 'styles.css'), `${scopeCss(appCss)}\n${pluginCss}`);
 await rm(cssPath);
 
-await writeFile(
-  path.join(outDir, 'manifest.json'),
-  await readFile(path.join(repo, 'manifest.json'), 'utf8'),
-);
+await writeFile(path.join(outDir, 'manifest.json'), await readFile(path.join(repo, 'manifest.json'), 'utf8'));
 
 const js = result.metafile.outputs[path.relative(process.cwd(), path.join(outDir, 'main.js'))];
 if (js) console.log(`main.js  ${(js.bytes / 1024 / 1024).toFixed(2)} MB`);

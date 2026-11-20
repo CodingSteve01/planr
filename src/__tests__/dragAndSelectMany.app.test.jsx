@@ -19,27 +19,50 @@ function seed(tab) {
   localStorage.setItem('planr_lang', 'en');
   localStorage.setItem('planr_tab', tab);
   localStorage.setItem('planr_tour_done', '1');
-  localStorage.setItem('planr_v2', JSON.stringify({
-    tree: [
-      { id: 'P1', name: 'Billing', status: 'open', team: 'T1' },
-      leaf('P1.1', 'Alpha'), leaf('P1.2', 'Bravo'),
-      { id: 'P2', name: 'Portal', status: 'open', team: 'T1' },
-      leaf('P2.1', 'Charlie'), leaf('P2.2', 'Delta'),
-    ],
-    members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
-    teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
-    vacations: [], meetingPlans: [],
-    meta: { name: 'Drag', planStart: '2026-01-05', planEnd: '2027-06-30' },
-  }));
+  localStorage.setItem(
+    'planr_v2',
+    JSON.stringify({
+      tree: [
+        { id: 'P1', name: 'Billing', status: 'open', team: 'T1' },
+        leaf('P1.1', 'Alpha'),
+        leaf('P1.2', 'Bravo'),
+        { id: 'P2', name: 'Portal', status: 'open', team: 'T1' },
+        leaf('P2.1', 'Charlie'),
+        leaf('P2.2', 'Delta'),
+      ],
+      members: [{ id: 'M1', name: 'Anna', team: 'T1', cap: 1, vac: 0, start: '2026-01-01' }],
+      teams: [{ id: 'T1', name: 'Team A', color: '#3b82f6' }],
+      vacations: [],
+      meetingPlans: [],
+      meta: { name: 'Drag', planStart: '2026-01-05', planEnd: '2027-06-30' },
+    }),
+  );
 }
-const renderApp = () => render(<I18nProvider><ThemeProvider><App /></ThemeProvider></I18nProvider>);
+const renderApp = () =>
+  render(
+    <I18nProvider>
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    </I18nProvider>,
+  );
 const stored = () => JSON.parse(localStorage.getItem('planr_v2')).tree;
 const dt = () => {
   const store = {};
-  return { setData: (k, v) => { store[k] = String(v); }, getData: k => store[k] || '', effectAllowed: '', dropEffect: '' };
+  return {
+    setData: (k, v) => {
+      store[k] = String(v);
+    },
+    getData: k => store[k] || '',
+    effectAllowed: '',
+    dropEffect: '',
+  };
 };
 // A row 20px tall at the top of the page, so clientY picks the zone.
-const sized = el => { el.getBoundingClientRect = () => ({ top: 0, height: 20, bottom: 20, left: 0, right: 100, width: 100 }); return el; };
+const sized = el => {
+  el.getBoundingClientRect = () => ({ top: 0, height: 20, bottom: 20, left: 0, right: 100, width: 100 });
+  return el;
+};
 
 // happy-dom drops clientY from a DragEvent's init, so it is set on the event.
 const dragAt = (kind, el, dataTransfer, clientY) => {
@@ -48,12 +71,15 @@ const dragAt = (kind, el, dataTransfer, clientY) => {
   fireEvent(el, ev);
 };
 
-afterEach(() => { cleanup(); localStorage.clear(); });
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+});
 
 describe('the tree', () => {
   beforeEach(() => seed('tree'));
-  const rowNamed = name => [...document.querySelectorAll('[data-testid="tree-row-name"]')]
-    .find(n => n.textContent.trim() === name)?.closest('tr');
+  const rowNamed = name =>
+    [...document.querySelectorAll('[data-testid="tree-row-name"]')].find(n => n.textContent.trim() === name)?.closest('tr');
   const names = () => [...document.querySelectorAll('[data-testid="tree-row-name"]')].map(n => n.textContent.trim());
   const open = async () => {
     renderApp();
@@ -65,41 +91,73 @@ describe('the tree', () => {
     await open();
     expect(rowNamed('Alpha').getAttribute('draggable')).toBe('true');
     const data = dt();
-    await act(async () => { fireEvent.dragStart(rowNamed('Alpha'), { dataTransfer: data }); });
+    await act(async () => {
+      fireEvent.dragStart(rowNamed('Alpha'), { dataTransfer: data });
+    });
     expect(rowNamed('Alpha').getAttribute('data-dragging')).toBe('true');
-    await act(async () => { dragAt('dragOver', sized(rowNamed('Delta')), data, 2); });
+    await act(async () => {
+      dragAt('dragOver', sized(rowNamed('Delta')), data, 2);
+    });
     expect(rowNamed('Delta').getAttribute('data-drop')).toBe('before');
-    await act(async () => { dragAt('drop', rowNamed('Delta'), data, 2); });
+    await act(async () => {
+      dragAt('drop', rowNamed('Delta'), data, 2);
+    });
     await waitFor(() => expect(names()).toEqual(['Billing', 'Bravo', 'Portal', 'Charlie', 'Alpha', 'Delta']));
-    await waitFor(() => expect(stored().find(r => r.name === 'Alpha').id.startsWith('P2.')).toBe(true));
+    await waitFor(() =>
+      expect(
+        stored()
+          .find(r => r.name === 'Alpha')
+          .id.startsWith('P2.'),
+      ).toBe(true),
+    );
   });
 
   it('drops into a package on the middle of its row', async () => {
     await open();
     const data = dt();
-    await act(async () => { fireEvent.dragStart(rowNamed('Charlie'), { dataTransfer: data }); });
-    await act(async () => { dragAt('dragOver', sized(rowNamed('Billing')), data, 10); });
+    await act(async () => {
+      fireEvent.dragStart(rowNamed('Charlie'), { dataTransfer: data });
+    });
+    await act(async () => {
+      dragAt('dragOver', sized(rowNamed('Billing')), data, 10);
+    });
     expect(rowNamed('Billing').getAttribute('data-drop')).toBe('inside');
-    await act(async () => { dragAt('drop', rowNamed('Billing'), data, 10); });
+    await act(async () => {
+      dragAt('drop', rowNamed('Billing'), data, 10);
+    });
     await waitFor(() => expect(names()).toEqual(['Billing', 'Alpha', 'Bravo', 'Charlie', 'Portal', 'Delta']));
   });
 
   it('marks no place a drop cannot go', async () => {
     await open();
     const data = dt();
-    await act(async () => { fireEvent.dragStart(rowNamed('Billing'), { dataTransfer: data }); });
-    await act(async () => { dragAt('dragOver', sized(rowNamed('Alpha')), data, 2); });
-    expect(rowNamed('Alpha').getAttribute('data-drop')).toBeNull();   // into its own subtree
+    await act(async () => {
+      fireEvent.dragStart(rowNamed('Billing'), { dataTransfer: data });
+    });
+    await act(async () => {
+      dragAt('dragOver', sized(rowNamed('Alpha')), data, 2);
+    });
+    expect(rowNamed('Alpha').getAttribute('data-drop')).toBeNull(); // into its own subtree
   });
 
   it('⌘A selects every row on screen, and dragging one drags them all', async () => {
     await open();
-    await act(async () => { fireEvent.click(rowNamed('Alpha')); });
-    await act(async () => { fireEvent.keyDown(screen.getByTestId('tree-editor-surface'), { key: 'a', metaKey: true }); });
+    await act(async () => {
+      fireEvent.click(rowNamed('Alpha'));
+    });
+    await act(async () => {
+      fireEvent.keyDown(screen.getByTestId('tree-editor-surface'), { key: 'a', metaKey: true });
+    });
     expect(document.querySelectorAll('tr.sel').length).toBe(6);
-    await act(async () => { fireEvent.click(rowNamed('Alpha')); });   // back to one
-    await act(async () => { fireEvent.click(rowNamed('Bravo'), { metaKey: true }); });
-    await act(async () => { fireEvent.dragStart(rowNamed('Alpha'), { dataTransfer: dt() }); });
+    await act(async () => {
+      fireEvent.click(rowNamed('Alpha'));
+    }); // back to one
+    await act(async () => {
+      fireEvent.click(rowNamed('Bravo'), { metaKey: true });
+    });
+    await act(async () => {
+      fireEvent.dragStart(rowNamed('Alpha'), { dataTransfer: dt() });
+    });
     expect(rowNamed('Alpha').getAttribute('data-dragging')).toBe('true');
     expect(rowNamed('Bravo').getAttribute('data-dragging')).toBe('true');
   });
@@ -114,35 +172,57 @@ describe('the work order', () => {
     await waitFor(() => expect(rowIds().length).toBe(4));
   };
   const pickTwo = async () => {
-    await act(async () => { fireEvent.click(rowOf('P1.1')); });
-    await act(async () => { fireEvent.click(rowOf('P1.2'), { metaKey: true }); });
+    await act(async () => {
+      fireEvent.click(rowOf('P1.1'));
+    });
+    await act(async () => {
+      fireEvent.click(rowOf('P1.2'), { metaKey: true });
+    });
   };
 
   it('a field key acts on every picked row', async () => {
     await open();
     await pickTwo();
-    await act(async () => { fireEvent.keyDown(rowOf('P1.1'), { key: '1' }); });
+    await act(async () => {
+      fireEvent.keyDown(rowOf('P1.1'), { key: '1' });
+    });
     await waitFor(() => expect(stored().find(r => r.id === 'P1.2').prio).toBe(1));
     expect(stored().find(r => r.id === 'P1.1').prio).toBe(1);
   });
 
   it('⌘A picks the whole queue, and the bar acts on it', async () => {
     await open();
-    await act(async () => { fireEvent.keyDown(rowOf('P1.1'), { key: 'a', metaKey: true }); });
+    await act(async () => {
+      fireEvent.keyDown(rowOf('P1.1'), { key: 'a', metaKey: true });
+    });
     expect(screen.getByTestId('wo-picked').textContent).toMatch(/^4/);
-    await act(async () => { fireEvent.click(screen.getByTestId('wo-status-wip')); });
-    await waitFor(() => expect(stored().filter(r => r.id.includes('.')).every(r => r.status === 'wip')).toBe(true));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('wo-status-wip'));
+    });
+    await waitFor(() =>
+      expect(
+        stored()
+          .filter(r => r.id.includes('.'))
+          .every(r => r.status === 'wip'),
+      ).toBe(true),
+    );
   });
 
   it('drops after the last row, and a picked pair travels together', async () => {
     await open();
     await pickTwo();
     const data = dt();
-    await act(async () => { fireEvent.dragStart(rowOf('P1.1'), { dataTransfer: data }); });
+    await act(async () => {
+      fireEvent.dragStart(rowOf('P1.1'), { dataTransfer: data });
+    });
     expect(rowOf('P1.2').getAttribute('data-dragging')).toBe('true');
-    await act(async () => { dragAt('dragOver', sized(rowOf('P2.2')), data, 18); });
+    await act(async () => {
+      dragAt('dragOver', sized(rowOf('P2.2')), data, 18);
+    });
     expect(rowOf('P2.2').getAttribute('data-drop')).toBe('after');
-    await act(async () => { dragAt('drop', rowOf('P2.2'), data, 18); });
+    await act(async () => {
+      dragAt('drop', rowOf('P2.2'), data, 18);
+    });
     await waitFor(() => expect(rowIds()).toEqual(['P2.1', 'P2.2', 'P1.1', 'P1.2']));
   });
 });

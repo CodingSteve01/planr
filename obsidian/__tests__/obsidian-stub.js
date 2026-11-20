@@ -5,7 +5,10 @@ export class Plugin {}
 export class PluginSettingTab {}
 export class ItemView {}
 export class FileView {
-  constructor(leaf) { this.leaf = leaf; this.file = null; }
+  constructor(leaf) {
+    this.leaf = leaf;
+    this.file = null;
+  }
 }
 export class MarkdownView {}
 export class WorkspaceLeaf {
@@ -13,8 +16,15 @@ export class WorkspaceLeaf {
 }
 export class Modal {}
 export class Scope {
-  constructor(parent) { this.parent = parent; this.keys = []; }
-  register(modifiers, key, func) { const k = { modifiers, key, func }; this.keys.push(k); return k; }
+  constructor(parent) {
+    this.parent = parent;
+    this.keys = [];
+  }
+  register(modifiers, key, func) {
+    const k = { modifiers, key, func };
+    this.keys.push(k);
+    return k;
+  }
 }
 export class Setting {}
 export class FuzzySuggestModal {}
@@ -28,9 +38,14 @@ export class TFile {
   }
 }
 export class TFolder {
-  constructor(path = '') { this.path = path; }
+  constructor(path = '') {
+    this.path = path;
+  }
 }
 export function addIcon() {}
 export function normalizePath(path) {
-  return String(path).replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\/|\/$/g, '');
+  return String(path)
+    .replace(/\\/g, '/')
+    .replace(/\/+/g, '/')
+    .replace(/^\/|\/$/g, '');
 }

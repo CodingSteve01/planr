@@ -30,7 +30,6 @@ function parseHexColor(color) {
   return null;
 }
 
-
 export function buildReportModel(rawCtx) {
   // Same guard as the PDFs: a report covers the plan, not the current view.
   // generateReport and the DOCX export both route through here, so guarding
@@ -38,7 +37,7 @@ export function buildReportModel(rawCtx) {
   const { tree, members, teams, scheduled, weeks, cpSet, goalPaths, stats, confidence, meta, lang, data, projectWaitsOf } =
     projectScopedCtx(rawCtx, 'buildReportModel');
   const de = lang === 'de';
-  const t = (en, deTxt) => de ? deTxt : en;
+  const t = (en, deTxt) => (de ? deTxt : en);
   const tn = id => teams.find(x => x.id === id)?.name || id || '';
   const mn = id => members.find(x => x.id === id)?.name || id || '';
   const lvs = leafNodes(tree);
@@ -68,14 +67,14 @@ export function buildReportModel(rawCtx) {
   const donePt = deliveredEffort(lvs);
 
   // Project end = latest scheduled end across ALL items (the real scheduler output)
-  const projectEnd = scheduled.length ? scheduled.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
+  const projectEnd = scheduled.length ? scheduled.reduce((m, s) => (s.endD > m ? s.endD : m), new Date(0)) : null;
 
   // Per-root: end date from scheduled items (not stats aggregation)
   const roots = tree.filter(r => !r.id.includes('.'));
   const rootData = roots.map(root => {
     const childScheduled = scheduled.filter(s => s.id.startsWith(root.id + '.'));
-    const endD = childScheduled.length ? childScheduled.reduce((m, s) => s.endD > m ? s.endD : m, new Date(0)) : null;
-    const startD = childScheduled.length ? childScheduled.reduce((m, s) => s.startD < m ? s.startD : m, new Date()) : null;
+    const endD = childScheduled.length ? childScheduled.reduce((m, s) => (s.endD > m ? s.endD : m), new Date(0)) : null;
+    const startD = childScheduled.length ? childScheduled.reduce((m, s) => (s.startD < m ? s.startD : m), new Date()) : null;
     const childLeaves = lvs.filter(l => l.id === root.id || l.id.startsWith(root.id + '.'));
     const doneC = childLeaves.filter(l => l.status === 'done').length;
     // Effort-weighted, exactly like the Subway-Map train and the Overview goal
@@ -90,15 +89,24 @@ export function buildReportModel(rawCtx) {
     // own. Remaining effort, matching the global buckets.
     const rootCc = { committed: 0, estimated: 0, exploratory: 0 };
     const rootCcPt = { committed: 0, estimated: 0, exploratory: 0 };
-    childLeaves.filter(r => r.status !== 'done').forEach(r => {
-      const c = confidence[r.id] || 'committed';
-      rootCc[c]++;
-      rootCcPt[c] += (scheduleEffort(r) || 0) * (1 - leafProgress(r) / 100);
-    });
+    childLeaves
+      .filter(r => r.status !== 'done')
+      .forEach(r => {
+        const c = confidence[r.id] || 'committed';
+        rootCc[c]++;
+        rootCcPt[c] += (scheduleEffort(r) || 0) * (1 - leafProgress(r) / 100);
+      });
     return {
-      ...root, startD, endD, leafCount: childLeaves.length, doneCount: doneC,
-      prog: aggregateProgressPct(childLeaves), pt, conf: confidence[root.id] || 'committed',
-      cc: rootCc, ccPt: rootCcPt,
+      ...root,
+      startD,
+      endD,
+      leafCount: childLeaves.length,
+      doneCount: doneC,
+      prog: aggregateProgressPct(childLeaves),
+      pt,
+      conf: confidence[root.id] || 'committed',
+      cc: rootCc,
+      ccPt: rootCcPt,
       openPt: rootCcPt.committed + rootCcPt.estimated + rootCcPt.exploratory,
     };
   });
@@ -106,25 +114,34 @@ export function buildReportModel(rawCtx) {
   // Confidence
   const cc = { committed: 0, estimated: 0, exploratory: 0 };
   const ccPt = { committed: 0, estimated: 0, exploratory: 0 };
-  lvs.filter(r => r.status !== 'done').forEach(r => {
-    // scheduleEffort, not re(): honors fixed-duration tasks exactly like the
-    // Planning-Confidence block in Overview / PlanReview.
-    //
-    // REMAINING effort, not full effort. Counting the whole of a half-finished
-    // item made the three buckets sum to more than "open PT" on the summary
-    // page — 1647 against 1537 — and two totals that don't reconcile on one
-    // board page cost more credibility than the extra precision is worth.
-    const c = confidence[r.id] || 'committed'; cc[c]++;
-    ccPt[c] += (scheduleEffort(r) || 0) * (1 - leafProgress(r) / 100);
-  });
+  lvs
+    .filter(r => r.status !== 'done')
+    .forEach(r => {
+      // scheduleEffort, not re(): honors fixed-duration tasks exactly like the
+      // Planning-Confidence block in Overview / PlanReview.
+      //
+      // REMAINING effort, not full effort. Counting the whole of a half-finished
+      // item made the three buckets sum to more than "open PT" on the summary
+      // page — 1647 against 1537 — and two totals that don't reconcile on one
+      // board page cost more credibility than the extra precision is worth.
+      const c = confidence[r.id] || 'committed';
+      cc[c]++;
+      ccPt[c] += (scheduleEffort(r) || 0) * (1 - leafProgress(r) / 100);
+    });
   const ccTotal = cc.committed + cc.estimated + cc.exploratory;
 
   // Team capacity.
   const teamCap = {};
-  teams.forEach(tm => { teamCap[tm.id] = { id: tm.id, name: tm.name, color: tm.color, members: [], committed: 0, unassigned: 0, count: 0 }; });
+  teams.forEach(tm => {
+    teamCap[tm.id] = { id: tm.id, name: tm.name, color: tm.color, members: [], committed: 0, unassigned: 0, count: 0 };
+  });
   // A member in several teams is listed under each of them; the per-team
   // numbers below only count the work that falls in that team.
-  members.forEach(m => memberTeams(m).forEach(tid => { if (teamCap[tid]) teamCap[tid].members.push(m); }));
+  members.forEach(m =>
+    memberTeams(m).forEach(tid => {
+      if (teamCap[tid]) teamCap[tid].members.push(m);
+    }),
+  );
   // Placed by the SCHEDULER, not just by an explicit `assign`. Most work in a
   // long plan has no name typed on it — the scheduler picks the person — so
   // the old test reported a team of three people as "20 PT assigned, 488 PT
@@ -132,14 +149,21 @@ export function buildReportModel(rawCtx) {
   // very next page. What is left over here is work the schedule genuinely
   // could not place.
   const scheduledPerson = new Set();
-  scheduled.forEach(sc => { if (sc.personId) scheduledPerson.add(sc.treeId || sc.id); });
-  lvs.filter(r => r.status !== 'done').forEach(r => {
-    if (!teamCap[r.team]) return;
-    const pt = scheduleEffort(r) || 0;
-    const staffed = (r.assign || []).length > 0 || scheduledPerson.has(r.id);
-    if (staffed) teamCap[r.team].committed += pt;
-    else if (r.best > 0) { teamCap[r.team].unassigned += pt; teamCap[r.team].count++; }
+  scheduled.forEach(sc => {
+    if (sc.personId) scheduledPerson.add(sc.treeId || sc.id);
   });
+  lvs
+    .filter(r => r.status !== 'done')
+    .forEach(r => {
+      if (!teamCap[r.team]) return;
+      const pt = scheduleEffort(r) || 0;
+      const staffed = (r.assign || []).length > 0 || scheduledPerson.has(r.id);
+      if (staffed) teamCap[r.team].committed += pt;
+      else if (r.best > 0) {
+        teamCap[r.team].unassigned += pt;
+        teamCap[r.team].count++;
+      }
+    });
 
   // Critical path
   const cpItems = scheduled.filter(s => cpSet?.has(s.id)).sort((a, b) => (a.startD || 0) - (b.startD || 0));
@@ -158,41 +182,56 @@ export function buildReportModel(rawCtx) {
   //    type was never measured against it and the summary reported no target
   //    on record while one was sitting in the plan.
   const deadlineStates = {};
-  roots.filter(r => r.type || r.date).forEach(root => {
-    deadlineStates[root.id] = deadlineStatus(tree, scheduled, root);
-  });
-  roots.filter(r => r.date).forEach(dl => {
-    const ds = deadlineStates[dl.id];
-    if (!ds?.isLate || !ds.end) return;
-    const daysLate = Math.round((ds.end - ds.dateD) / 86400000);
-    // The cause, measured (utils/projectWaits.js): which earlier project holds
-    // this one back, on whom, and what moving it gains. Without it the only
-    // advice left is the generic one, which was all this ever said.
-    const waits = typeof projectWaitsOf === 'function' ? projectWaitsOf(dl.id) : null;
-    const cause = waits?.chain?.[0];
-    const gain = cause ? waits.chain[waits.chain.length - 1].totalGainDays : 0;
-    const ids = cause ? waits.chain.flatMap(c => c.ids).join(' + ') : '';
-    const causeText = !cause ? ''
-      : cause.person
-        ? t(`; ${cause.person.name} does ${Math.round(cause.pt)} PT of ${cause.ids.join(' + ')} first`, `; ${cause.person.name} macht vorher ${Math.round(cause.pt)} PT ${cause.ids.join(' + ')}`)
-        : t(`; ${cause.ids.join(' + ')} comes first`, `; ${cause.ids.join(' + ')} kommt vorher`);
-    risks.push({
-      severity: 'critical', rank: daysLate,
-      title: t(`Deadline "${dl.name}"`, `Termin „${dl.name}"`),
-      text: t(`${daysLate} days late — projected end ${iso(ds.end)} against ${dl.date}`, `${daysLate} Tage verspätet — geplantes Ende ${dt(iso(ds.end))} gegen ${dt(dl.date)}`) + causeText,
-      ask: cause
-        ? t(`Move ${ids} behind ${dl.id}: ${gain} days earlier`, `${ids} hinter ${dl.id} schieben: ${gain} Tage früher`)
-        : t('Cut scope or move the date', 'Scope kürzen oder Termin verschieben'),
+  roots
+    .filter(r => r.type || r.date)
+    .forEach(root => {
+      deadlineStates[root.id] = deadlineStatus(tree, scheduled, root);
     });
-  });
+  roots
+    .filter(r => r.date)
+    .forEach(dl => {
+      const ds = deadlineStates[dl.id];
+      if (!ds?.isLate || !ds.end) return;
+      const daysLate = Math.round((ds.end - ds.dateD) / 86400000);
+      // The cause, measured (utils/projectWaits.js): which earlier project holds
+      // this one back, on whom, and what moving it gains. Without it the only
+      // advice left is the generic one, which was all this ever said.
+      const waits = typeof projectWaitsOf === 'function' ? projectWaitsOf(dl.id) : null;
+      const cause = waits?.chain?.[0];
+      const gain = cause ? waits.chain[waits.chain.length - 1].totalGainDays : 0;
+      const ids = cause ? waits.chain.flatMap(c => c.ids).join(' + ') : '';
+      const causeText = !cause
+        ? ''
+        : cause.person
+          ? t(
+              `; ${cause.person.name} does ${Math.round(cause.pt)} PT of ${cause.ids.join(' + ')} first`,
+              `; ${cause.person.name} macht vorher ${Math.round(cause.pt)} PT ${cause.ids.join(' + ')}`,
+            )
+          : t(`; ${cause.ids.join(' + ')} comes first`, `; ${cause.ids.join(' + ')} kommt vorher`);
+      risks.push({
+        severity: 'critical',
+        rank: daysLate,
+        title: t(`Deadline "${dl.name}"`, `Termin „${dl.name}"`),
+        text:
+          t(
+            `${daysLate} days late — projected end ${iso(ds.end)} against ${dl.date}`,
+            `${daysLate} Tage verspätet — geplantes Ende ${dt(iso(ds.end))} gegen ${dt(dl.date)}`,
+          ) + causeText,
+        ask: cause
+          ? t(`Move ${ids} behind ${dl.id}: ${gain} days earlier`, `${ids} hinter ${dl.id} schieben: ${gain} Tage früher`)
+          : t('Cut scope or move the date', 'Scope kürzen oder Termin verschieben'),
+      });
+    });
   // 2. Exploratory items on critical path
   const expOnCp = cpItems.filter(s => confidence[s.id] === 'exploratory');
-  if (expOnCp.length) risks.push({
-    severity: 'high', rank: expOnCp.length,
-    title: t('Unclear scope on the critical path', 'Ungeklärter Scope im kritischen Pfad'),
-    text: t(`${expOnCp.length} exploratory items determine the end date`, `${expOnCp.length} explorative Items bestimmen den Endtermin`),
-    ask: t('Commission concept work', 'Konzeption beauftragen'),
-  });
+  if (expOnCp.length)
+    risks.push({
+      severity: 'high',
+      rank: expOnCp.length,
+      title: t('Unclear scope on the critical path', 'Ungeklärter Scope im kritischen Pfad'),
+      text: t(`${expOnCp.length} exploratory items determine the end date`, `${expOnCp.length} explorative Items bestimmen den Endtermin`),
+      ask: t('Commission concept work', 'Konzeption beauftragen'),
+    });
   // 3. Work with nobody on it is NOT a risk here. Names are settled at the
   //    start of a sprint, not years out, so a long-horizon plan is expected to
   //    carry most of its effort unnamed — reporting that as a finding buried
@@ -201,17 +240,17 @@ export function buildReportModel(rawCtx) {
   // 4. Overloaded team members. Capacity scales with actual project span
   //    (not a fixed year).
   const planStart = meta.planStart ? new Date(meta.planStart) : null;
-  const projectSpanDays = planStart && projectEnd && projectEnd > planStart
-    ? Math.max(1, Math.round((projectEnd - planStart) / 86400000))
-    : 365;
+  const projectSpanDays =
+    planStart && projectEnd && projectEnd > planStart ? Math.max(1, Math.round((projectEnd - planStart) / 86400000)) : 365;
   const projectSpanYears = projectSpanDays / 365;
   members.forEach(m => {
     const primaryPt = totalEffort(lvs.filter(r => r.status !== 'done' && (r.assign || []).includes(m.id)));
     const capDays = deriveCap(m, { plans: data?.meetingPlans || [], teams }) * 220 * projectSpanYears;
-    const util = capDays > 0 ? Math.round(primaryPt / capDays * 100) : 0;
+    const util = capDays > 0 ? Math.round((primaryPt / capDays) * 100) : 0;
     if (util > 100) {
       risks.push({
-        severity: 'critical', rank: util,
+        severity: 'critical',
+        rank: util,
         title: t(`${m.name} overbooked`, `${m.name} überbucht`),
         text: t(
           `${util}% loaded — ${primaryPt.toFixed(0)} PT assigned against ${capDays.toFixed(0)} PT capacity; something will slip`,
@@ -221,7 +260,8 @@ export function buildReportModel(rawCtx) {
       });
     } else if (util > 80) {
       risks.push({
-        severity: 'medium', rank: util,
+        severity: 'medium',
+        rank: util,
         title: t(`${m.name} near capacity`, `${m.name} nahe an der Grenze`),
         text: t(
           `${util}% loaded — ${primaryPt.toFixed(0)} PT assigned against ${capDays.toFixed(0)} PT capacity`,
@@ -255,7 +295,8 @@ export function buildReportModel(rawCtx) {
     const who = g.name || t('The assignee', 'Die zugewiesene Person');
     const n = g.tasks.length;
     risks.push({
-      severity: 'critical', rank: g.pt,
+      severity: 'critical',
+      rank: g.pt,
       title: t(`${who} leaves — work stays behind`, `${who} geht — Arbeit bleibt liegen`),
       text: t(
         `${g.pt.toFixed(0)} PT across ${n} ${n === 1 ? 'task' : 'tasks'} unscheduled from ${dt(g.date)}, no replacement in team`,
@@ -270,9 +311,13 @@ export function buildReportModel(rawCtx) {
     const segs = s.segments || [];
     if (segs.length < 2) return;
     const chain = segs.map(seg => seg.personName).join(' → ');
-    const effortChain = segs.slice(1).map(seg => seg.effort.toFixed(1) + ' PT').join(' + ');
+    const effortChain = segs
+      .slice(1)
+      .map(seg => seg.effort.toFixed(1) + ' PT')
+      .join(' + ');
     risks.push({
-      severity: 'high', rank: segs.length,
+      severity: 'high',
+      rank: segs.length,
       title: t(`Handover: ${s.name}`, `Übergabe: ${s.name}`),
       text: t(
         `Split across ${segs.length} people due to offboarding (${chain}); handed over: ${effortChain}`,
@@ -393,44 +438,49 @@ tr:nth-child(even) td{background:${PRINT.ground}}
 .kpi,.bar,.bar>div,.conf-bar,.conf-bar>div,.tag,.risk,th,tr:nth-child(even) td,.rm-today,.rm-bar{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}
 .ft{margin-top:20px;padding-top:6px;border-top:1px solid ${PRINT.rule};font-size:8px;color:${PRINT.muted};text-align:center}`;
 
-  let h = `<!DOCTYPE html><html lang="${de?'de':'en'}"><head><meta charset="utf-8"><title>${meta.name||'Project'} — ${t('Report','Bericht')}</title><style>${css}</style></head><body>`;
+  let h = `<!DOCTYPE html><html lang="${de ? 'de' : 'en'}"><head><meta charset="utf-8"><title>${meta.name || 'Project'} — ${t('Report', 'Bericht')}</title><style>${css}</style></head><body>`;
 
   // ── 1. TITLE ──
   h += `<h1>${meta.name || 'Project'}</h1>`;
-  h += `<div class="sub">${t('Project Report','Projektbericht')} — ${dateStr}${meta.planStart ? ` · ${t('Plan','Plan')}: ${meta.planStart}` : ''}${projectEnd ? ` → ${iso(projectEnd)}` : ''}</div>`;
+  h += `<div class="sub">${t('Project Report', 'Projektbericht')} — ${dateStr}${meta.planStart ? ` · ${t('Plan', 'Plan')}: ${meta.planStart}` : ''}${projectEnd ? ` → ${iso(projectEnd)}` : ''}</div>`;
 
   // ── 2. KPIs ──
-  h += `<h2>${t('Key Figures','Kennzahlen')}</h2><div class="kpi-row">`;
-  h += `<div class="kpi"><div class="kpi-v" style="color:${PRINT.done}">${progLabel}%</div><div class="kpi-l">${t('Progress','Fortschritt')}</div></div>`;
-  h += `<div class="kpi"><div class="kpi-v">${lvs.length}</div><div class="kpi-l">${t('Items','Items')}</div></div>`;
-  h += `<div class="kpi"><div class="kpi-v" style="color:${PRINT.done}">${done}</div><div class="kpi-l">${t('Done','Erledigt')}</div></div>`;
-  h += `<div class="kpi"><div class="kpi-v" style="color:${PRINT.wip}">${wip+open}</div><div class="kpi-l">${t('Open','Offen')}</div></div>`;
-  h += `<div class="kpi"><div class="kpi-v" style="color:${PRINT.done}">${Math.round(donePt)}</div><div class="kpi-l">${t('PT done','PT erledigt')}</div></div>`;
-  h += `<div class="kpi"><div class="kpi-v">${totalPt.toFixed(0)}</div><div class="kpi-l">${t('Total PT','Gesamt PT')}</div></div>`;
-  h += `<div class="kpi"><div class="kpi-v">${members.length}</div><div class="kpi-l">${t('People','Personen')}</div></div>`;
-  if (projectEnd) h += `<div class="kpi"><div class="kpi-v mono">${iso(projectEnd)}</div><div class="kpi-l">${t('Projected End','Voraussichtl. Ende')}</div></div>`;
-  if (cpItems.length) h += `<div class="kpi"><div class="kpi-v" style="color:${PRINT.risk}">${cpItems.length}</div><div class="kpi-l">${t('Critical Path','Krit. Pfad')}</div></div>`;
+  h += `<h2>${t('Key Figures', 'Kennzahlen')}</h2><div class="kpi-row">`;
+  h += `<div class="kpi"><div class="kpi-v" style="color:${PRINT.done}">${progLabel}%</div><div class="kpi-l">${t('Progress', 'Fortschritt')}</div></div>`;
+  h += `<div class="kpi"><div class="kpi-v">${lvs.length}</div><div class="kpi-l">${t('Items', 'Items')}</div></div>`;
+  h += `<div class="kpi"><div class="kpi-v" style="color:${PRINT.done}">${done}</div><div class="kpi-l">${t('Done', 'Erledigt')}</div></div>`;
+  h += `<div class="kpi"><div class="kpi-v" style="color:${PRINT.wip}">${wip + open}</div><div class="kpi-l">${t('Open', 'Offen')}</div></div>`;
+  h += `<div class="kpi"><div class="kpi-v" style="color:${PRINT.done}">${Math.round(donePt)}</div><div class="kpi-l">${t('PT done', 'PT erledigt')}</div></div>`;
+  h += `<div class="kpi"><div class="kpi-v">${totalPt.toFixed(0)}</div><div class="kpi-l">${t('Total PT', 'Gesamt PT')}</div></div>`;
+  h += `<div class="kpi"><div class="kpi-v">${members.length}</div><div class="kpi-l">${t('People', 'Personen')}</div></div>`;
+  if (projectEnd)
+    h += `<div class="kpi"><div class="kpi-v mono">${iso(projectEnd)}</div><div class="kpi-l">${t('Projected End', 'Voraussichtl. Ende')}</div></div>`;
+  if (cpItems.length)
+    h += `<div class="kpi"><div class="kpi-v" style="color:${PRINT.risk}">${cpItems.length}</div><div class="kpi-l">${t('Critical Path', 'Krit. Pfad')}</div></div>`;
   h += `</div><div class="bar"><div style="width:${prog}%;background:${PRINT.done}"></div></div>`;
 
   // ── 3. RISKS ──
   if (risks.length) {
-    h += `<h2>${t('Risks & Alerts','Risiken & Warnungen')}</h2>`;
-    risks.forEach(r => h += `<div class="risk risk-${r.severity === 'critical' ? 'crit' : r.severity === 'high' ? 'high' : 'med'}">${r.title ? `<b>${r.title}</b> — ` : ''}${r.text}${r.ask ? ` <i>${r.ask}</i>` : ''}</div>`);
+    h += `<h2>${t('Risks & Alerts', 'Risiken & Warnungen')}</h2>`;
+    risks.forEach(
+      r =>
+        (h += `<div class="risk risk-${r.severity === 'critical' ? 'crit' : r.severity === 'high' ? 'high' : 'med'}">${r.title ? `<b>${r.title}</b> — ` : ''}${r.text}${r.ask ? ` <i>${r.ask}</i>` : ''}</div>`),
+    );
   }
 
   // ── 4. PLANNING CONFIDENCE ──
-  h += `<h2>${t('Planning Confidence','Planungssicherheit')}</h2>`;
+  h += `<h2>${t('Planning Confidence', 'Planungssicherheit')}</h2>`;
   if (ccTotal > 0) {
-    h += `<div class="conf-bar"><div style="width:${cc.committed/ccTotal*100}%;background:${PRINT.done}"></div><div style="width:${cc.estimated/ccTotal*100}%;background:${PRINT.wip}"></div><div style="width:${cc.exploratory/ccTotal*100}%;background:${PRINT.muted}"></div></div>`;
-    h += `<table><tr><th></th><th>Items</th><th>PT</th><th>${t('Description','Beschreibung')}</th></tr>`;
-    h += `<tr><td><span class="tag t-com">● Committed</span></td><td>${cc.committed}</td><td>${ccPt.committed.toFixed(0)}</td><td>${t('Person assigned, solid estimate','Person zugewiesen, belastbare Schätzung')}</td></tr>`;
-    h += `<tr><td><span class="tag t-est">◐ Estimated</span></td><td>${cc.estimated}</td><td>${ccPt.estimated.toFixed(0)}</td><td>${t('Estimate exists, no person yet','Aufwand geschätzt, noch keine Person')}</td></tr>`;
-    h += `<tr><td><span class="tag t-exp">○ Exploratory</span></td><td>${cc.exploratory}</td><td>${ccPt.exploratory > 0 ? ccPt.exploratory.toFixed(0) : '?'}</td><td>${t('Scope unclear, concept work needed','Scope unklar, Konzeption nötig')}</td></tr>`;
+    h += `<div class="conf-bar"><div style="width:${(cc.committed / ccTotal) * 100}%;background:${PRINT.done}"></div><div style="width:${(cc.estimated / ccTotal) * 100}%;background:${PRINT.wip}"></div><div style="width:${(cc.exploratory / ccTotal) * 100}%;background:${PRINT.muted}"></div></div>`;
+    h += `<table><tr><th></th><th>Items</th><th>PT</th><th>${t('Description', 'Beschreibung')}</th></tr>`;
+    h += `<tr><td><span class="tag t-com">● Committed</span></td><td>${cc.committed}</td><td>${ccPt.committed.toFixed(0)}</td><td>${t('Person assigned, solid estimate', 'Person zugewiesen, belastbare Schätzung')}</td></tr>`;
+    h += `<tr><td><span class="tag t-est">◐ Estimated</span></td><td>${cc.estimated}</td><td>${ccPt.estimated.toFixed(0)}</td><td>${t('Estimate exists, no person yet', 'Aufwand geschätzt, noch keine Person')}</td></tr>`;
+    h += `<tr><td><span class="tag t-exp">○ Exploratory</span></td><td>${cc.exploratory}</td><td>${ccPt.exploratory > 0 ? ccPt.exploratory.toFixed(0) : '?'}</td><td>${t('Scope unclear, concept work needed', 'Scope unklar, Konzeption nötig')}</td></tr>`;
     h += `</table>`;
   }
 
   // ── 5. ROADMAP ──
-  h += `<h2>${t('Roadmap','Roadmap')}</h2>`;
+  h += `<h2>${t('Roadmap', 'Roadmap')}</h2>`;
   h += renderRoadmapSvg({ tree, scheduled, stats });
 
   // ── 5b. FAHRPLAN ──
@@ -440,26 +490,31 @@ tr:nth-child(even) td{background:${PRINT.ground}}
     const rmModel = computeRoadmapModel({ tree, scheduled, stats });
     if (rmModel?.lines?.length) {
       const segsByTree = {};
-      scheduled.forEach(s => { const k = s.treeId || s.id; (segsByTree[k] ||= []).push(s); });
+      scheduled.forEach(s => {
+        const k = s.treeId || s.id;
+        (segsByTree[k] ||= []).push(s);
+      });
       const kwTag = d => `KW${isoWeek(d)}/${String(isoWeekYear(d)).slice(-2)}`;
-      h += `<h2>${t('Timetable','Fahrplan')}</h2>`;
-      h += `<p style="font-size:9px;color:${PRINT.muted};margin-bottom:6px">${t('Station abbreviations reference the Roadmap above.','Stations-Kürzel verweisen auf die Roadmap oben.')}</p>`;
+      h += `<h2>${t('Timetable', 'Fahrplan')}</h2>`;
+      h += `<p style="font-size:9px;color:${PRINT.muted};margin-bottom:6px">${t('Station abbreviations reference the Roadmap above.', 'Stations-Kürzel verweisen auf die Roadmap oben.')}</p>`;
       rmModel.lines.forEach(line => {
         const allStations = [...line.majorStations, ...line.minorStations].filter(st => st.clusterItems?.length);
         if (!allStations.length) return;
-        const rows = allStations.map(st => {
-          const items = st.clusterItems || [];
-          const allSegs = items.flatMap(it => segsByTree[it.id] || []);
-          const dated = allSegs.filter(s => s && s.startD && s.endD);
-          const startD = dated.length ? new Date(Math.min(...dated.map(s => +s.startD))) : null;
-          const endD = dated.length ? new Date(Math.max(...dated.map(s => +s.endD))) : null;
-          const calDays = startD && endD ? Math.max(1, Math.round((endD - startD) / 86400000) + 1) : 0;
-          const workDays = dated.reduce((s, r) => s + (r.workingDaysInWindow || 0), 0);
-          const status = st.allDone ? '✓' : items.some(it => it.status === 'wip') ? '◐' : '○';
-          return { abbrev: st.abbrev + (items.length > 1 ? ' ×' + items.length : ''), startD, endD, calDays, workDays, status };
-        }).sort((a, b) => (a.startD || 0) - (b.startD || 0));
+        const rows = allStations
+          .map(st => {
+            const items = st.clusterItems || [];
+            const allSegs = items.flatMap(it => segsByTree[it.id] || []);
+            const dated = allSegs.filter(s => s && s.startD && s.endD);
+            const startD = dated.length ? new Date(Math.min(...dated.map(s => +s.startD))) : null;
+            const endD = dated.length ? new Date(Math.max(...dated.map(s => +s.endD))) : null;
+            const calDays = startD && endD ? Math.max(1, Math.round((endD - startD) / 86400000) + 1) : 0;
+            const workDays = dated.reduce((s, r) => s + (r.workingDaysInWindow || 0), 0);
+            const status = st.allDone ? '✓' : items.some(it => it.status === 'wip') ? '◐' : '○';
+            return { abbrev: st.abbrev + (items.length > 1 ? ' ×' + items.length : ''), startD, endD, calDays, workDays, status };
+          })
+          .sort((a, b) => (a.startD || 0) - (b.startD || 0));
         h += `<h3 style="color:${line.color};margin-top:10px">${line.root.id} — ${line.root.name}</h3>`;
-        h += `<table><tr><th>${t('Station','Station')}</th><th>${t('Start','Start')}</th><th>${t('Duration','Dauer')}</th><th>${t('St.','St.')}</th></tr>`;
+        h += `<table><tr><th>${t('Station', 'Station')}</th><th>${t('Start', 'Start')}</th><th>${t('Duration', 'Dauer')}</th><th>${t('St.', 'St.')}</th></tr>`;
         rows.forEach(r => {
           h += `<tr>`;
           h += `<td class="mono" style="color:${line.color};font-weight:700">${r.abbrev}</td>`;
@@ -484,19 +539,25 @@ tr:nth-child(even) td{background:${PRINT.ground}}
   // something is not a focus.
   const goals = roots.filter(r => !r.dropped);
   if (goals.length) {
-    h += `<h2>${t('Projects, Goals & Deadlines','Projekte, Ziele & Deadlines')}</h2>`;
-    h += `<table><tr><th></th><th>${t('Name','Name')}</th><th>${t('Deadline','Deadline')}</th><th>${t('Progress','Fortschritt')}</th><th>${t('Scheduled End','Geplantes Ende')}</th><th>${t('Risk','Risiko')}</th></tr>`;
+    h += `<h2>${t('Projects, Goals & Deadlines', 'Projekte, Ziele & Deadlines')}</h2>`;
+    h += `<table><tr><th></th><th>${t('Name', 'Name')}</th><th>${t('Deadline', 'Deadline')}</th><th>${t('Progress', 'Fortschritt')}</th><th>${t('Scheduled End', 'Geplantes Ende')}</th><th>${t('Risk', 'Risiko')}</th></tr>`;
     goals.forEach(g => {
       const rd = rootData.find(x => x.id === g.id);
       // Same state machine as the Overview cards: finished work reports done,
       // never "at risk".
       const ds = deadlineStates[g.id];
-      const risk = ds?.state === 'atRisk' ? `<span style="color:${PRINT.risk};font-weight:700">${t('AT RISK','GEFÄHRDET')}</span>`
-        : ds?.state === 'doneLate' ? `<span style="color:${PRINT.wip};font-weight:700">✓ ${t('done · late','abgeschlossen · verspätet')}</span>`
-          : ds?.state === 'done' ? `<span style="color:${PRINT.done};font-weight:700">✓ ${t('done','abgeschlossen')}</span>`
-            : rd?.endD ? `<span style="color:${PRINT.done}">✓ ${t('on track','im Plan')}</span>` : '—';
-      h += `<tr><td>${g.type ? (GT[g.type] || '') : ''}</td><td><b>${g.name}</b>${g.description ? `<br><span style="color:${PRINT.muted};font-size:8.5px">${g.description.slice(0,80)}</span>` : ''}</td>`;
-      h += `<td class="mono">${g.date||'—'}</td><td>${progressPctLabel(rd?.prog || 0)}% <span style="color:${PRINT.muted}">· ${rd?.doneCount||0}/${rd?.leafCount||0} ${t('tasks','Aufgaben')}</span></td>`;
+      const risk =
+        ds?.state === 'atRisk'
+          ? `<span style="color:${PRINT.risk};font-weight:700">${t('AT RISK', 'GEFÄHRDET')}</span>`
+          : ds?.state === 'doneLate'
+            ? `<span style="color:${PRINT.wip};font-weight:700">✓ ${t('done · late', 'abgeschlossen · verspätet')}</span>`
+            : ds?.state === 'done'
+              ? `<span style="color:${PRINT.done};font-weight:700">✓ ${t('done', 'abgeschlossen')}</span>`
+              : rd?.endD
+                ? `<span style="color:${PRINT.done}">✓ ${t('on track', 'im Plan')}</span>`
+                : '—';
+      h += `<tr><td>${g.type ? GT[g.type] || '' : ''}</td><td><b>${g.name}</b>${g.description ? `<br><span style="color:${PRINT.muted};font-size:8.5px">${g.description.slice(0, 80)}</span>` : ''}</td>`;
+      h += `<td class="mono">${g.date || '—'}</td><td>${progressPctLabel(rd?.prog || 0)}% <span style="color:${PRINT.muted}">· ${rd?.doneCount || 0}/${rd?.leafCount || 0} ${t('tasks', 'Aufgaben')}</span></td>`;
       h += `<td class="mono">${rd?.endD ? iso(rd.endD) : '—'}</td>`;
       h += `<td>${risk}</td></tr>`;
     });
@@ -504,53 +565,69 @@ tr:nth-child(even) td{background:${PRINT.ground}}
   }
 
   // ── 7. TEAM CAPACITY ──
-  h += `<h2 class="pb">${t('Team Capacity','Teamauslastung')}</h2><div class="grid2">`;
-  Object.values(teamCap).filter(tc => tc.members.length || tc.committed > 0 || tc.unassigned > 0).forEach(tc => {
-    const total = tc.committed + tc.unassigned;
-    h += `<div style="border:1px solid ${PRINT.rule};border-left:3px solid ${tc.color};border-radius:5px;padding:8px 10px">`;
-    h += `<h3 style="color:${tc.color};margin:0 0 4px">${tc.name}</h3>`;
-    tc.members.forEach(m => {
-      const multi = memberTeams(m).length > 1;
-      const pp = totalEffort(lvs.filter(r => r.status !== 'done' && (r.assign || []).includes(m.id) && (!multi || r.team === tc.id)));
-      h += `<div style="display:flex;justify-content:space-between;font-size:9.5px;margin-bottom:1px"><span>${m.name}${m.cap < 1 ? ` (${Math.round(m.cap*100)}%)` : ''}</span><span class="mono">${pp.toFixed(0)} PT</span></div>`;
+  h += `<h2 class="pb">${t('Team Capacity', 'Teamauslastung')}</h2><div class="grid2">`;
+  Object.values(teamCap)
+    .filter(tc => tc.members.length || tc.committed > 0 || tc.unassigned > 0)
+    .forEach(tc => {
+      const total = tc.committed + tc.unassigned;
+      h += `<div style="border:1px solid ${PRINT.rule};border-left:3px solid ${tc.color};border-radius:5px;padding:8px 10px">`;
+      h += `<h3 style="color:${tc.color};margin:0 0 4px">${tc.name}</h3>`;
+      tc.members.forEach(m => {
+        const multi = memberTeams(m).length > 1;
+        const pp = totalEffort(lvs.filter(r => r.status !== 'done' && (r.assign || []).includes(m.id) && (!multi || r.team === tc.id)));
+        h += `<div style="display:flex;justify-content:space-between;font-size:9.5px;margin-bottom:1px"><span>${m.name}${m.cap < 1 ? ` (${Math.round(m.cap * 100)}%)` : ''}</span><span class="mono">${pp.toFixed(0)} PT</span></div>`;
+      });
+      if (total > 0) {
+        h += `<div class="conf-bar" style="margin-top:4px"><div style="width:${(tc.committed / total) * 100}%;background:${PRINT.done}"></div><div style="width:${(tc.unassigned / total) * 100}%;background:${PRINT.wip}"></div></div>`;
+        h += `<div style="display:flex;justify-content:space-between;font-size:8px;color:${PRINT.muted}"><span style="color:${PRINT.done}">${tc.committed.toFixed(0)} PT ${t('assigned', 'zugewiesen')}</span>${tc.unassigned > 0 ? `<span style="color:${PRINT.wip}">${tc.unassigned.toFixed(0)} PT ${t('open', 'offen')} (${tc.count})</span>` : ''}</div>`;
+      }
+      h += `</div>`;
     });
-    if (total > 0) {
-      h += `<div class="conf-bar" style="margin-top:4px"><div style="width:${tc.committed/total*100}%;background:${PRINT.done}"></div><div style="width:${tc.unassigned/total*100}%;background:${PRINT.wip}"></div></div>`;
-      h += `<div style="display:flex;justify-content:space-between;font-size:8px;color:${PRINT.muted}"><span style="color:${PRINT.done}">${tc.committed.toFixed(0)} PT ${t('assigned','zugewiesen')}</span>${tc.unassigned > 0 ? `<span style="color:${PRINT.wip}">${tc.unassigned.toFixed(0)} PT ${t('open','offen')} (${tc.count})</span>` : ''}</div>`;
-    }
-    h += `</div>`;
-  });
   h += `</div>`;
 
   // ── 8. CRITICAL PATH ──
   if (cpItems.length) {
-    h += `<h2>${t('Critical Path','Kritischer Pfad')}</h2>`;
-    h += `<p style="font-size:9px;color:${PRINT.muted};margin-bottom:6px">${t('Any delay to these items delays the project end.','Jede Verzögerung dieser Items verzögert das Projektende.')}</p>`;
-    h += `<table><tr><th>ID</th><th>${t('Name','Name')}</th><th>${t('Team','Team')}</th><th>${t('Person','Person')}</th><th>${t('Start','Start')}</th><th>${t('End','Ende')}</th><th>PT</th></tr>`;
-    cpItems.forEach(s => h += `<tr><td class="mono">${s.id}</td><td>${s.name}</td><td>${tn(s.team)}</td><td>${s.person}</td><td class="mono">${iso(s.startD)}</td><td class="mono">${iso(s.endD)}</td><td class="mono">${s.effort?.toFixed(1)}</td></tr>`);
+    h += `<h2>${t('Critical Path', 'Kritischer Pfad')}</h2>`;
+    h += `<p style="font-size:9px;color:${PRINT.muted};margin-bottom:6px">${t('Any delay to these items delays the project end.', 'Jede Verzögerung dieser Items verzögert das Projektende.')}</p>`;
+    h += `<table><tr><th>ID</th><th>${t('Name', 'Name')}</th><th>${t('Team', 'Team')}</th><th>${t('Person', 'Person')}</th><th>${t('Start', 'Start')}</th><th>${t('End', 'Ende')}</th><th>PT</th></tr>`;
+    cpItems.forEach(
+      s =>
+        (h += `<tr><td class="mono">${s.id}</td><td>${s.name}</td><td>${tn(s.team)}</td><td>${s.person}</td><td class="mono">${iso(s.startD)}</td><td class="mono">${iso(s.endD)}</td><td class="mono">${s.effort?.toFixed(1)}</td></tr>`),
+    );
     h += `</table>`;
   }
 
   // ── 9. DETAILED SCHEDULE ──
-  h += `<h2 class="pb">${t('Detailed Schedule','Detailplan')}</h2>`;
+  h += `<h2 class="pb">${t('Detailed Schedule', 'Detailplan')}</h2>`;
   const byTeam = {};
-  scheduled.forEach(s => { const tk = s.team || '__none'; if (!byTeam[tk]) byTeam[tk] = []; byTeam[tk].push(s); });
+  scheduled.forEach(s => {
+    const tk = s.team || '__none';
+    if (!byTeam[tk]) byTeam[tk] = [];
+    byTeam[tk].push(s);
+  });
   Object.entries(byTeam).forEach(([tk, items]) => {
     const tm = teams.find(x => x.id === tk);
-    h += `<h3 style="color:${tm?.color||PRINT.ink2}">${tm?.name||t('No team','Kein Team')} (${items.length})</h3>`;
-    h += `<table><tr><th>ID</th><th>${t('Name','Name')}</th><th>${t('Person','Person')}</th><th>${t('Start','Start')}</th><th>${t('End','Ende')}</th><th>PT</th><th>Conf.</th><th>${t('Phases','Phasen')}</th></tr>`;
-    items.sort((a, b) => (a.startD||0) - (b.startD||0)).forEach(s => {
-      const node = tree.find(r => r.id === (s.treeId || s.id));
-      const conf = confidence[s.id] || 'committed';
-      const ct = conf === 'exploratory' ? '<span class="tag t-exp">○</span>' : conf === 'estimated' ? '<span class="tag t-est">◐</span>' : '<span class="tag t-com">●</span>';
-      const ph = (node?.phases || []).map(p => `${p.status === 'done' ? '✓' : p.status === 'wip' ? '◐' : '○'} ${p.name}`).join(', ');
-      h += `<tr><td class="mono">${s.id}</td><td>${s.name}</td><td>${s.person}</td><td class="mono">${iso(s.startD)}</td><td class="mono">${iso(s.endD)}</td><td class="mono">${s.effort?.toFixed(1)}</td><td>${ct}</td><td style="font-size:8.5px">${ph}</td></tr>`;
-    });
+    h += `<h3 style="color:${tm?.color || PRINT.ink2}">${tm?.name || t('No team', 'Kein Team')} (${items.length})</h3>`;
+    h += `<table><tr><th>ID</th><th>${t('Name', 'Name')}</th><th>${t('Person', 'Person')}</th><th>${t('Start', 'Start')}</th><th>${t('End', 'Ende')}</th><th>PT</th><th>Conf.</th><th>${t('Phases', 'Phasen')}</th></tr>`;
+    items
+      .sort((a, b) => (a.startD || 0) - (b.startD || 0))
+      .forEach(s => {
+        const node = tree.find(r => r.id === (s.treeId || s.id));
+        const conf = confidence[s.id] || 'committed';
+        const ct =
+          conf === 'exploratory'
+            ? '<span class="tag t-exp">○</span>'
+            : conf === 'estimated'
+              ? '<span class="tag t-est">◐</span>'
+              : '<span class="tag t-com">●</span>';
+        const ph = (node?.phases || []).map(p => `${p.status === 'done' ? '✓' : p.status === 'wip' ? '◐' : '○'} ${p.name}`).join(', ');
+        h += `<tr><td class="mono">${s.id}</td><td>${s.name}</td><td>${s.person}</td><td class="mono">${iso(s.startD)}</td><td class="mono">${iso(s.endD)}</td><td class="mono">${s.effort?.toFixed(1)}</td><td>${ct}</td><td style="font-size:8.5px">${ph}</td></tr>`;
+      });
     h += `</table>`;
   });
 
   // ── FOOTER ──
-  h += `<div class="ft">${t('Generated by','Erstellt mit')} Planr · ${dateStr} · ${lvs.length} items · ${totalPt.toFixed(0)} PT · ${scheduled.length} ${t('scheduled','eingeplant')}</div>`;
+  h += `<div class="ft">${t('Generated by', 'Erstellt mit')} Planr · ${dateStr} · ${lvs.length} items · ${totalPt.toFixed(0)} PT · ${scheduled.length} ${t('scheduled', 'eingeplant')}</div>`;
   h += `</body></html>`;
   return h;
 }

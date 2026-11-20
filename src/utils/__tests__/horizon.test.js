@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { horizonLabel, horizonBucket } from '../horizon.js';
 
 const NOW = new Date('2026-04-25T12:00:00Z');
-const days = (n) => new Date(NOW.getTime() + n * 86400000);
+const days = n => new Date(NOW.getTime() + n * 86400000);
 
 describe('horizonLabel', () => {
   it('uses ISO day-precision for near-term committed work', () => {

@@ -55,7 +55,11 @@ describe('layer scale', () => {
   it('lets a layer class win over .overlay, which it is combined with', () => {
     // Same specificity — the later rule wins, so the layer classes must follow.
     expect(CSS.indexOf('.layer-overlay-top{')).toBeGreaterThan(CSS.indexOf('.overlay{'));
-    for (const [cls, tok] of [['layer-popover', '--z-popover'], ['layer-dropdown', '--z-dropdown'], ['layer-drag', '--z-drag']]) {
+    for (const [cls, tok] of [
+      ['layer-popover', '--z-popover'],
+      ['layer-dropdown', '--z-dropdown'],
+      ['layer-drag', '--z-drag'],
+    ]) {
       expect(CSS).toContain(`.${cls}{z-index:var(${tok});}`);
     }
     expect(CSS).toMatch(/\.tt\{[^}]*z-index:var\(--z-tooltip\)/);
@@ -63,11 +67,13 @@ describe('layer scale', () => {
   });
 
   it('renders both tooltips where the popovers go, not inside the view', () => {
-    const { container } = render(<I18nProvider>
-      <HoverTipProvider />
-      <span data-htip="Hint">x</span>
-      <Tip item={{ id: 'A-1', name: 'Alpha', status: 'open' }} x={10} y={10} />
-    </I18nProvider>);
+    const { container } = render(
+      <I18nProvider>
+        <HoverTipProvider />
+        <span data-htip="Hint">x</span>
+        <Tip item={{ id: 'A-1', name: 'Alpha', status: 'open' }} x={10} y={10} />
+      </I18nProvider>,
+    );
     fireEvent.mouseMove(container.querySelector('[data-htip]'), { clientX: 5, clientY: 5 });
     const hover = document.querySelector('.htip-pop');
     const item = document.querySelector('[data-testid="item-tip"]');

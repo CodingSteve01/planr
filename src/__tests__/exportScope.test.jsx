@@ -25,7 +25,10 @@ const captured = [];
 vi.mock('pdfmake/build/pdfmake', () => ({
   default: {
     addVirtualFileSystem: () => {},
-    createPdf: (dd) => { captured.push(dd); return { download: () => {} }; },
+    createPdf: dd => {
+      captured.push(dd);
+      return { download: () => {} };
+    },
   },
 }));
 vi.mock('pdfmake/build/vfs_fonts', () => ({ default: { pdfMake: { vfs: {} } }, pdfMake: { vfs: {} }, vfs: {} }));
@@ -39,10 +42,19 @@ const TREE = [
   { id: 'F1', name: 'Fundament Plattform', type: 'goal', status: 'wip', team: 'T1' },
   { id: 'F1.1', name: 'Komponenten-Bibliothek', status: 'wip', best: 20, factor: 1, team: 'T1', assign: ['m1'] },
   { id: 'F1.2', name: 'Monitoring aufsetzen', status: 'open', best: 10, factor: 1, team: 'T1' },
-  { id: 'Z9', name: 'Alte Umfirmierung', type: 'goal', status: 'done', team: 'T1',
-    completedAt: '2026-03-01' },
-  { id: 'Z9.1', name: 'Buchhaltungs-Umstellung', status: 'done', best: 30, factor: 1, team: 'T1', assign: ['m1'],
-    completedAt: '2026-03-01', completedStart: '2026-02-01', completedEnd: '2026-03-01' },
+  { id: 'Z9', name: 'Alte Umfirmierung', type: 'goal', status: 'done', team: 'T1', completedAt: '2026-03-01' },
+  {
+    id: 'Z9.1',
+    name: 'Buchhaltungs-Umstellung',
+    status: 'done',
+    best: 30,
+    factor: 1,
+    team: 'T1',
+    assign: ['m1'],
+    completedAt: '2026-03-01',
+    completedStart: '2026-02-01',
+    completedEnd: '2026-03-01',
+  },
 ];
 const TEAMS = [{ id: 'T1', name: 'Backend', color: '#2563eb' }];
 const MEMBERS = [
@@ -50,14 +62,40 @@ const MEMBERS = [
   { id: 'm2', name: 'Olaf', team: 'T1', cap: 1, vac: 25, end: '2026-04-23' },
 ];
 const SCHEDULED = [
-  { id: 'F1.1', treeId: 'F1.1', name: 'Komponenten-Bibliothek', status: 'wip', team: 'T1', person: 'Anna',
-    personId: 'm1', effort: 20, startD: d('2026-09-14'), endD: d('2026-10-09'), workingDaysInWindow: 20 },
-  { id: 'F1.2', treeId: 'F1.2', name: 'Monitoring aufsetzen', status: 'open', team: 'T1', person: 'Anna',
-    personId: 'm1', effort: 10, startD: d('2026-10-12'), endD: d('2026-10-23'), workingDaysInWindow: 10 },
+  {
+    id: 'F1.1',
+    treeId: 'F1.1',
+    name: 'Komponenten-Bibliothek',
+    status: 'wip',
+    team: 'T1',
+    person: 'Anna',
+    personId: 'm1',
+    effort: 20,
+    startD: d('2026-09-14'),
+    endD: d('2026-10-09'),
+    workingDaysInWindow: 20,
+  },
+  {
+    id: 'F1.2',
+    treeId: 'F1.2',
+    name: 'Monitoring aufsetzen',
+    status: 'open',
+    team: 'T1',
+    person: 'Anna',
+    personId: 'm1',
+    effort: 10,
+    startD: d('2026-10-12'),
+    endD: d('2026-10-23'),
+    workingDaysInWindow: 10,
+  },
 ];
 const DATA = {
   meta: { name: 'Scope', planStart: '2026-09-01', planEnd: '2027-12-31', version: '2' },
-  tree: TREE, members: MEMBERS, teams: TEAMS, vacations: [], holidays: [],
+  tree: TREE,
+  members: MEMBERS,
+  teams: TEAMS,
+  vacations: [],
+  holidays: [],
   roadmapAssignment: { F1: { routeIdx: 0, colorIdx: 0 }, Z9: { routeIdx: 1, colorIdx: 1 } },
 };
 
@@ -70,15 +108,25 @@ const FULL_PCT = aggregateProgressPct(leafNodes(TREE));
 
 function baseCtx(extra = {}) {
   return buildExportCtx({
-    data: DATA, scheduled: SCHEDULED, weeks: [], cpSet: new Set(), goalPaths: {},
-    stats: treeStats(TREE), confidence: {}, lang: 'de', ...extra,
+    data: DATA,
+    scheduled: SCHEDULED,
+    weeks: [],
+    cpSet: new Set(),
+    goalPaths: {},
+    stats: treeStats(TREE),
+    confidence: {},
+    lang: 'de',
+    ...extra,
   });
 }
 
 // Every `{ svg: '<svg …>' }` node pdfmake was handed.
 function collectPdfSvgs(node, out = []) {
   if (node == null || typeof node !== 'object') return out;
-  if (Array.isArray(node)) { node.forEach(n => collectPdfSvgs(n, out)); return out; }
+  if (Array.isArray(node)) {
+    node.forEach(n => collectPdfSvgs(n, out));
+    return out;
+  }
   if (typeof node.svg === 'string') out.push(node.svg);
   Object.values(node).forEach(value => {
     if (value && typeof value === 'object') collectPdfSvgs(value, out);
@@ -88,8 +136,14 @@ function collectPdfSvgs(node, out = []) {
 
 function flattenPdfText(node, out = []) {
   if (node == null) return out;
-  if (typeof node === 'string' || typeof node === 'number') { out.push(String(node)); return out; }
-  if (Array.isArray(node)) { node.forEach(n => flattenPdfText(n, out)); return out; }
+  if (typeof node === 'string' || typeof node === 'number') {
+    out.push(String(node));
+    return out;
+  }
+  if (Array.isArray(node)) {
+    node.forEach(n => flattenPdfText(n, out));
+    return out;
+  }
   ['text', 'stack', 'columns', 'content', 'table', 'body'].forEach(k => {
     if (node[k] != null) flattenPdfText(node[k], out);
   });
@@ -137,15 +191,21 @@ describe('an export context always describes the whole plan', () => {
 });
 
 describe('every export surface covers the archived project', () => {
-  beforeEach(() => { captured.length = 0; localStorage.clear(); });
-  afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+  beforeEach(() => {
+    captured.length = 0;
+    localStorage.clear();
+  });
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
 
   it('report model and HTML report report the full-plan figure', () => {
     const model = buildReportModel(baseCtx());
 
     expect(model.prog).toBeCloseTo(FULL_PCT, 6);
-    expect(model.totalPt).toBeCloseTo(60, 6);   // 20 + 10 + 30, archived work included
-    expect(model.donePt).toBeCloseTo(40, 6);    // 30 archived + 10 of the wip task
+    expect(model.totalPt).toBeCloseTo(60, 6); // 20 + 10 + 30, archived work included
+    expect(model.donePt).toBeCloseTo(40, 6); // 30 archived + 10 of the wip task
     expect(model.lvs.map(l => l.id)).toContain('Z9.1');
 
     const html = generateReport(baseCtx());
@@ -260,18 +320,34 @@ describe('every export surface covers the archived project', () => {
 });
 
 describe('screen and export agree even while the screen is filtered', () => {
-  beforeEach(() => { captured.length = 0; localStorage.clear(); });
+  beforeEach(() => {
+    captured.length = 0;
+    localStorage.clear();
+  });
   afterEach(() => cleanup());
 
   it('the Overview headline equals the exported figure with the archive filter on', () => {
     const { container } = render(
       <I18nProvider>
         <ThemeProvider>
-          <SumView tree={TREE} scheduled={SCHEDULED} goals={TREE.filter(r => r.type)}
-            members={MEMBERS} teams={TEAMS} cpSet={new Set()} goalPaths={{}}
-            stats={treeStats(TREE)} confidence={{}}
-            archive={archive} showArchived={false} setShowArchived={() => {}} archiveDays={90}
-            onNavigate={() => {}} onOpenItem={() => {}} onExportTodo={() => {}} />
+          <SumView
+            tree={TREE}
+            scheduled={SCHEDULED}
+            goals={TREE.filter(r => r.type)}
+            members={MEMBERS}
+            teams={TEAMS}
+            cpSet={new Set()}
+            goalPaths={{}}
+            stats={treeStats(TREE)}
+            confidence={{}}
+            archive={archive}
+            showArchived={false}
+            setShowArchived={() => {}}
+            archiveDays={90}
+            onNavigate={() => {}}
+            onOpenItem={() => {}}
+            onExportTodo={() => {}}
+          />
         </ThemeProvider>
       </I18nProvider>,
     );

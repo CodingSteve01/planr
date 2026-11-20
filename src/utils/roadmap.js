@@ -69,12 +69,12 @@ const DAY = 864e5;
 // a jog clears the next lane by 56 and the next jog by 92. Nothing on this
 // board is ever closer than the minimum, which leaves the spacing pass as
 // what it should have been — a guard that normally does nothing.
-const LANE_Y0 = 80;      // first lane's y
-const LANE_GAP = 92;     // between lanes
-const LANE_JOG = 36;     // how far the middle of a lane drops
-const LANE_X0 = 60;      // where every line starts
-const LANE_X1 = 1340;    // and ends
-const LANE_MIN = 8;      // keep the familiar board for small plans
+const LANE_Y0 = 80; // first lane's y
+const LANE_GAP = 92; // between lanes
+const LANE_JOG = 36; // how far the middle of a lane drops
+const LANE_X0 = 60; // where every line starts
+const LANE_X1 = 1340; // and ends
+const LANE_MIN = 8; // keep the familiar board for small plans
 // Where each lane's jog sits. Staggered so the vertical segments of nearby
 // lanes do not line up into a column; the cycle is deliberately not a
 // divisor of the lane count, so it takes a while to repeat.
@@ -90,8 +90,12 @@ export function buildRoutes(count) {
     const xa = JOG_STARTS[i % JOG_STARTS.length];
     const xb = Math.min(xa + JOG_WIDTH, LANE_X1 - 120);
     out.push([
-      { x: LANE_X0, y }, { x: xa, y }, { x: xa, y: jogY },
-      { x: xb, y: jogY }, { x: xb, y }, { x: LANE_X1, y },
+      { x: LANE_X0, y },
+      { x: xa, y },
+      { x: xa, y: jogY },
+      { x: xb, y: jogY },
+      { x: xb, y },
+      { x: LANE_X1, y },
     ]);
   }
   return out;
@@ -118,7 +122,7 @@ const depthOf = id => id.split('.').length;
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const progressToRouteT = progress => ROUTE_T_LO + clamp(progress || 0, 0, 1) * (ROUTE_T_HI - ROUTE_T_LO);
-const truncate = (text, len) => !text ? '' : text.length > len ? `${text.slice(0, len - 1)}...` : text;
+const truncate = (text, len) => (!text ? '' : text.length > len ? `${text.slice(0, len - 1)}...` : text);
 
 function trim1(value) {
   return (Math.round(value * 10) / 10).toFixed(1).replace(/\.0$/, '');
@@ -132,11 +136,14 @@ function formatPercentNumber(progress) {
   return trim1(clamp(progress || 0, 0, 1) * 100);
 }
 
-
 function contrastText(color) {
   if (!color?.startsWith('#')) return '#fff';
   let hex = color.slice(1);
-  if (hex.length === 3) hex = hex.split('').map(ch => ch + ch).join('');
+  if (hex.length === 3)
+    hex = hex
+      .split('')
+      .map(ch => ch + ch)
+      .join('');
   if (hex.length !== 6) return '#fff';
   const r = parseInt(hex.slice(0, 2), 16) / 255;
   const g = parseInt(hex.slice(2, 4), 16) / 255;
@@ -179,7 +186,6 @@ function monthIndex(date) {
   return date.getFullYear() * 12 + date.getMonth();
 }
 
-
 function compareByTime(a, b) {
   const ad = a.anchorDate ? +a.anchorDate : Infinity;
   const bd = b.anchorDate ? +b.anchorDate : Infinity;
@@ -195,9 +201,7 @@ function buildMeta(tree, childMap, nodeMap, schedMap, stats, completedWindows = 
 
   ordered.forEach(node => {
     const children = childMap[node.id] || [];
-    const leafIds = children.length
-      ? children.flatMap(child => leafIdsById[child.id] || [])
-      : [node.id];
+    const leafIds = children.length ? children.flatMap(child => leafIdsById[child.id] || []) : [node.id];
 
     leafIdsById[node.id] = leafIds;
 
@@ -220,21 +224,21 @@ function buildMeta(tree, childMap, nodeMap, schedMap, stats, completedWindows = 
       // window of their successors.
       const doneWindow = n?.status === 'done' ? completedWindows.get(id) : null;
       let start = toDate(
-        doneWindow?.start
-        || (n?.status === 'done' ? n?.completedStart : null)
-        || sched?.startD
-        || (n?.status === 'done' ? n?.completedEnd : null)
-        || n?.pinnedStart
-        || n?.decideBy
-        || n?.date,
+        doneWindow?.start ||
+          (n?.status === 'done' ? n?.completedStart : null) ||
+          sched?.startD ||
+          (n?.status === 'done' ? n?.completedEnd : null) ||
+          n?.pinnedStart ||
+          n?.decideBy ||
+          n?.date,
       );
       let end = toDate(
-        doneWindow?.end
-        || (n?.status === 'done' ? (n?.completedEnd || n?.completedAt) : null)
-        || sched?.endD
-        || n?.date
-        || n?.pinnedStart
-        || n?.decideBy,
+        doneWindow?.end ||
+          (n?.status === 'done' ? n?.completedEnd || n?.completedAt : null) ||
+          sched?.endD ||
+          n?.date ||
+          n?.pinnedStart ||
+          n?.decideBy,
       );
       if (n?.status === 'done') {
         if (end && end > today) end = new Date(today);
@@ -251,9 +255,7 @@ function buildMeta(tree, childMap, nodeMap, schedMap, stats, completedWindows = 
 
     // Same helper the tree grid, the goal cards and every export use, so the
     // train position can never contradict the percentage printed elsewhere.
-    const progressPct = leafRows.length
-      ? aggregateProgressPct(leafRows)
-      : (stats?.[node.id]?._progress ?? 0);
+    const progressPct = leafRows.length ? aggregateProgressPct(leafRows) : (stats?.[node.id]?._progress ?? 0);
     result[node.id] = {
       total: leafIds.length,
       done,
@@ -268,7 +270,6 @@ function buildMeta(tree, childMap, nodeMap, schedMap, stats, completedWindows = 
 
   return result;
 }
-
 
 // ─── Metro-specific helpers ───────────────────────────────────────────────────
 
@@ -330,23 +331,28 @@ const TRAIN_H = 16;
 //   current  → ring with a dot in it, thicker, in the line's colour
 //   ahead    → ring
 function stationGlyph(cx, cy, color, { done = false, current = false } = {}) {
-  const x = Number(cx).toFixed(1), y = Number(cy).toFixed(1);
+  const x = Number(cx).toFixed(1),
+    y = Number(cy).toFixed(1);
   if (done) {
     const ink = contrastText(color);
-    return `<circle cx="${x}" cy="${y}" r="${STATION_R}" fill="${color}"/>`
+    return (
+      `<circle cx="${x}" cy="${y}" r="${STATION_R}" fill="${color}"/>` +
       // The tick is what makes "reached" say so on its own — a filled circle
       // alone is only darker than its neighbour, and on a finished line every
       // circle is filled and nothing says why.
-      + `<path d="M${(+x - 3.9).toFixed(1)} ${(+y + 0.2).toFixed(1)}`
-      + ` l 2.8 2.9 l 5 -5.6" fill="none" stroke="${ink}" stroke-width="2"`
-      + ` stroke-linecap="round" stroke-linejoin="round"/>`;
+      `<path d="M${(+x - 3.9).toFixed(1)} ${(+y + 0.2).toFixed(1)}` +
+      ` l 2.8 2.9 l 5 -5.6" fill="none" stroke="${ink}" stroke-width="2"` +
+      ` stroke-linecap="round" stroke-linejoin="round"/>`
+    );
   }
   if (current) {
     // r + half the stroke = STATION_R, so the outer edge lands where every
     // other stop's does.
     const sw = 3.4;
-    return `<circle cx="${x}" cy="${y}" r="${(STATION_R - sw / 2).toFixed(2)}" fill="var(--bg2,#1c1b17)" stroke="${color}" stroke-width="${sw}"/>`
-      + `<circle cx="${x}" cy="${y}" r="3" fill="${color}"/>`;
+    return (
+      `<circle cx="${x}" cy="${y}" r="${(STATION_R - sw / 2).toFixed(2)}" fill="var(--bg2,#1c1b17)" stroke="${color}" stroke-width="${sw}"/>` +
+      `<circle cx="${x}" cy="${y}" r="3" fill="${color}"/>`
+    );
   }
   const sw = 2.5;
   return `<circle cx="${x}" cy="${y}" r="${(STATION_R - sw / 2).toFixed(2)}" fill="var(--bg,#111318)" stroke="${color}" stroke-width="${sw}"/>`;
@@ -367,17 +373,25 @@ function polylineToPath(points, r = ROUTE_CORNER_R) {
   if (p.length === 1) return `M ${p[0].x} ${p[0].y}`;
   const n = v => Number(v.toFixed(1));
   if (p.length === 2 || r <= 0) {
-    return `M ${n(p[0].x)} ${n(p[0].y)} ` + p.slice(1).map(q => `L ${n(q.x)} ${n(q.y)}`).join(' ');
+    return (
+      `M ${n(p[0].x)} ${n(p[0].y)} ` +
+      p
+        .slice(1)
+        .map(q => `L ${n(q.x)} ${n(q.y)}`)
+        .join(' ')
+    );
   }
   const out = [`M ${n(p[0].x)} ${n(p[0].y)}`];
   for (let i = 1; i < p.length - 1; i++) {
-    const a = p[i - 1], b = p[i], c = p[i + 1];
+    const a = p[i - 1],
+      b = p[i],
+      c = p[i + 1];
     const d1 = Math.hypot(b.x - a.x, b.y - a.y);
     const d2 = Math.hypot(c.x - b.x, c.y - b.y);
     if (!d1 || !d2) continue;
     const rr = Math.min(r, d1 / 2, d2 / 2);
-    out.push(`L ${n(b.x + (a.x - b.x) / d1 * rr)} ${n(b.y + (a.y - b.y) / d1 * rr)}`);
-    out.push(`Q ${n(b.x)} ${n(b.y)} ${n(b.x + (c.x - b.x) / d2 * rr)} ${n(b.y + (c.y - b.y) / d2 * rr)}`);
+    out.push(`L ${n(b.x + ((a.x - b.x) / d1) * rr)} ${n(b.y + ((a.y - b.y) / d1) * rr)}`);
+    out.push(`Q ${n(b.x)} ${n(b.y)} ${n(b.x + ((c.x - b.x) / d2) * rr)} ${n(b.y + ((c.y - b.y) / d2) * rr)}`);
   }
   const last = p[p.length - 1];
   out.push(`L ${n(last.x)} ${n(last.y)}`);
@@ -412,7 +426,10 @@ function partialPath(waypoints, fraction, startFraction = 0) {
       const segStart = traveled;
       const segEnd = traveled + segLen;
       // Skip segments that lie entirely before start
-      if (segEnd <= startTarget) { traveled = segEnd; continue; }
+      if (segEnd <= startTarget) {
+        traveled = segEnd;
+        continue;
+      }
       // Final segment containing the target — emit and stop
       if (segEnd >= target) {
         const rem = target - traveled;
@@ -484,10 +501,12 @@ function statusIcon(status, color, progress = 0, size = 12) {
   const r = size / 2 - 1.2;
   const c = size / 2;
   if (status === 'done') {
-    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex-shrink:0;vertical-align:middle">`
-      + `<circle cx="${c}" cy="${c}" r="${r}" fill="${color}"/>`
-      + `<path d="M${c - r * 0.55},${c} L${c - r * 0.1},${c + r * 0.45} L${c + r * 0.65},${c - r * 0.45}" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`
-      + `</svg>`;
+    return (
+      `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex-shrink:0;vertical-align:middle">` +
+      `<circle cx="${c}" cy="${c}" r="${r}" fill="${color}"/>` +
+      `<path d="M${c - r * 0.55},${c} L${c - r * 0.1},${c + r * 0.45} L${c + r * 0.65},${c - r * 0.45}" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>` +
+      `</svg>`
+    );
   }
   if (status === 'wip' && progress > 0) {
     // Pie slice for progress
@@ -495,18 +514,23 @@ function statusIcon(status, color, progress = 0, size = 12) {
     const ex = c + r * Math.sin(angle);
     const ey = c - r * Math.cos(angle);
     const large = angle > Math.PI ? 1 : 0;
-    const path = progress >= 0.999
-      ? `M${c},${c - r} A${r},${r} 0 1,1 ${c - 0.01},${c - r} Z`
-      : `M${c},${c} L${c},${c - r} A${r},${r} 0 ${large},1 ${ex.toFixed(2)},${ey.toFixed(2)} Z`;
-    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex-shrink:0;vertical-align:middle">`
-      + `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="1.4"/>`
-      + `<path d="${path}" fill="${color}" opacity=".6"/>`
-      + `</svg>`;
+    const path =
+      progress >= 0.999
+        ? `M${c},${c - r} A${r},${r} 0 1,1 ${c - 0.01},${c - r} Z`
+        : `M${c},${c} L${c},${c - r} A${r},${r} 0 ${large},1 ${ex.toFixed(2)},${ey.toFixed(2)} Z`;
+    return (
+      `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex-shrink:0;vertical-align:middle">` +
+      `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="1.4"/>` +
+      `<path d="${path}" fill="${color}" opacity=".6"/>` +
+      `</svg>`
+    );
   }
   // open (includes wip with 0 progress)
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex-shrink:0;vertical-align:middle">`
-    + `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="1.4"/>`
-    + `</svg>`;
+  return (
+    `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex-shrink:0;vertical-align:middle">` +
+    `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="1.4"/>` +
+    `</svg>`
+  );
 }
 
 function makeAbbrev(name) {
@@ -517,11 +541,21 @@ function makeAbbrev(name) {
     .replace(/\b(Ursache|Erstellung|Anpassung|Entwicklung|Umstellung|Integration|Domain|UI\s+Migration)\b:?\s*/gi, '')
     .trim();
   // Keep only words starting with a letter (drop arrows, symbols, numerals-only)
-  const words = (clean || name).trim().split(/\s+/).filter(w => /^[A-Za-zÄÖÜäöüß]/.test(w));
+  const words = (clean || name)
+    .trim()
+    .split(/\s+/)
+    .filter(w => /^[A-Za-zÄÖÜäöüß]/.test(w));
   if (words.length >= 2) {
-    return words.slice(0, 3).map(w => w[0]?.toUpperCase() || '').join('').slice(0, 3);
+    return words
+      .slice(0, 3)
+      .map(w => w[0]?.toUpperCase() || '')
+      .join('')
+      .slice(0, 3);
   }
-  return (words[0] || name).replace(/[^A-Za-zÄÖÜäöüß0-9]/g, '').slice(0, 3).toUpperCase();
+  return (words[0] || name)
+    .replace(/[^A-Za-zÄÖÜäöüß0-9]/g, '')
+    .slice(0, 3)
+    .toUpperCase();
 }
 
 /**
@@ -559,7 +593,9 @@ function deduplicateAbbrevs(stations) {
  */
 export function mergeRoadmapAssignment(prev, computed, rootIds) {
   const merged = {};
-  Object.keys(prev || {}).forEach(id => { if (rootIds.has(id)) merged[id] = prev[id]; });
+  Object.keys(prev || {}).forEach(id => {
+    if (rootIds.has(id)) merged[id] = prev[id];
+  });
   const holders = key => {
     const count = new Map();
     Object.values(merged).forEach(v => {
@@ -601,17 +637,9 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
 
   const buildStation = (node, kind, fallbackDate) => {
     const info = meta[node.id] || {};
-    const anchorDate = info.earliestStart
-      || toDate(node.pinnedStart)
-      || toDate(node.decideBy)
-      || toDate(node.date)
-      || info.latestEnd
-      || fallbackDate;
-    const endDate = info.latestEnd
-      || toDate(node.date)
-      || toDate(node.decideBy)
-      || toDate(node.pinnedStart)
-      || anchorDate;
+    const anchorDate =
+      info.earliestStart || toDate(node.pinnedStart) || toDate(node.decideBy) || toDate(node.date) || info.latestEnd || fallbackDate;
+    const endDate = info.latestEnd || toDate(node.date) || toDate(node.decideBy) || toDate(node.pinnedStart) || anchorDate;
 
     return {
       id: node.id,
@@ -631,221 +659,219 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
   };
 
   // Build raw lines (one per root)
-  const rawLines = roots.map((root) => {
-    const rootInfo = meta[root.id] || {};
+  const rawLines = roots
+    .map(root => {
+      const rootInfo = meta[root.id] || {};
 
-    // ── Scheduled-item clustering ─────────────────────────────────────────────
-    // Get all scheduled items for this root project
-    const rootScheduled = (scheduled || [])
-      .filter(s => s.id.startsWith(root.id + '.') && !(childMap[s.id]?.length));
-    const schedIds = new Set(rootScheduled.map(s => s.id));
+      // ── Scheduled-item clustering ─────────────────────────────────────────────
+      // Get all scheduled items for this root project
+      const rootScheduled = (scheduled || []).filter(s => s.id.startsWith(root.id + '.') && !childMap[s.id]?.length);
+      const schedIds = new Set(rootScheduled.map(s => s.id));
 
-    // Also include DONE leaf nodes that aren't in scheduled (scheduler skips done tasks).
-    // Done tasks = "the journey already traveled". They may lack dates from the scheduler,
-    // so we give dateless done items a synthetic "past" date before the project's first event.
-    const firstSchedDate = rootScheduled.reduce((min, s) => {
-      const d = toDate(s.startD || s.endD);
-      return d && (!min || d < min) ? d : min;
-    }, null);
-    const syntheticPast = firstSchedDate ? addDays(firstSchedDate, -14) : addDays(toDate(now), -30);
-
-    const doneLeaves = tree
-      .filter(n => n.id.startsWith(root.id + '.') && n.status === 'done')
-      .filter(n => !schedIds.has(n.id) && !(childMap[n.id]?.length))  // leaf only, not already scheduled
-      .map(n => {
-        const m = meta[n.id] || {};
-        const end = m.latestEnd || m.earliestStart || toDate(n.pinnedStart) || toDate(n.date) || syntheticPast;
-        const start = m.earliestStart || end;
-        return { id: n.id, name: n.name, status: 'done', startD: start, endD: end };
-      });
-    const capDoneItem = (item) => {
-      const node = nodeMap[item.id] || item;
-      const doneWindow = node?.status === 'done' ? completedWindows.get(item.id) : null;
-      const doneEnd = toDate(
-        doneWindow?.end
-        || node?.completedEnd
-        || node?.completedAt
-        || node?.completedStart,
-      );
-      const doneStart = toDate(
-        doneWindow?.start
-        || node?.completedStart
-        || node?.completedAt
-        || node?.completedEnd,
-      );
-      const end = doneEnd || toDate(item.endD || item.startD);
-      if (node?.status !== 'done') return { ...item, clusterEndD: end };
-      if (!end) return { ...item, clusterEndD: end };
-      const cappedEnd = end > today ? new Date(today) : end;
-      const rawStart = doneStart || toDate(item.startD || cappedEnd);
-      const cappedStart = rawStart && rawStart > cappedEnd ? new Date(cappedEnd) : rawStart;
-      return { ...item, startD: cappedStart || cappedEnd, endD: cappedEnd, clusterEndD: cappedEnd };
-    };
-
-    // Combine scheduled + done leaves, sort by endD
-    const sorted = [...rootScheduled.filter(s => s.endD), ...doneLeaves]
-      .map(capDoneItem)
-      .sort((a, b) => +(a.clusterEndD || new Date(a.endD)) - +(b.clusterEndD || new Date(b.endD)));
-
-    // ── What a stop IS ────────────────────────────────────────────────────
-    // A stop is a WORK PACKAGE, not a time window.
-    //
-    // It used to be a window: leaves whose end dates fell within N days of
-    // each other became one station. That works on a small plan and falls
-    // apart on a real one, in both directions at once. Widen the window and a
-    // station swallows fifty unrelated tasks and means nothing; narrow it and
-    // one project puts forty touching circles on its line with the labels
-    // overlapping into a band. Neither is a metro map, and neither answers
-    // the question the map is for.
-    //
-    // The tree already says how the work is grouped, so the stop is that
-    // grouping: every leaf under "Belegstruktur und Buchungslogik" is one
-    // station, named after it. The count follows the plan's own structure
-    // instead of a heuristic, and the name is one somebody wrote.
-    //
-    // The only thing left to choose is the DEPTH, and the canvas chooses it:
-    // start at the root's direct children and go deeper while the stations
-    // still fit the route (~1280 units wide, ~80 per label). The deepest
-    // level that fits wins, because that is the most detail the map can
-    // actually carry. A plan with one flat level gets its leaves as stops; a
-    // deeply nested one gets its top packages.
-    const MAX_STATIONS = 14;
-    const rootDepth = depthOf(root.id);
-    const ancestorAt = (id, depth) => id.split('.').slice(0, depth).join('.');
-    const stopDepth = (() => {
-      const deepest = sorted.reduce((max, item) => Math.max(max, depthOf(item.id)), rootDepth);
-      let chosen = rootDepth + 1;
-      for (let d = rootDepth + 1; d <= deepest; d++) {
-        const count = new Set(sorted.map(item => ancestorAt(item.id, d))).size;
-        if (count > MAX_STATIONS) break;
-        chosen = d;
-      }
-      return chosen;
-    })();
-
-    // Group by that ancestor, keeping the time order the sort established —
-    // a line still reads left to right by when the work lands.
-    const byStop = new Map();
-    sorted.forEach(item => {
-      const key = ancestorAt(item.id, stopDepth) || item.id;
-      if (!byStop.has(key)) byStop.set(key, []);
-      byStop.get(key).push(item);
-    });
-    const clusters = [...byStop.entries()].map(([key, items]) => {
-      // The package's own node carries the name a person wrote. A leaf that
-      // IS the stop (a flat project, or an item hanging directly off the
-      // root) names itself.
-      const node = nodeMap[key];
-      items.stopNode = node && node.id !== items[0]?.id ? node : null;
-      return items;
-    });
-
-    // Build stations from clusters
-    const majorStations = clusters.map(cluster => {
-      // The stop is named after its package, because that is the name
-      // somebody wrote for exactly this group of work. Only when the stop IS
-      // a single item does it fall back to naming itself.
-      const representative = cluster.stopNode
-        || cluster.reduce((best, item) => ((item.name || '').length > (best.name || '').length ? item : best), cluster[0]);
-      const earliestStart = cluster.reduce((min, item) => {
-        const d = toDate(item.startD);
+      // Also include DONE leaf nodes that aren't in scheduled (scheduler skips done tasks).
+      // Done tasks = "the journey already traveled". They may lack dates from the scheduler,
+      // so we give dateless done items a synthetic "past" date before the project's first event.
+      const firstSchedDate = rootScheduled.reduce((min, s) => {
+        const d = toDate(s.startD || s.endD);
         return d && (!min || d < min) ? d : min;
       }, null);
-      const latestEnd = cluster.reduce((max, item) => {
-        const d = toDate(item.endD);
-        return d && (!max || d > max) ? d : max;
-      }, null);
-      const progressStats = cluster.reduce((acc, item) => {
+      const syntheticPast = firstSchedDate ? addDays(firstSchedDate, -14) : addDays(toDate(now), -30);
+
+      const doneLeaves = tree
+        .filter(n => n.id.startsWith(root.id + '.') && n.status === 'done')
+        .filter(n => !schedIds.has(n.id) && !childMap[n.id]?.length) // leaf only, not already scheduled
+        .map(n => {
+          const m = meta[n.id] || {};
+          const end = m.latestEnd || m.earliestStart || toDate(n.pinnedStart) || toDate(n.date) || syntheticPast;
+          const start = m.earliestStart || end;
+          return { id: n.id, name: n.name, status: 'done', startD: start, endD: end };
+        });
+      const capDoneItem = item => {
         const node = nodeMap[item.id] || item;
-        const weight = scheduleEffort(node) || item.effort || 1;
-        const prog = leafProgress(node) / 100;
-        acc.weight += weight;
-        acc.progress += weight * prog;
-        if (node.status === 'done') acc.done += 1;
-        return acc;
-      }, { done: 0, weight: 0, progress: 0 });
-      const done = progressStats.done;
-      const total = cluster.length;
-      const prog = progressStats.weight > 0 ? progressStats.progress / progressStats.weight : (total > 0 ? done / total : 0);
+        const doneWindow = node?.status === 'done' ? completedWindows.get(item.id) : null;
+        const doneEnd = toDate(doneWindow?.end || node?.completedEnd || node?.completedAt || node?.completedStart);
+        const doneStart = toDate(doneWindow?.start || node?.completedStart || node?.completedAt || node?.completedEnd);
+        const end = doneEnd || toDate(item.endD || item.startD);
+        if (node?.status !== 'done') return { ...item, clusterEndD: end };
+        if (!end) return { ...item, clusterEndD: end };
+        const cappedEnd = end > today ? new Date(today) : end;
+        const rawStart = doneStart || toDate(item.startD || cappedEnd);
+        const cappedStart = rawStart && rawStart > cappedEnd ? new Date(cappedEnd) : rawStart;
+        return { ...item, startD: cappedStart || cappedEnd, endD: cappedEnd, clusterEndD: cappedEnd };
+      };
+
+      // Combine scheduled + done leaves, sort by endD
+      const sorted = [...rootScheduled.filter(s => s.endD), ...doneLeaves]
+        .map(capDoneItem)
+        .sort((a, b) => +(a.clusterEndD || new Date(a.endD)) - +(b.clusterEndD || new Date(b.endD)));
+
+      // ── What a stop IS ────────────────────────────────────────────────────
+      // A stop is a WORK PACKAGE, not a time window.
+      //
+      // It used to be a window: leaves whose end dates fell within N days of
+      // each other became one station. That works on a small plan and falls
+      // apart on a real one, in both directions at once. Widen the window and a
+      // station swallows fifty unrelated tasks and means nothing; narrow it and
+      // one project puts forty touching circles on its line with the labels
+      // overlapping into a band. Neither is a metro map, and neither answers
+      // the question the map is for.
+      //
+      // The tree already says how the work is grouped, so the stop is that
+      // grouping: every leaf under "Belegstruktur und Buchungslogik" is one
+      // station, named after it. The count follows the plan's own structure
+      // instead of a heuristic, and the name is one somebody wrote.
+      //
+      // The only thing left to choose is the DEPTH, and the canvas chooses it:
+      // start at the root's direct children and go deeper while the stations
+      // still fit the route (~1280 units wide, ~80 per label). The deepest
+      // level that fits wins, because that is the most detail the map can
+      // actually carry. A plan with one flat level gets its leaves as stops; a
+      // deeply nested one gets its top packages.
+      const MAX_STATIONS = 14;
+      const rootDepth = depthOf(root.id);
+      const ancestorAt = (id, depth) => id.split('.').slice(0, depth).join('.');
+      const stopDepth = (() => {
+        const deepest = sorted.reduce((max, item) => Math.max(max, depthOf(item.id)), rootDepth);
+        let chosen = rootDepth + 1;
+        for (let d = rootDepth + 1; d <= deepest; d++) {
+          const count = new Set(sorted.map(item => ancestorAt(item.id, d))).size;
+          if (count > MAX_STATIONS) break;
+          chosen = d;
+        }
+        return chosen;
+      })();
+
+      // Group by that ancestor, keeping the time order the sort established —
+      // a line still reads left to right by when the work lands.
+      const byStop = new Map();
+      sorted.forEach(item => {
+        const key = ancestorAt(item.id, stopDepth) || item.id;
+        if (!byStop.has(key)) byStop.set(key, []);
+        byStop.get(key).push(item);
+      });
+      const clusters = [...byStop.entries()].map(([key, items]) => {
+        // The package's own node carries the name a person wrote. A leaf that
+        // IS the stop (a flat project, or an item hanging directly off the
+        // root) names itself.
+        const node = nodeMap[key];
+        items.stopNode = node && node.id !== items[0]?.id ? node : null;
+        return items;
+      });
+
+      // Build stations from clusters
+      const majorStations = clusters.map(cluster => {
+        // The stop is named after its package, because that is the name
+        // somebody wrote for exactly this group of work. Only when the stop IS
+        // a single item does it fall back to naming itself.
+        const representative =
+          cluster.stopNode ||
+          cluster.reduce((best, item) => ((item.name || '').length > (best.name || '').length ? item : best), cluster[0]);
+        const earliestStart = cluster.reduce((min, item) => {
+          const d = toDate(item.startD);
+          return d && (!min || d < min) ? d : min;
+        }, null);
+        const latestEnd = cluster.reduce((max, item) => {
+          const d = toDate(item.endD);
+          return d && (!max || d > max) ? d : max;
+        }, null);
+        const progressStats = cluster.reduce(
+          (acc, item) => {
+            const node = nodeMap[item.id] || item;
+            const weight = scheduleEffort(node) || item.effort || 1;
+            const prog = leafProgress(node) / 100;
+            acc.weight += weight;
+            acc.progress += weight * prog;
+            if (node.status === 'done') acc.done += 1;
+            return acc;
+          },
+          { done: 0, weight: 0, progress: 0 },
+        );
+        const done = progressStats.done;
+        const total = cluster.length;
+        const prog = progressStats.weight > 0 ? progressStats.progress / progressStats.weight : total > 0 ? done / total : 0;
+
+        return {
+          id: representative.id,
+          name: representative.name,
+          abbrev: makeAbbrev(representative.name),
+          clusterSize: cluster.length,
+          clusterItems: cluster.map(c => ({ id: c.id, name: c.name })),
+          kind: 'major',
+          anchorDate: earliestStart || latestEnd,
+          milestoneDate: latestEnd || earliestStart,
+          endDate: latestEnd || earliestStart,
+          prog,
+          done,
+          total,
+          effort: progressStats.weight || total || 1,
+          allDone: total > 0 && cluster.every(item => (nodeMap[item.id] || item).status === 'done'),
+          depth: 1,
+        };
+      });
+
+      const minorStations = [];
+
+      const timeline = [...majorStations].sort(compareByTime);
+
+      // De-duplicate abbreviations within this line
+      deduplicateAbbrevs(majorStations);
+
+      const rootLatest = rootInfo.latestEnd || timeline.reduce((max, s) => (!max || s.endDate > max ? s.endDate : max), null);
+      const rootEarliest = rootInfo.earliestStart || timeline.reduce((min, s) => (!min || s.anchorDate < min ? s.anchorDate : min), null);
+      const rootStats = stats?.[root.id];
+      // "At risk" is a forecast — once every scoped leaf is done there is nothing
+      // left to miss, so the line drops the red GEFÄHRDET badge (deadlineStatus
+      // in utils/timeline.js is the shared state machine).
+      const rootState = root.type === 'deadline' ? deadlineStatus(tree, scheduled, root) : null;
+      const allDoneUnderRoot =
+        root.type !== 'deadline' &&
+        (() => {
+          const leaves = resolveToLeafIds(tree, root.id)
+            .map(id => tree.find(r => r.id === id))
+            .filter(Boolean);
+          return leaves.length > 0 && leaves.every(l => l.status === 'done');
+        })();
+      const atRisk =
+        root.type === 'deadline'
+          ? !!rootState?.isLate
+          : !!(root.date && rootStats?._endD && rootStats._endD > new Date(root.date) && !allDoneUnderRoot);
+
+      // A line nobody is working any more: every leaf done, or the project
+      // dropped. Both are still ON the map on purpose — a finished project is
+      // part of the picture, and a dropped one has to stay visible so the
+      // decision can be seen and taken back — but neither competes for
+      // attention with work that is live.
+      const rootDropped = !!(nodeMap[root.id] || root)?.dropped;
+      const rootRetired = rootDropped || allDoneUnderRoot;
+
+      // Duration in days for route-length matching
+      const durationDays = rootEarliest && rootLatest ? Math.max(1, (+rootLatest - +rootEarliest) / DAY) : 1;
 
       return {
-        id: representative.id,
-        name: representative.name,
-        abbrev: makeAbbrev(representative.name),
-        clusterSize: cluster.length,
-        clusterItems: cluster.map(c => ({ id: c.id, name: c.name })),
-        kind: 'major',
-        anchorDate: earliestStart || latestEnd,
-        milestoneDate: latestEnd || earliestStart,
-        endDate: latestEnd || earliestStart,
-        prog,
-        done,
-        total,
-        effort: progressStats.weight || total || 1,
-        allDone: total > 0 && cluster.every(item => (nodeMap[item.id] || item).status === 'done'),
-        depth: 1,
+        root,
+        progress: rootInfo.prog || 0,
+        totalEffort: rootInfo.effort || 0,
+        atRisk,
+        retired: rootRetired,
+        dropped: rootDropped,
+        allDoneUnderRoot,
+        hiddenMinorCount: 0,
+        timeline,
+        majorStations,
+        minorStations,
+        earliestDate: rootEarliest,
+        latestDate: rootLatest,
+        durationDays,
       };
-    });
-
-    const minorStations = [];
-
-    const timeline = [...majorStations].sort(compareByTime);
-
-    // De-duplicate abbreviations within this line
-    deduplicateAbbrevs(majorStations);
-
-    const rootLatest = rootInfo.latestEnd || timeline.reduce((max, s) => !max || s.endDate > max ? s.endDate : max, null);
-    const rootEarliest = rootInfo.earliestStart || timeline.reduce((min, s) => !min || s.anchorDate < min ? s.anchorDate : min, null);
-    const rootStats = stats?.[root.id];
-    // "At risk" is a forecast — once every scoped leaf is done there is nothing
-    // left to miss, so the line drops the red GEFÄHRDET badge (deadlineStatus
-    // in utils/timeline.js is the shared state machine).
-    const rootState = root.type === 'deadline' ? deadlineStatus(tree, scheduled, root) : null;
-    const allDoneUnderRoot = root.type !== 'deadline'
-      && (() => {
-        const leaves = resolveToLeafIds(tree, root.id).map(id => tree.find(r => r.id === id)).filter(Boolean);
-        return leaves.length > 0 && leaves.every(l => l.status === 'done');
-      })();
-    const atRisk = root.type === 'deadline'
-      ? !!rootState?.isLate
-      : !!(root.date && rootStats?._endD && rootStats._endD > new Date(root.date) && !allDoneUnderRoot);
-
-    // A line nobody is working any more: every leaf done, or the project
-    // dropped. Both are still ON the map on purpose — a finished project is
-    // part of the picture, and a dropped one has to stay visible so the
-    // decision can be seen and taken back — but neither competes for
-    // attention with work that is live.
-    const rootDropped = !!(nodeMap[root.id] || root)?.dropped;
-    const rootRetired = rootDropped || allDoneUnderRoot;
-
-    // Duration in days for route-length matching
-    const durationDays = rootEarliest && rootLatest
-      ? Math.max(1, (+rootLatest - +rootEarliest) / DAY)
-      : 1;
-
-    return {
-      root,
-      progress: rootInfo.prog || 0,
-      totalEffort: rootInfo.effort || 0,
-      atRisk,
-      retired: rootRetired,
-      dropped: rootDropped,
-      allDoneUnderRoot,
-      hiddenMinorCount: 0,
-      timeline,
-      majorStations,
-      minorStations,
-      earliestDate: rootEarliest,
-      latestDate: rootLatest,
-      durationDays,
-    };
-  }).filter(line => line.timeline.length > 0 || line.majorStations.length === 0);
+    })
+    .filter(line => line.timeline.length > 0 || line.majorStations.length === 0);
 
   if (!rawLines.length) return null;
 
   // ── Route assignment ──────────────────────────────────────────────────────
   // Sort routes by pixel length (longest first).
-  const routesWithLen = buildRoutes(rawLines.length).map((wp, idx) => ({ idx, wp, len: routeLength(wp) }))
+  const routesWithLen = buildRoutes(rawLines.length)
+    .map((wp, idx) => ({ idx, wp, len: routeLength(wp) }))
     .sort((a, b) => b.len - a.len);
 
   // Sort projects by duration (longest first). Ties broken by hash of root.id for stability.
@@ -868,7 +894,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
   //      a stored mapping never gets overwritten by a fallback.
   // Caller can read the assignment back via the model's `_assignment`
   // map and persist it (App.jsx auto-init on first render).
-  const stored = (assignment && typeof assignment === 'object') ? assignment : {};
+  const stored = assignment && typeof assignment === 'object' ? assignment : {};
   const usedRoute = new Set();
   const usedColor = new Set();
   // Pre-claim every stored slot first so fallbacks can't collide with them.
@@ -908,8 +934,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
   const baseAssigned = sortedLines.map((line, rank) => {
     const st = stored[line.root.id];
     let routeRank, colorIdx;
-    if (st && Number.isFinite(st.routeIdx) && !staleRoute.has(line.root.id)
-      && routesWithLen.some(r => r.idx === st.routeIdx)) {
+    if (st && Number.isFinite(st.routeIdx) && !staleRoute.has(line.root.id) && routesWithLen.some(r => r.idx === st.routeIdx)) {
       // routesWithLen is sorted by length, find the entry by original idx.
       routeRank = routesWithLen.findIndex(r => r.idx === st.routeIdx);
     } else {
@@ -921,8 +946,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
       routeRank = pick;
       usedRoute.add(routesWithLen[pick].idx);
     }
-    if (st && Number.isFinite(st.colorIdx)
-      && !(staleColor.has(line.root.id) && usedColor.size < PALETTE.length)) {
+    if (st && Number.isFinite(st.colorIdx) && !(staleColor.has(line.root.id) && usedColor.size < PALETTE.length)) {
       colorIdx = st.colorIdx;
     } else {
       let pick = rank;
@@ -945,13 +969,13 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
   // symmetric push avoids the "one route runs over another" bug we hit
   // before. Iterates a few passes; convergence is fast because the push
   // size is exactly the missing gap, not a fixed step.
-  const MIN_DIST = 50;     // px — segments closer than this are visually glued
-  const EPSILON = 0.001;   // px — guard for exactly-overlapping segments
-  const PARALLEL_TOL = 2;  // px — slope tolerance for axis-aligned segments
-  const SHARE_TOL = 4;     // px — span overlap must exceed this to count
+  const MIN_DIST = 50; // px — segments closer than this are visually glued
+  const EPSILON = 0.001; // px — guard for exactly-overlapping segments
+  const PARALLEL_TOL = 2; // px — slope tolerance for axis-aligned segments
+  const SHARE_TOL = 4; // px — span overlap must exceed this to count
   const DIAG_ANGLE_TOL = 0.45; // ~26° — diagonal pairs within this slope diff count as parallel
   const horiz = (a, b) => Math.abs(a.y - b.y) <= PARALLEL_TOL && Math.abs(b.x - a.x) > 8;
-  const vert  = (a, b) => Math.abs(a.x - b.x) <= PARALLEL_TOL && Math.abs(b.y - a.y) > 8;
+  const vert = (a, b) => Math.abs(a.x - b.x) <= PARALLEL_TOL && Math.abs(b.y - a.y) > 8;
   const overlap1D = (lo1, hi1, lo2, hi2) =>
     Math.min(Math.max(lo1, hi1), Math.max(lo2, hi2)) - Math.max(Math.min(lo1, hi1), Math.min(lo2, hi2));
   // For a diagonal segment, return its angle in radians and the perpendicular
@@ -965,8 +989,10 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
   // projected onto a's perpendicular).
   const perpDist = (a1, a2, b1, b2) => {
     const ang = segAngle(a1, a2);
-    const nx = -Math.sin(ang), ny = Math.cos(ang);
-    const bmx = (b1.x + b2.x) / 2, bmy = (b1.y + b2.y) / 2;
+    const nx = -Math.sin(ang),
+      ny = Math.cos(ang);
+    const bmx = (b1.x + b2.x) / 2,
+      bmy = (b1.y + b2.y) / 2;
     return (bmx - a1.x) * nx + (bmy - a1.y) * ny;
   };
 
@@ -978,11 +1004,14 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
       for (let j = i + 1; j < baseAssigned.length; j++) {
         const rj = baseAssigned[j].route;
         for (let si = 1; si < ri.length; si++) {
-          const a1 = ri[si - 1], a2 = ri[si];
-          const aH = horiz(a1, a2), aV = vert(a1, a2);
+          const a1 = ri[si - 1],
+            a2 = ri[si];
+          const aH = horiz(a1, a2),
+            aV = vert(a1, a2);
           if (!aH && !aV) continue;
           for (let sj = 1; sj < rj.length; sj++) {
-            const b1 = rj[sj - 1], b2 = rj[sj];
+            const b1 = rj[sj - 1],
+              b2 = rj[sj];
             if (aH && horiz(b1, b2)) {
               const sx = overlap1D(a1.x, a2.x, b1.x, b2.x);
               if (sx <= SHARE_TOL) continue;
@@ -1018,8 +1047,10 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
               // Need at least some overlap along the segment direction.
               const along = (px, py) => (px - a1.x) * Math.cos(angA) + (py - a1.y) * Math.sin(angA);
               const aLen = Math.hypot(a2.x - a1.x, a2.y - a1.y);
-              const tA0 = along(b1.x, b1.y), tA1 = along(b2.x, b2.y);
-              const tLo = Math.min(tA0, tA1), tHi = Math.max(tA0, tA1);
+              const tA0 = along(b1.x, b1.y),
+                tA1 = along(b2.x, b2.y);
+              const tLo = Math.min(tA0, tA1),
+                tHi = Math.max(tA0, tA1);
               const proj = Math.min(tHi, aLen) - Math.max(tLo, 0);
               if (proj <= SHARE_TOL) continue;
               const sign = dist === 0 ? 1 : Math.sign(dist);
@@ -1030,8 +1061,8 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
               // move a by -sign*push along perp, b by +sign*push.
               adjust[i].dx += -sign * push * px;
               adjust[i].dy += -sign * push * py;
-              adjust[j].dx +=  sign * push * px;
-              adjust[j].dy +=  sign * push * py;
+              adjust[j].dx += sign * push * px;
+              adjust[j].dy += sign * push * py;
               collisionCount++;
               break;
             }
@@ -1071,8 +1102,9 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     // stations, and the map disagreed with the tree, the work order and the
     // Gantt about what comes next. The date stays as the tiebreak, for the
     // stops the tree does not separate.
-    const byEnd = (a, b) => (+(a.milestoneDate || a.endDate) || Infinity) - (+(b.milestoneDate || b.endDate) || Infinity)
-      || a.id.localeCompare(b.id, undefined, { numeric: true });
+    const byEnd = (a, b) =>
+      (+(a.milestoneDate || a.endDate) || Infinity) - (+(b.milestoneDate || b.endDate) || Infinity) ||
+      a.id.localeCompare(b.id, undefined, { numeric: true });
     const byPlan = (a, b) => {
       const ar = planRank.has(a.id) ? planRank.get(a.id) : Number.MAX_SAFE_INTEGER;
       const br = planRank.has(b.id) ? planRank.get(b.id) : Number.MAX_SAFE_INTEGER;
@@ -1087,7 +1119,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     const dates = allStations.map(s => +(s.milestoneDate || s.endDate)).filter(Number.isFinite);
     const firstD = dates.length ? Math.min(...dates) : null;
     const lastD = dates.length ? Math.max(...dates) : null;
-    const span = (lastD && firstD && lastD > firstD) ? (lastD - firstD) : 0;
+    const span = lastD && firstD && lastD > firstD ? lastD - firstD : 0;
     const totalStationEffort = allStations.reduce((sum, station) => sum + Math.max(0, station.effort || 0), 0);
     const totalRouteEffort = Math.max(totalStationEffort, line.totalEffort || 0);
 
@@ -1098,9 +1130,10 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     // Today-on-timeline marker — kept as `ghostT` so a Soll/Ist gap can be
     // rendered later (effort progress vs calendar position).
     const nowMs = +new Date(now);
-    const ghostT = (span > 0 && firstD != null && lastD != null)
-      ? ROUTE_T_LO + clamp((nowMs - firstD) / span, 0, 1) * (ROUTE_T_HI - ROUTE_T_LO)
-      : effortTrainT;
+    const ghostT =
+      span > 0 && firstD != null && lastD != null
+        ? ROUTE_T_LO + clamp((nowMs - firstD) / span, 0, 1) * (ROUTE_T_HI - ROUTE_T_LO)
+        : effortTrainT;
 
     const positionBand = (stations, rawTs, minT, maxT, anchorLast = false) => {
       if (!stations.length) return [];
@@ -1108,9 +1141,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
       const hi = clamp(Math.max(maxT, lo), ROUTE_T_LO, ROUTE_T_HI);
       const desiredSpacing = 0.035;
       const available = Math.max(0, hi - lo);
-      const spacing = stations.length > 1
-        ? Math.min(desiredSpacing, available / (stations.length - 1 || 1))
-        : 0;
+      const spacing = stations.length > 1 ? Math.min(desiredSpacing, available / (stations.length - 1 || 1)) : 0;
 
       let positionedBand = stations.map((station, idx) => {
         const rawT = Number.isFinite(rawTs[idx]) ? rawTs[idx] : lo + available * ((idx + 1) / (stations.length + 1));
@@ -1126,9 +1157,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
       if (positionedBand.length && positionedBand[positionedBand.length - 1].t > hi) {
         const n = positionedBand.length;
         positionedBand = positionedBand.map((station, idx) => {
-          const t = n === 1
-            ? (anchorLast ? hi : lo + available / 2)
-            : lo + (available * idx) / (n - 1);
+          const t = n === 1 ? (anchorLast ? hi : lo + available / 2) : lo + (available * idx) / (n - 1);
           return { ...station, t };
         });
       } else if (anchorLast && positionedBand.length === 1) {
@@ -1182,8 +1211,7 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
     // The train may advance between the last done station and this station
     // according to the station's own partial progress, but it must never pass
     // the station until every clustered item is actually done.
-    const currentStation = positioned.find(s => !s.allDone && s.prog > 0)
-      || positioned.find(s => !s.allDone);
+    const currentStation = positioned.find(s => !s.allDone && s.prog > 0) || positioned.find(s => !s.allDone);
     const currentId = currentStation?.id || null;
 
     // Train rides between ROUTE_T_LO and ROUTE_T_HI (0.04..0.96) so badges
@@ -1233,8 +1261,8 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
   };
 }
 
-const STATION_MIN_GAP = 21;   // px — two dots closer than this read as one
-const STATION_T_EPS = 0.004;  // keep a hair of daylight between same-line stops
+const STATION_MIN_GAP = 21; // px — two dots closer than this read as one
+const STATION_T_EPS = 0.004; // keep a hair of daylight between same-line stops
 
 function separateStationsAcrossLines(lines) {
   if (!lines || lines.length < 2) return;
@@ -1287,11 +1315,14 @@ function separateStationsAcrossLines(lines) {
         const need = (STATION_MIN_GAP - dist) / 2 + 0.5;
         const ux = dist > 0.001 ? dx / dist : 1;
         const uy = dist > 0.001 ? dy / dist : 0;
-        [[a, -1], [b, 1]].forEach(([entry, sign]) => {
+        [
+          [a, -1],
+          [b, 1],
+        ].forEach(([entry, sign]) => {
           const { tx, ty } = tangentAt(entry.route, entry.station.t);
           // How much of the push direction actually runs along this route?
           const along = sign * (ux * tx + uy * ty);
-          if (Math.abs(along) < 0.15) return;   // route runs across the push — cannot help
+          if (Math.abs(along) < 0.15) return; // route runs across the push — cannot help
           const deltaT = (need * Math.sign(along)) / entry.routeLen;
           const nextT = clamp(entry.station.t + deltaT, entry.lo, entry.hi);
           if (Math.abs(nextT - entry.station.t) < 1e-6) return;
@@ -1318,9 +1349,9 @@ function separateStationsAcrossLines(lines) {
 // the first that hits neither another label nor any station dot, and drop the
 // label entirely if none fits — the tooltip still carries the full name.
 // Important stations are placed first so they get the prime slot.
-const LABEL_CH_W = 6.4;   // px per character at 10.5px JetBrains Mono
+const LABEL_CH_W = 6.4; // px per character at 10.5px JetBrains Mono
 const LABEL_H = 12;
-const DOT_KEEPOUT = 9;    // px — biggest station glyph plus a little air
+const DOT_KEEPOUT = 9; // px — biggest station glyph plus a little air
 const LABEL_SLOTS = [
   { dx: 8, dy: -8, anchor: 'start' },
   { dx: -8, dy: -8, anchor: 'end' },
@@ -1360,8 +1391,10 @@ export function placeStationLabels(lines, isVisible = () => true) {
     if (nameW > 0) {
       occupied.push({
         owner: `__name_${line.root?.id ?? lineIdx}`,
-        x0: nameX - 4, x1: nameX + nameW + 4,
-        y0: nameY - 16, y1: nameY + 5,
+        x0: nameX - 4,
+        x1: nameX + nameW + 4,
+        y0: nameY - 16,
+        y1: nameY + 5,
       });
     }
 
@@ -1372,13 +1405,16 @@ export function placeStationLabels(lines, isVisible = () => true) {
       // break the association it exists to make.
       occupied.push({
         owner: station.id,
-        x0: station.x - DOT_KEEPOUT, x1: station.x + DOT_KEEPOUT,
-        y0: station.y - DOT_KEEPOUT, y1: station.y + DOT_KEEPOUT,
+        x0: station.x - DOT_KEEPOUT,
+        x1: station.x + DOT_KEEPOUT,
+        y0: station.y - DOT_KEEPOUT,
+        y1: station.y + DOT_KEEPOUT,
       });
       if (!isVisible(line, station)) return;
       const isCurrent = station.id === line.currentId && !station.allDone;
       candidates.push({
-        station, lineIdx,
+        station,
+        lineIdx,
         // 0 = the station the train is approaching, 1 = a real milestone,
         // 2 = a minor stop. Ties break by position for stable output.
         priority: isCurrent ? 0 : station.kind === 'major' ? 1 : 2,
@@ -1390,14 +1426,13 @@ export function placeStationLabels(lines, isVisible = () => true) {
 
   candidates.forEach(({ station }) => {
     const width = String(station.abbrev || '').length * LABEL_CH_W + 4;
-    const slot = LABEL_SLOTS
-      .map(({ dx, dy, anchor }) => ({ x: station.x + dx, y: station.y + dy, anchor }))
+    const slot = LABEL_SLOTS.map(({ dx, dy, anchor }) => ({ x: station.x + dx, y: station.y + dy, anchor }))
       .filter(pos => pos.x > 6 && pos.x < SVG_W - 6 && pos.y > 12 && pos.y < labelFloor - 6)
       .find(pos => {
         const box = labelBox(pos.x, pos.y, width, pos.anchor);
         return !occupied.some(other => other.owner !== station.id && boxesOverlap(box, other));
       });
-    if (!slot) return;   // no room — the tooltip is the fallback
+    if (!slot) return; // no room — the tooltip is the fallback
     occupied.push({ owner: station.id, ...labelBox(slot.x, slot.y, width, slot.anchor) });
     placement.set(station.id, slot);
   });
@@ -1461,24 +1496,26 @@ export function renderRoadmapSvg(args) {
   // Planning-horizon overlay. When `horizonIds` is set, items/stations whose
   // ids aren't in the set get a muted treatment so the map still tells the
   // full story but the eye locks onto what's planned in the window.
-  const horizonIdSet = args.horizonIds instanceof Set ? args.horizonIds
-    : Array.isArray(args.horizonIds) ? new Set(args.horizonIds) : null;
+  const horizonIdSet = args.horizonIds instanceof Set ? args.horizonIds : Array.isArray(args.horizonIds) ? new Set(args.horizonIds) : null;
   const horizonOn = !!horizonIdSet;
   // Forward-looking projection per root: where would the train sit at the
   // horizon end? Drawn as a blue segment + ghost-train AHEAD of the live one
   // so the map tells the Diff/Ist/Plan story in one glance.
   const futureProgress = args.futureProgressByRootId || {};
   const hasFuture = Object.keys(futureProgress).length > 0;
-  const expandedLegendIds = args.expandedLegendIds instanceof Set ? args.expandedLegendIds
-    : Array.isArray(args.expandedLegendIds) ? new Set(args.expandedLegendIds) : new Set();
+  const expandedLegendIds =
+    args.expandedLegendIds instanceof Set
+      ? args.expandedLegendIds
+      : Array.isArray(args.expandedLegendIds)
+        ? new Set(args.expandedLegendIds)
+        : new Set();
   // Mirrors the per-station label conditions in the render loops below, so the
   // placement pass reserves space for exactly the labels that get drawn.
   const stationLabelPlacement = placeStationLabels(lines, (line, station) => {
     const isDone = station.allDone;
     const isCurrent = station.id === line.currentId && !isDone;
     if (station.kind !== 'major') return isCurrent;
-    const reachedInWindow = changedInWindow.size > 0
-      && (station.clusterItems || []).some(c => changedInWindow.has(c.id));
+    const reachedInWindow = changedInWindow.size > 0 && (station.clusterItems || []).some(c => changedInWindow.has(c.id));
     return !diffMode || isDone || isCurrent || reachedInWindow;
   });
   const out = [];
@@ -1492,8 +1529,12 @@ export function renderRoadmapSvg(args) {
     const yRaw = pt.y - 24;
     const y = yRaw < 4 ? pt.y + 12 : yRaw;
     out.push(`<g class="rm-diff-label" pointer-events="none">`);
-    out.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w}" height="16" rx="8" fill="${fill}" opacity="0.96" stroke="rgba(17,19,24,.65)" stroke-width="1"/>`);
-    out.push(`<text x="${(x + w / 2).toFixed(1)}" y="${(y + 11.5).toFixed(1)}" text-anchor="middle" font="800 10px/1 'JetBrains Mono',monospace" fill="${contrastText(fill)}" font-size="10" font-weight="800">${esc(label)}</text>`);
+    out.push(
+      `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w}" height="16" rx="8" fill="${fill}" opacity="0.96" stroke="rgba(17,19,24,.65)" stroke-width="1"/>`,
+    );
+    out.push(
+      `<text x="${(x + w / 2).toFixed(1)}" y="${(y + 11.5).toFixed(1)}" text-anchor="middle" font="800 10px/1 'JetBrains Mono',monospace" fill="${contrastText(fill)}" font-size="10" font-weight="800">${esc(label)}</text>`,
+    );
     out.push(`</g>`);
   };
 
@@ -1512,10 +1553,10 @@ export function renderRoadmapSvg(args) {
   // 800 here would have cropped the very lines the board grew for.
   const boardH = Math.max(SVG_H, usedYs.length ? Math.max(...usedYs) + ROUTE_PAD_BOTTOM : 0);
   const viewY = usedYs.length ? clamp(Math.min(...usedYs) - ROUTE_PAD_TOP, 0, boardH) : 0;
-  const viewH = usedYs.length
-    ? clamp(Math.max(...usedYs) + ROUTE_PAD_BOTTOM - viewY, 120, boardH - viewY)
-    : boardH;
-  out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 ${viewY.toFixed(0)} ${SVG_W} ${viewH.toFixed(0)}" style="display:block;width:100%;height:auto;max-width:100%" preserveAspectRatio="xMidYMin meet">`);
+  const viewH = usedYs.length ? clamp(Math.max(...usedYs) + ROUTE_PAD_BOTTOM - viewY, 120, boardH - viewY) : boardH;
+  out.push(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 ${viewY.toFixed(0)} ${SVG_W} ${viewH.toFixed(0)}" style="display:block;width:100%;height:auto;max-width:100%" preserveAspectRatio="xMidYMin meet">`,
+  );
 
   // ── Styles ──────────────────────────────────────────────────────────────────
   // Construction-tape pattern for the diff trails — base colour stays amber
@@ -1577,13 +1618,20 @@ export function renderRoadmapSvg(args) {
     // the same components as the rest of the app, and nothing hands an HTML
     // string to a live node. See components/shared/Roadmap.jsx.
     const lineTooltip = tipData({
-      kind: 'line', id: line.root.id, name: line.root.name, color,
-      badge: lTrainHover, note: lineCurrentPos, atRisk: line.atRisk ? (labels.atRisk || 'AT RISK') : null,
+      kind: 'line',
+      id: line.root.id,
+      name: line.root.name,
+      color,
+      badge: lTrainHover,
+      note: lineCurrentPos,
+      atRisk: line.atRisk ? labels.atRisk || 'AT RISK' : null,
     });
 
     // Invisible fat hit area so hovering anywhere along the route surfaces
     // the line tooltip — not only when the cursor lands on the train glyph.
-    out.push(`<path d="${esc(pathD)}" fill="none" stroke="transparent" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" pointer-events="stroke" data-tip="${esc(lineTooltip)}" data-item-id="${esc(line.root.id)}" style="cursor:pointer"/>`);
+    out.push(
+      `<path d="${esc(pathD)}" fill="none" stroke="transparent" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" pointer-events="stroke" data-tip="${esc(lineTooltip)}" data-item-id="${esc(line.root.id)}" style="cursor:pointer"/>`,
+    );
 
     // Full route (faded) — drawn first so progress overlays it
     // The route not yet travelled. It sat at 0.22, which made a project that
@@ -1593,11 +1641,15 @@ export function renderRoadmapSvg(args) {
     // the travelled part is what stands out (full weight, on top of it) plus
     // the train marker. 0.42 is where the pale track still reads as a line
     // on the card surface without competing with the travelled portion.
-    out.push(`<path d="${esc(pathD)}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.42" pointer-events="none"/>`);
+    out.push(
+      `<path d="${esc(pathD)}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.42" pointer-events="none"/>`,
+    );
 
     // Traveled portion (full color)
     if (progressD) {
-      out.push(`<path d="${esc(progressD)}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>`);
+      out.push(
+        `<path d="${esc(progressD)}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>`,
+      );
     }
 
     // Diff / Plan overlays moved out of this per-line loop — they're drawn
@@ -1620,7 +1672,9 @@ export function renderRoadmapSvg(args) {
     // legend below the map as a two-letter badge you had to look up — so
     // reading the map meant looking down, matching a code, and looking back.
     // A metro map names its lines on the map.
-    out.push(`<text x="${startPt.x - 30}" y="${startPt.y - 15}" class="rm-line-name" fill="var(--tx)">${esc(truncate(line.root.name, 42))}</text>`);
+    out.push(
+      `<text x="${startPt.x - 30}" y="${startPt.y - 15}" class="rm-line-name" fill="var(--tx)">${esc(truncate(line.root.name, 42))}</text>`,
+    );
 
     // Start badge (left-anchored from the start point)
     const sbx = startPt.x - badgeW - 8;
@@ -1631,7 +1685,9 @@ export function renderRoadmapSvg(args) {
     if (isNewLine) {
       const nby = sby + badgeH + 2;
       out.push(`<rect x="${sbx}" y="${nby}" width="${badgeW}" height="14" rx="3" fill="#f59e0b"/>`);
-      out.push(`<text x="${sbx + badgeW / 2}" y="${nby + 10.5}" text-anchor="middle" font="700 9px/1 'JetBrains Mono',monospace" fill="#1a1a1a" font-size="9" font-weight="700">⊕ NEU</text>`);
+      out.push(
+        `<text x="${sbx + badgeW / 2}" y="${nby + 10.5}" text-anchor="middle" font="700 9px/1 'JetBrains Mono',monospace" fill="#1a1a1a" font-size="9" font-weight="700">⊕ NEU</text>`,
+      );
     }
 
     // End badge (right of end point, unless near edge — then left)
@@ -1653,7 +1709,9 @@ export function renderRoadmapSvg(args) {
       const cx = ebxClamped + badgeW + 12;
       const cy = endPt.y;
       out.push(`<circle cx="${cx}" cy="${cy}" r="8" fill="${color}"/>`);
-      out.push(`<path d="M${(cx - 3.6).toFixed(1)} ${(cy + 0.2).toFixed(1)} l 2.6 2.7 l 4.6 -5.2" fill="none" stroke="${contrastText(color)}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>`);
+      out.push(
+        `<path d="M${(cx - 3.6).toFixed(1)} ${(cy + 0.2).toFixed(1)} l 2.6 2.7 l 4.6 -5.2" fill="none" stroke="${contrastText(color)}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>`,
+      );
     }
 
     // ── AT RISK marker at the end ──────────────────────────────────────────
@@ -1665,10 +1723,14 @@ export function renderRoadmapSvg(args) {
       const rx0 = ebxClamped + badgeW + 8;
       const ry0 = endPt.y - badgeH / 2;
       const rcx = rx0 + badgeH / 2;
-      out.push(`<rect x="${rx0.toFixed(1)}" y="${ry0.toFixed(1)}" width="${badgeH}" height="${badgeH}" rx="${badgeRx}" class="rm-risk-tri"/>`);
+      out.push(
+        `<rect x="${rx0.toFixed(1)}" y="${ry0.toFixed(1)}" width="${badgeH}" height="${badgeH}" rx="${badgeRx}" class="rm-risk-tri"/>`,
+      );
       // A drawn warning mark: a stem and a dot, at the weight of the badge
       // letters next to it.
-      out.push(`<path d="M${rcx.toFixed(1)} ${(endPt.y - 5.5).toFixed(1)} v 6" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"/>`);
+      out.push(
+        `<path d="M${rcx.toFixed(1)} ${(endPt.y - 5.5).toFixed(1)} v 6" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"/>`,
+      );
       out.push(`<circle cx="${rcx.toFixed(1)}" cy="${(endPt.y + 4.6).toFixed(1)}" r="1.3" fill="#fff"/>`);
     }
 
@@ -1688,9 +1750,12 @@ export function renderRoadmapSvg(args) {
       const stProg = Math.max(0, Math.min(1, station.prog || 0));
       const stStatus = isDone ? 'done' : stProg > 0 ? 'wip' : 'open';
       const tooltip = tipData({
-        kind: 'station', color,
-        abbrev: station.abbrev, name: station.name,
-        status: stStatus, prog: stProg,
+        kind: 'station',
+        color,
+        abbrev: station.abbrev,
+        name: station.name,
+        status: stStatus,
+        prog: stProg,
         count: isDone ? '✓' : stProg > 0 ? `${Math.round(stProg * 100)}%` : `${station.done}/${station.total}`,
         items: (station.clusterItems || []).map(c => {
           const node = nodeMap[c.id];
@@ -1701,12 +1766,12 @@ export function renderRoadmapSvg(args) {
           };
         }),
       });
-      const cx = station.x.toFixed(1), cy = station.y.toFixed(1);
+      const cx = station.x.toFixed(1),
+        cy = station.y.toFixed(1);
 
       // Did this station gain any movement in the diff window — either a
       // completion or a progress jump on a still-open task?
-      const reachedInWindow = changedInWindow.size > 0
-        && (station.clusterItems || []).some(c => changedInWindow.has(c.id));
+      const reachedInWindow = changedInWindow.size > 0 && (station.clusterItems || []).some(c => changedInWindow.has(c.id));
       // Horizon mute: station has no items inside the planning window. Lets
       // forward-looking presentations point at what's "in the next N months".
       const inHorizon = !horizonOn || (station.clusterItems || []).some(c => horizonIdSet.has(c.id));
@@ -1718,7 +1783,9 @@ export function renderRoadmapSvg(args) {
       // `data-cluster-size` is the difference between "this is a task" and
       // "this is five tasks that finish in the same fortnight", which decides
       // which tooltip can honestly answer what is under the cursor.
-      out.push(`<g class="rm-stop" style="cursor:pointer${!inHorizon ? ';opacity:.22' : ''}" pointer-events="all" data-item-id="${esc(station.id)}" data-cluster-size="${(station.clusterItems || []).length || 1}" data-tip="${esc(tooltip)}">`);
+      out.push(
+        `<g class="rm-stop" style="cursor:pointer${!inHorizon ? ';opacity:.22' : ''}" pointer-events="all" data-item-id="${esc(station.id)}" data-cluster-size="${(station.clusterItems || []).length || 1}" data-tip="${esc(tooltip)}">`,
+      );
       // Invisible larger hit area for tooltip
       out.push(`<circle cx="${cx}" cy="${cy}" r="14" fill="transparent" pointer-events="all"/>`);
       // Amber halo for stations reached in the diff window. Drawn before the
@@ -1731,17 +1798,21 @@ export function renderRoadmapSvg(args) {
       // exists on screen only (the PDF path never passes `scenarioIds`), and
       // it has to follow the theme like the bar and the frame do.
       if (scenarioIds && (station.clusterItems || []).some(c => scenarioIds.has(c.id))) {
-        out.push(`<circle class="rm-scenario-halo" cx="${cx}" cy="${cy}" r="10" fill="none" stroke="var(--sc)" stroke-width="2" stroke-dasharray="3 2"/>`);
+        out.push(
+          `<circle class="rm-scenario-halo" cx="${cx}" cy="${cy}" r="10" fill="none" stroke="var(--sc)" stroke-width="2" stroke-dasharray="3 2"/>`,
+        );
       }
       out.push(stationGlyph(cx, cy, color, { done: isDone, current: isCurrent }));
       out.push(`</g>`);
 
       // Abbreviation label
-      const abbrevClass = isCurrent ? 'rm-abbrev rm-abbrev-active' : (isDone ? 'rm-abbrev rm-abbrev-done' : 'rm-abbrev');
+      const abbrevClass = isCurrent ? 'rm-abbrev rm-abbrev-active' : isDone ? 'rm-abbrev rm-abbrev-done' : 'rm-abbrev';
       const showLabel = !diffMode || isDone || isCurrent || reachedInWindow;
       const place = stationLabelPlacement.get(station.id);
       if (showLabel && place) {
-        out.push(`<text x="${place.x.toFixed(1)}" y="${place.y.toFixed(1)}" text-anchor="${place.anchor}" class="${abbrevClass}" fill="${isDone ? color : isCurrent ? color : 'var(--tx3,#94a3b8)'}">${esc(station.abbrev)}</text>`);
+        out.push(
+          `<text x="${place.x.toFixed(1)}" y="${place.y.toFixed(1)}" text-anchor="${place.anchor}" class="${abbrevClass}" fill="${isDone ? color : isCurrent ? color : 'var(--tx3,#94a3b8)'}">${esc(station.abbrev)}</text>`,
+        );
       }
     });
 
@@ -1758,13 +1829,15 @@ export function renderRoadmapSvg(args) {
   // ── Progress overlays — drawn AFTER every base route + station so they
   // can never be covered by a later route's faded backbone. Striped past
   // trail, striped plan trail, animated dots — all on top.
-  lines.forEach((line) => {
+  lines.forEach(line => {
     const { route, trainT } = line;
     const isNewLine = newSet.has(line.root.id);
     if (isNewLine) {
       const trailD = trainT > ROUTE_T_LO ? partialPath(route, trainT) : null;
       if (trailD) {
-        out.push(`<path d="${esc(trailD)}" fill="none" stroke="url(#rm-past-stripe)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.95" pointer-events="none"/>`);
+        out.push(
+          `<path d="${esc(trailD)}" fill="none" stroke="url(#rm-past-stripe)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.95" pointer-events="none"/>`,
+        );
         if (diffMode && (line.progress || 0) > MIN_VISIBLE_PROGRESS_DELTA) {
           renderLaneDeltaLabel(route, ROUTE_T_LO, trainT, formatProgressDelta(line.progress || 0), '#f59e0b');
         }
@@ -1788,11 +1861,11 @@ export function renderRoadmapSvg(args) {
         const minVisualTrail = Math.min(0.05, Math.max(0.018, deltaProgressForTrail * (ROUTE_T_HI - ROUTE_T_LO)));
         trailStartT = Math.max(ROUTE_T_LO, line.trainT - minVisualTrail);
       }
-      const trailD = line.trainT - trailStartT > MIN_VISIBLE_PROGRESS_DELTA
-        ? partialPath(route, trainT, trailStartT)
-        : null;
+      const trailD = line.trainT - trailStartT > MIN_VISIBLE_PROGRESS_DELTA ? partialPath(route, trainT, trailStartT) : null;
       if (trailD) {
-        out.push(`<path d="${esc(trailD)}" fill="none" stroke="url(#rm-past-stripe)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.95" pointer-events="none"/>`);
+        out.push(
+          `<path d="${esc(trailD)}" fill="none" stroke="url(#rm-past-stripe)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.95" pointer-events="none"/>`,
+        );
         out.push(`<circle r="4" fill="#fff" stroke="#f59e0b" stroke-width="1.5" pointer-events="none">`);
         out.push(`<animateMotion dur="3.2s" repeatCount="indefinite" path="${esc(trailD)}"/>`);
         out.push(`</circle>`);
@@ -1807,7 +1880,9 @@ export function renderRoadmapSvg(args) {
       if (futurePct - (line.progress || 0) > MIN_VISIBLE_PROGRESS_DELTA) {
         const planD = partialPath(route, fT, trainT);
         if (planD) {
-          out.push(`<path d="${esc(planD)}" fill="none" stroke="url(#rm-plan-stripe)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.85" pointer-events="none"/>`);
+          out.push(
+            `<path d="${esc(planD)}" fill="none" stroke="url(#rm-plan-stripe)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.85" pointer-events="none"/>`,
+          );
           out.push(`<circle r="3.5" fill="#fff" stroke="#3b82f6" stroke-width="1.5" pointer-events="none">`);
           out.push(`<animateMotion dur="4.2s" repeatCount="indefinite" path="${esc(planD)}"/>`);
           out.push(`</circle>`);
@@ -1835,14 +1910,24 @@ export function renderRoadmapSvg(args) {
     const lArrived = labels.arrived || 'Arrived — every work package done';
     const lAtRisk = labels.atRisk || 'AT RISK';
     const trainTip = tipData({
-      kind: 'line', id: line.root.id, name: line.root.name, color, glyph: '🚆',
-      badge: lTrain, note: arrived ? lArrived : lCurrentPos, atRisk: line.atRisk ? lAtRisk : null,
+      kind: 'line',
+      id: line.root.id,
+      name: line.root.name,
+      color,
+      glyph: '🚆',
+      badge: lTrain,
+      note: arrived ? lArrived : lCurrentPos,
+      atRisk: line.atRisk ? lAtRisk : null,
     });
-    const tx = trainPt.x.toFixed(1), ty = trainPt.y.toFixed(1);
-    const halfW = TRAIN_W / 2, halfH = TRAIN_H / 2;
+    const tx = trainPt.x.toFixed(1),
+      ty = trainPt.y.toFixed(1);
+    const halfW = TRAIN_W / 2,
+      halfH = TRAIN_H / 2;
     // The train stands for the project's position, so clicking it opens the
     // project — same reason as the stations above: it offers a pointer.
-    out.push(`<g id="rm-train-${lineIdx}" style="cursor:pointer" pointer-events="all" data-item-id="${esc(line.root.id)}" data-tip="${esc(trainTip)}">`);
+    out.push(
+      `<g id="rm-train-${lineIdx}" style="cursor:pointer" pointer-events="all" data-item-id="${esc(line.root.id)}" data-tip="${esc(trainTip)}">`,
+    );
     if (!arrived) {
       // Halo / pulse glow
       out.push(`<circle cx="${tx}" cy="${ty}" r="16" fill="${color}" opacity="0.15">`);
@@ -1853,7 +1938,9 @@ export function renderRoadmapSvg(args) {
     // A rounded rectangle rather than a circle, so the train is never mistaken
     // for a station — and bigger than one, because it is the thing you look
     // for first on a line.
-    out.push(`<rect x="${(+tx - halfW).toFixed(1)}" y="${(+ty - halfH).toFixed(1)}" width="${TRAIN_W}" height="${TRAIN_H}" rx="4.5" fill="${color}" stroke="var(--bg,#111318)" stroke-width="1.8"/>`);
+    out.push(
+      `<rect x="${(+tx - halfW).toFixed(1)}" y="${(+ty - halfH).toFixed(1)}" width="${TRAIN_W}" height="${TRAIN_H}" rx="4.5" fill="${color}" stroke="var(--bg,#111318)" stroke-width="1.8"/>`,
+    );
     // Window slits — two small rectangles like train windows. An arrived train
     // keeps them: replacing them with a tick made the car unrecognisable as a
     // train, which is the one thing it has to stay. The tick is a badge ON it
@@ -1861,9 +1948,14 @@ export function renderRoadmapSvg(args) {
     out.push(`<rect x="${(+tx - 8).toFixed(1)}" y="${(+ty - 4).toFixed(1)}" width="6" height="3.4" rx="0.7" fill="#fff" opacity="0.95"/>`);
     out.push(`<rect x="${(+tx + 2).toFixed(1)}" y="${(+ty - 4).toFixed(1)}" width="6" height="3.4" rx="0.7" fill="#fff" opacity="0.95"/>`);
     if (arrived) {
-      const bx = +tx + halfW - 2, by = +ty - halfH + 1;
-      out.push(`<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="6.4" fill="var(--st-done,#6fbf8a)" stroke="var(--bg,#111318)" stroke-width="1.6"/>`);
-      out.push(`<path d="M${(bx - 2.9).toFixed(1)} ${(by + 0.1).toFixed(1)} l 2 2.1 l 3.7 -4.2" fill="none" stroke="var(--bg,#111318)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>`);
+      const bx = +tx + halfW - 2,
+        by = +ty - halfH + 1;
+      out.push(
+        `<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="6.4" fill="var(--st-done,#6fbf8a)" stroke="var(--bg,#111318)" stroke-width="1.6"/>`,
+      );
+      out.push(
+        `<path d="M${(bx - 2.9).toFixed(1)} ${(by + 0.1).toFixed(1)} l 2 2.1 l 3.7 -4.2" fill="none" stroke="var(--bg,#111318)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>`,
+      );
     }
     out.push(`</g>`);
     // Ghost train marker at the past position — only when there's a real gap
@@ -1872,9 +1964,12 @@ export function renderRoadmapSvg(args) {
       const pastT = Math.min(progressToRouteT(pastPct), line.trainT);
       if (line.trainT - pastT > MIN_VISIBLE_PROGRESS_DELTA) {
         const gp = pointAtFraction(line.route, pastT);
-        const gx = gp.x.toFixed(1), gy = gp.y.toFixed(1);
+        const gx = gp.x.toFixed(1),
+          gy = gp.y.toFixed(1);
         out.push(`<g pointer-events="none" data-tip="${esc(labels.prevPos || 'Previous position')}">`);
-        out.push(`<rect x="${(+gx - 9).toFixed(1)}" y="${(+gy - 6).toFixed(1)}" width="18" height="12" rx="3" fill="${color}" opacity="0.32" stroke="${color}" stroke-width="1" stroke-dasharray="2,2"/>`);
+        out.push(
+          `<rect x="${(+gx - 9).toFixed(1)}" y="${(+gy - 6).toFixed(1)}" width="18" height="12" rx="3" fill="${color}" opacity="0.32" stroke="${color}" stroke-width="1" stroke-dasharray="2,2"/>`,
+        );
         out.push(`</g>`);
       }
     }
@@ -1886,9 +1981,12 @@ export function renderRoadmapSvg(args) {
       const fT = progressToRouteT(futurePct);
       if (futurePct - (line.progress || 0) > MIN_VISIBLE_PROGRESS_DELTA) {
         const fp = pointAtFraction(line.route, fT);
-        const fx = fp.x.toFixed(1), fy = fp.y.toFixed(1);
+        const fx = fp.x.toFixed(1),
+          fy = fp.y.toFixed(1);
         out.push(`<g pointer-events="none" data-tip="${esc(labels.plannedPos || 'Planned position')}">`);
-        out.push(`<rect x="${(+fx - 9).toFixed(1)}" y="${(+fy - 6).toFixed(1)}" width="18" height="12" rx="3" fill="rgba(59,130,246,.18)" stroke="#3b82f6" stroke-width="1.4" stroke-dasharray="3,2"/>`);
+        out.push(
+          `<rect x="${(+fx - 9).toFixed(1)}" y="${(+fy - 6).toFixed(1)}" width="18" height="12" rx="3" fill="rgba(59,130,246,.18)" stroke="#3b82f6" stroke-width="1.4" stroke-dasharray="3,2"/>`,
+        );
         out.push(`</g>`);
       }
     }
@@ -1903,8 +2001,11 @@ export function renderRoadmapSvg(args) {
   // slot into the leftover vertical space of every column, not just the
   // last one. Falls back to a single column on narrow screens via media
   // wrapping at the flex layer.
-  const ROW_H = 22, EXTRA_H = 14, HEADER_H = 28, BLOCK_MARGIN = 14;
-  const estimateBlockHeight = (line) => {
+  const ROW_H = 22,
+    EXTRA_H = 14,
+    HEADER_H = 28,
+    BLOCK_MARGIN = 14;
+  const estimateBlockHeight = line => {
     const stations = [...line.majorStations, ...line.minorStations];
     let h = HEADER_H;
     for (const st of stations) {
@@ -1923,7 +2024,7 @@ export function renderRoadmapSvg(args) {
   const blockHeights = new Map();
   const linesForLegend = lines
     .map((line, idx) => ({ line, idx }))
-    .filter(({ line }) => (line.majorStations.length + line.minorStations.length) > 0);
+    .filter(({ line }) => line.majorStations.length + line.minorStations.length > 0);
   linesForLegend.forEach(({ line, idx }) => {
     blockHeights.set(idx, estimateBlockHeight(line));
   });
@@ -1946,10 +2047,10 @@ export function renderRoadmapSvg(args) {
 
   out.push(`<div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:20px;padding:0 4px;align-items:flex-start">`);
 
-  bins.forEach((bin) => {
+  bins.forEach(bin => {
     if (!bin.items.length) return;
     out.push(`<div style="flex:1 1 220px;min-width:200px;max-width:340px">`);
-    bin.items.forEach((lineIdx) => {
+    bin.items.forEach(lineIdx => {
       const line = lines[lineIdx];
       out.push(renderLegendBlock(line));
     });
@@ -1988,50 +2089,50 @@ export function renderRoadmapSvg(args) {
 
   function renderLegendBlock(line) {
     const block = [];
-    const allStations = [...line.majorStations, ...line.minorStations]
-      .sort((a, b) => a.t - b.t);
+    const allStations = [...line.majorStations, ...line.minorStations].sort((a, b) => a.t - b.t);
     if (!allStations.length) return '';
-    const stationMoved = station => (station.clusterItems || [])
-      .some(c => doneInWindow.has(c.id) || changedInWindow.has(c.id));
+    const stationMoved = station => (station.clusterItems || []).some(c => doneInWindow.has(c.id) || changedInWindow.has(c.id));
     const stationCurrent = station => station.id === line.currentId && !station.allDone;
     const compactStations = diffMode
       ? allStations.filter(station => station.allDone || stationCurrent(station) || stationMoved(station))
       : allStations;
     const isLegendExpanded = expandedLegendIds.has(line.root.id);
     const visibleStations = diffMode && !isLegendExpanded ? compactStations : allStations;
-    const extrasOf = station => station.clusterSize > 1
-      ? (station.clusterItems || []).filter(c => c.id !== station.id)
-      : [];
+    const extrasOf = station => (station.clusterSize > 1 ? (station.clusterItems || []).filter(c => c.id !== station.id) : []);
     const movedOrLive = c => {
       const n = nodeMap[c.id];
-      return doneInWindow.has(c.id) || changedInWindow.has(c.id)
-        || n?.status === 'done' || n?.status === 'wip';
+      return doneInWindow.has(c.id) || changedInWindow.has(c.id) || n?.status === 'done' || n?.status === 'wip';
     };
     // A station names a stop; what sits under it is a drill-down. Collapsed,
     // a line lists its stations and nothing else — otherwise a line with two
     // hundred leaves buries the map under its own legend. Diff mode keeps
     // whatever moved in the window visible even while collapsed.
-    const visibleExtrasOf = station => isLegendExpanded
-      ? extrasOf(station)
-      : diffMode ? extrasOf(station).filter(movedOrLive) : [];
+    const visibleExtrasOf = station => (isLegendExpanded ? extrasOf(station) : diffMode ? extrasOf(station).filter(movedOrLive) : []);
     const rowsExpanded = allStations.reduce((n, st) => n + 1 + extrasOf(st).length, 0);
     const rowsNow = visibleStations.reduce((n, st) => n + 1 + visibleExtrasOf(st).length, 0);
     const hiddenRowCount = rowsExpanded - rowsNow;
     // Line-level diff: two pills in the header — completions (✓) and
     // progress-only movements (▲). Either can be zero; the row stays quiet
     // when both are.
-    const lineDoneCount = doneInWindow.size > 0
-      ? allStations.reduce((sum, st) => sum + ((st.clusterItems || []).filter(c => doneInWindow.has(c.id)).length), 0)
-      : 0;
-    const lineProgCount = changedInWindow.size > 0
-      ? allStations.reduce((sum, st) => sum + ((st.clusterItems || []).filter(c => changedInWindow.has(c.id) && !doneInWindow.has(c.id)).length), 0)
-      : 0;
+    const lineDoneCount =
+      doneInWindow.size > 0
+        ? allStations.reduce((sum, st) => sum + (st.clusterItems || []).filter(c => doneInWindow.has(c.id)).length, 0)
+        : 0;
+    const lineProgCount =
+      changedInWindow.size > 0
+        ? allStations.reduce(
+            (sum, st) => sum + (st.clusterItems || []).filter(c => changedInWindow.has(c.id) && !doneInWindow.has(c.id)).length,
+            0,
+          )
+        : 0;
     block.push(`<div style="margin-bottom:14px">`);
     // Line header
     block.push(`<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">`);
     block.push(`<span style="display:inline-block;width:28px;height:12px;border-radius:3px;background:${line.color}"></span>`);
     block.push(`<span style="font:700 11px/1 'JetBrains Mono',monospace;color:${line.color}">${esc(line.root.id)}</span>`);
-    block.push(`<span style="font:500 10px/1 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0;flex:1 1 auto">${esc(truncate(line.root.name, 22))}</span>`);
+    block.push(
+      `<span style="font:500 10px/1 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0;flex:1 1 auto">${esc(truncate(line.root.name, 22))}</span>`,
+    );
     block.push(renderLineProgressPills(line));
     if (lineDoneCount > 0 || lineProgCount > 0) {
       const statusParts = [];
@@ -2044,7 +2145,9 @@ export function renderRoadmapSvg(args) {
         statusParts.push(`<span style="color:#f59e0b">▲ ${lineProgCount}</span>`);
         titleParts.push(`${labels.tipProgress || 'Progress in window'}: ${lineProgCount}`);
       }
-      block.push(`<span title="${esc(titleParts.join(' · '))}" style="font:800 9px/1 'JetBrains Mono',monospace;background:var(--bg3,#232830);border:1px solid var(--b2,#364456);border-radius:3px;padding:1px 5px;display:inline-flex;gap:5px;white-space:nowrap;flex-shrink:0">${statusParts.join('')}</span>`);
+      block.push(
+        `<span title="${esc(titleParts.join(' · '))}" style="font:800 9px/1 'JetBrains Mono',monospace;background:var(--bg3,#232830);border:1px solid var(--b2,#364456);border-radius:3px;padding:1px 5px;display:inline-flex;gap:5px;white-space:nowrap;flex-shrink:0">${statusParts.join('')}</span>`,
+      );
     }
     block.push(`</div>`);
 
@@ -2057,27 +2160,35 @@ export function renderRoadmapSvg(args) {
       const statusBadge = station.allDone ? '' : stProg > 0 ? ` ${Math.round(stProg * 100)}%` : ` ${station.done}/${station.total}`;
       // Same split per station: ✓-pill for done-in-window, ▲-pill for
       // progress-only edits. Row background lights up when either is non-zero.
-      const stDoneItems = doneInWindow.size > 0
-        ? (station.clusterItems || []).filter(c => doneInWindow.has(c.id))
-        : [];
-      const stProgItems = changedInWindow.size > 0
-        ? (station.clusterItems || []).filter(c => changedInWindow.has(c.id) && !doneInWindow.has(c.id))
-        : [];
-      const stationDeltaPill = (stDoneItems.length || stProgItems.length)
-        ? `<span style="margin-left:auto;display:inline-flex;gap:3px">${
-            stDoneItems.length ? `<span style="font:700 9px/1 'JetBrains Mono',monospace;background:#10b981;color:#0a0a0a;border-radius:3px;padding:1px 4px">✓ ${stDoneItems.length}</span>` : ''
-          }${
-            stProgItems.length ? `<span style="font:700 9px/1 'JetBrains Mono',monospace;background:#f59e0b;color:#1a1a1a;border-radius:3px;padding:1px 4px">▲ ${stProgItems.length}</span>` : ''
-          }</span>`
-        : '';
-      const rowBg = (stDoneItems.length || stProgItems.length) ? ';background:rgba(245,158,11,.10)' : '';
+      const stDoneItems = doneInWindow.size > 0 ? (station.clusterItems || []).filter(c => doneInWindow.has(c.id)) : [];
+      const stProgItems =
+        changedInWindow.size > 0 ? (station.clusterItems || []).filter(c => changedInWindow.has(c.id) && !doneInWindow.has(c.id)) : [];
+      const stationDeltaPill =
+        stDoneItems.length || stProgItems.length
+          ? `<span style="margin-left:auto;display:inline-flex;gap:3px">${
+              stDoneItems.length
+                ? `<span style="font:700 9px/1 'JetBrains Mono',monospace;background:#10b981;color:#0a0a0a;border-radius:3px;padding:1px 4px">✓ ${stDoneItems.length}</span>`
+                : ''
+            }${
+              stProgItems.length
+                ? `<span style="font:700 9px/1 'JetBrains Mono',monospace;background:#f59e0b;color:#1a1a1a;border-radius:3px;padding:1px 4px">▲ ${stProgItems.length}</span>`
+                : ''
+            }</span>`
+          : '';
+      const rowBg = stDoneItems.length || stProgItems.length ? ';background:rgba(245,158,11,.10)' : '';
 
       const stInHorizon = !horizonOn || (station.clusterItems || []).some(c => horizonIdSet.has(c.id));
       const horizonDim = !stInHorizon ? ';opacity:.32' : '';
-      block.push(`<div class="rm-legend-item" data-item-id="${esc(station.id)}" style="display:flex;align-items:center;gap:6px;margin-top:6px;margin-bottom:2px;cursor:pointer;border-radius:4px;padding:2px 3px;margin-left:-3px;margin-right:-3px${rowBg}${horizonDim}">`);
+      block.push(
+        `<div class="rm-legend-item" data-item-id="${esc(station.id)}" style="display:flex;align-items:center;gap:6px;margin-top:6px;margin-bottom:2px;cursor:pointer;border-radius:4px;padding:2px 3px;margin-left:-3px;margin-right:-3px${rowBg}${horizonDim}">`,
+      );
       block.push(`<span style="flex-shrink:0;display:inline-flex;line-height:0">${stIcon}</span>`);
-      block.push(`<span style="font:700 10px/1 'JetBrains Mono',monospace;color:${line.color};min-width:30px;${doneStyle}">${esc(station.abbrev)}</span>`);
-      block.push(`<span style="font:500 10px/1.2 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${doneStyle}">${esc(truncate(station.name, 26))}${esc(statusBadge)}</span>`);
+      block.push(
+        `<span style="font:700 10px/1 'JetBrains Mono',monospace;color:${line.color};min-width:30px;${doneStyle}">${esc(station.abbrev)}</span>`,
+      );
+      block.push(
+        `<span style="font:500 10px/1.2 'Inter',system-ui,sans-serif;color:var(--tx2,#94a3b8);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${doneStyle}">${esc(truncate(station.name, 26))}${esc(statusBadge)}</span>`,
+      );
       block.push(stationDeltaPill);
       block.push(`</div>`);
 
@@ -2089,8 +2200,12 @@ export function renderRoadmapSvg(args) {
           const itemStatus = itemNode?.status === 'done' ? 'done' : itemNode?.status === 'wip' ? 'wip' : 'open';
           const itemProg = leafProgress(itemNode || c) / 100;
           const itemIcon = statusIcon(itemStatus, line.color, itemProg, 10);
-          const itemStyle = itemStatus === 'done' ? 'text-decoration:line-through;opacity:.55'
-            : itemStatus === 'wip' ? `color:${line.color}` : 'color:var(--tx2,#94a3b8)';
+          const itemStyle =
+            itemStatus === 'done'
+              ? 'text-decoration:line-through;opacity:.55'
+              : itemStatus === 'wip'
+                ? `color:${line.color}`
+                : 'color:var(--tx2,#94a3b8)';
           const wentDone = doneInWindow.has(c.id);
           const wentProg = !wentDone && changedInWindow.has(c.id);
           const itemDiffPill = wentDone
@@ -2098,11 +2213,15 @@ export function renderRoadmapSvg(args) {
             : wentProg
               ? `<span style="margin-left:auto;font:700 8px/1 'JetBrains Mono',monospace;background:#f59e0b;color:#1a1a1a;border-radius:2px;padding:1px 3px">▲</span>`
               : '';
-          const itemRowBg = (wentDone || wentProg) ? ';background:rgba(245,158,11,.10)' : '';
+          const itemRowBg = wentDone || wentProg ? ';background:rgba(245,158,11,.10)' : '';
           const itemHorizonDim = horizonOn && !horizonIdSet.has(c.id) ? ';opacity:.32' : '';
-          block.push(`<div class="rm-legend-item" data-item-id="${esc(c.id)}" style="display:flex;align-items:center;gap:5px;padding:1px 3px 1px 36px;margin:0 -3px;border-radius:4px;cursor:pointer;${itemStyle}${itemRowBg}${itemHorizonDim}">`);
+          block.push(
+            `<div class="rm-legend-item" data-item-id="${esc(c.id)}" style="display:flex;align-items:center;gap:5px;padding:1px 3px 1px 36px;margin:0 -3px;border-radius:4px;cursor:pointer;${itemStyle}${itemRowBg}${itemHorizonDim}">`,
+          );
           block.push(`<span style="flex-shrink:0;display:inline-flex;line-height:0">${itemIcon}</span>`);
-          block.push(`<span style="font:400 9px/1.2 'Inter',system-ui,sans-serif;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(truncate(c.name, 24))}</span>`);
+          block.push(
+            `<span style="font:400 9px/1.2 'Inter',system-ui,sans-serif;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(truncate(c.name, 24))}</span>`,
+          );
           block.push(itemDiffPill);
           block.push(`</div>`);
         });
@@ -2111,9 +2230,11 @@ export function renderRoadmapSvg(args) {
 
     if (hiddenRowCount > 0 || isLegendExpanded) {
       const toggleLabel = isLegendExpanded
-        ? (labels.showLess || 'Show fewer')
+        ? labels.showLess || 'Show fewer'
         : (labels.showMore || '+{0} more').replace('{0}', hiddenRowCount);
-      block.push(`<button type="button" data-rm-toggle="${esc(line.root.id)}" style="margin-top:6px;padding:2px 5px;font:700 9px/1.2 'Inter',system-ui,sans-serif;color:var(--tx2,#cbd5e1);background:transparent;border:1px solid var(--b2,#364456);border-radius:4px;cursor:pointer">${esc(toggleLabel)}</button>`);
+      block.push(
+        `<button type="button" data-rm-toggle="${esc(line.root.id)}" style="margin-top:6px;padding:2px 5px;font:700 9px/1.2 'Inter',system-ui,sans-serif;color:var(--tx2,#cbd5e1);background:transparent;border:1px solid var(--b2,#364456);border-radius:4px;cursor:pointer">${esc(toggleLabel)}</button>`,
+      );
     }
 
     block.push(`</div>`);

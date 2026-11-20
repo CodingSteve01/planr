@@ -12,14 +12,20 @@ import { parseDayLogBlock } from './dayLog.js';
 
 export function parseMdToProject(text) {
   const lines = text.split('\n');
-  const tree = [], mems = [], teamSet = new Set();
+  const tree = [],
+    mems = [],
+    teamSet = new Set();
   const explicitTeams = []; // teams from "## Teams" table (with color)
-  const vacationsArr = [], holidaysArr = [];
+  const vacationsArr = [],
+    holidaysArr = [];
   const taskTemplates = [];
   const parsedCustomFields = []; // custom field definitions from ## Custom Fields section
   let currentTpl = null; // template being parsed
   let projName = null;
-  let planStart = '', planEnd = '', viewStartMd = '', workDays = '';
+  let planStart = '',
+    planEnd = '',
+    viewStartMd = '',
+    workDays = '';
   const idStack = [];
   const parsedMeetingPlans = []; // meeting plan definitions from ## Meeting Plans
   let currentMeetingPlan = null; // being parsed
@@ -53,26 +59,40 @@ export function parseMdToProject(text) {
       else if (lower === 'holidays') section = 'holidays';
       else if (lower === 'custom fields') section = 'customfields';
       else if (lower === 'work tree') section = 'tree';
-      else if (lower === 'meeting plans') { section = 'meetingplans'; currentMeetingPlan = null; }
-      else if (lower === 'task templates') { section = 'templates'; currentTpl = null; }
-      else if (lower === 'history') { section = 'history'; historyBlockLines = null; }
-      else if (lower === 'roadmap') { section = 'roadmap'; roadmapBlockLines = null; }
-      else if (lower === 'work order') { section = 'queues'; queueBlockLines = null; }
-      else if (lower === 'scenarios') { section = 'scenarios'; scenarioBlockLines = null; }
-      else if (lower === 'log') { section = 'log'; logBlockLines = null; }
-      else if (lower === 'changes') { section = 'changes'; changeBlockLines = null; }
-      else if (section === 'meetingplans' && hm[0].startsWith('###')) {
+      else if (lower === 'meeting plans') {
+        section = 'meetingplans';
+        currentMeetingPlan = null;
+      } else if (lower === 'task templates') {
+        section = 'templates';
+        currentTpl = null;
+      } else if (lower === 'history') {
+        section = 'history';
+        historyBlockLines = null;
+      } else if (lower === 'roadmap') {
+        section = 'roadmap';
+        roadmapBlockLines = null;
+      } else if (lower === 'work order') {
+        section = 'queues';
+        queueBlockLines = null;
+      } else if (lower === 'scenarios') {
+        section = 'scenarios';
+        scenarioBlockLines = null;
+      } else if (lower === 'log') {
+        section = 'log';
+        logBlockLines = null;
+      } else if (lower === 'changes') {
+        section = 'changes';
+        changeBlockLines = null;
+      } else if (section === 'meetingplans' && hm[0].startsWith('###')) {
         currentMeetingPlan = { id: 'mp_' + Date.now() + parsedMeetingPlans.length, name: h, meetings: [] };
         parsedMeetingPlans.push(currentMeetingPlan);
         return;
-      }
-      else if (section === 'templates' && hm[0].startsWith('###')) {
+      } else if (section === 'templates' && hm[0].startsWith('###')) {
         // ### Template Name — start a new template
         currentTpl = { id: 'tpl_' + Date.now() + taskTemplates.length, name: h, phases: [] };
         taskTemplates.push(currentTpl);
         return;
-      }
-      else section = null;
+      } else section = null;
       lastItem = null;
       return;
     }
@@ -81,8 +101,14 @@ export function parseMdToProject(text) {
     if (section === 'history') {
       const fenceOpen = /^\s*```planr-history\s*$/i.test(line);
       const fenceClose = /^\s*```\s*$/.test(line);
-      if (fenceOpen) { historyBlockLines = []; return; }
-      if (fenceClose && historyBlockLines != null) { /* end of block; keep array as-is */ historyBlockLines.push(null); return; }
+      if (fenceOpen) {
+        historyBlockLines = [];
+        return;
+      }
+      if (fenceClose && historyBlockLines != null) {
+        /* end of block; keep array as-is */ historyBlockLines.push(null);
+        return;
+      }
       if (historyBlockLines != null && historyBlockLines[historyBlockLines.length - 1] !== null) {
         historyBlockLines.push(line);
       }
@@ -92,8 +118,14 @@ export function parseMdToProject(text) {
     if (section === 'roadmap') {
       const fenceOpen = /^\s*```planr-roadmap\s*$/i.test(line);
       const fenceClose = /^\s*```\s*$/.test(line);
-      if (fenceOpen) { roadmapBlockLines = []; return; }
-      if (fenceClose && roadmapBlockLines != null) { roadmapBlockLines.push(null); return; }
+      if (fenceOpen) {
+        roadmapBlockLines = [];
+        return;
+      }
+      if (fenceClose && roadmapBlockLines != null) {
+        roadmapBlockLines.push(null);
+        return;
+      }
       if (roadmapBlockLines != null && roadmapBlockLines[roadmapBlockLines.length - 1] !== null) {
         roadmapBlockLines.push(line);
       }
@@ -104,8 +136,14 @@ export function parseMdToProject(text) {
     if (section === 'queues') {
       const fenceOpen = /^\s*```planr-queues\s*$/i.test(line);
       const fenceClose = /^\s*```\s*$/.test(line);
-      if (fenceOpen) { queueBlockLines = []; return; }
-      if (fenceClose && queueBlockLines != null) { queueBlockLines.push(null); return; }
+      if (fenceOpen) {
+        queueBlockLines = [];
+        return;
+      }
+      if (fenceClose && queueBlockLines != null) {
+        queueBlockLines.push(null);
+        return;
+      }
       if (queueBlockLines != null && queueBlockLines[queueBlockLines.length - 1] !== null) {
         queueBlockLines.push(line);
       }
@@ -115,8 +153,14 @@ export function parseMdToProject(text) {
     if (section === 'changes') {
       const fenceOpen = /^\s*```planr-changes\s*$/i.test(line);
       const fenceClose = /^\s*```\s*$/.test(line);
-      if (fenceOpen) { changeBlockLines = []; return; }
-      if (fenceClose && changeBlockLines != null) { changeBlockLines.push(null); return; }
+      if (fenceOpen) {
+        changeBlockLines = [];
+        return;
+      }
+      if (fenceClose && changeBlockLines != null) {
+        changeBlockLines.push(null);
+        return;
+      }
       if (changeBlockLines != null && changeBlockLines[changeBlockLines.length - 1] !== null) changeBlockLines.push(line);
       return;
     }
@@ -125,8 +169,14 @@ export function parseMdToProject(text) {
     if (section === 'scenarios') {
       const fenceOpen = /^\s*```planr-scenarios\s*$/i.test(line);
       const fenceClose = /^\s*```\s*$/.test(line);
-      if (fenceOpen) { scenarioBlockLines = []; return; }
-      if (fenceClose && scenarioBlockLines != null) { scenarioBlockLines.push(null); return; }
+      if (fenceOpen) {
+        scenarioBlockLines = [];
+        return;
+      }
+      if (fenceClose && scenarioBlockLines != null) {
+        scenarioBlockLines.push(null);
+        return;
+      }
       if (scenarioBlockLines != null && scenarioBlockLines[scenarioBlockLines.length - 1] !== null) {
         scenarioBlockLines.push(line);
       }
@@ -134,8 +184,14 @@ export function parseMdToProject(text) {
     }
 
     if (section === 'log') {
-      if (/^\s*```planr-log\s*$/i.test(line)) { logBlockLines = []; return; }
-      if (/^\s*```\s*$/.test(line) && logBlockLines != null) { logBlockLines.push(null); return; }
+      if (/^\s*```planr-log\s*$/i.test(line)) {
+        logBlockLines = [];
+        return;
+      }
+      if (/^\s*```\s*$/.test(line) && logBlockLines != null) {
+        logBlockLines.push(null);
+        return;
+      }
       if (logBlockLines != null && logBlockLines[logBlockLines.length - 1] !== null) logBlockLines.push(line);
       return;
     }
@@ -163,7 +219,12 @@ export function parseMdToProject(text) {
       if (m3 && !/^Name$/i.test(m3[1])) {
         const name = m3[1].trim();
         const color = m3[2].startsWith('#') ? m3[2] : '#' + m3[2];
-        const planNames = m3[3].trim() ? m3[3].split(',').map(s => s.trim()).filter(Boolean) : [];
+        const planNames = m3[3].trim()
+          ? m3[3]
+              .split(',')
+              .map(s => s.trim())
+              .filter(Boolean)
+          : [];
         explicitTeams.push({ name, color, _parsedPlans: planNames });
         teamSet.add(name);
         return;
@@ -212,13 +273,19 @@ export function parseMdToProject(text) {
       // Sub-bullet for plan references: *Plans: Name 1, Name 2*
       const pm = line.match(/^\s*\*Plans:\s*(.+?)\*\s*$/);
       if (pm && lastItem && mems[mems.length - 1] === lastItem) {
-        lastItem._parsedPlanNames = pm[1].split(',').map(s => s.trim()).filter(Boolean);
+        lastItem._parsedPlanNames = pm[1]
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean);
         return;
       }
       // Sub-bullet for meetings: *Meetings: Name 1.25h/d, Retro 0.5h/2w, Allhands 1h/mo*
       const mt = line.match(/^\s*\*Meetings:\s*(.+?)\*\s*$/);
       if (mt && lastItem && mems[mems.length - 1] === lastItem) {
-        const items = mt[1].split(',').map(s => s.trim()).filter(Boolean);
+        const items = mt[1]
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean);
         lastItem.meetings = items.map((raw, i) => {
           // "Standup 0.25h/d" | "Standup 1.25h/w" | "Retro 0.5h/2w" | "Allhands 1h/mo"
           const hm = raw.match(/^(.+?)\s+(\d+(?:\.\d+)?)h\s*\/\s*(d|w|2w|mo)\s*$/i);
@@ -236,7 +303,10 @@ export function parseMdToProject(text) {
       const cp = line.match(/^\s*\*(?:Capacity plan|Cap-Plan):\s*(.+?)\*\s*$/);
       if (cp && lastItem && mems[mems.length - 1] === lastItem) {
         const out = [];
-        for (const raw of cp[1].split(',').map(s => s.trim()).filter(Boolean)) {
+        for (const raw of cp[1]
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean)) {
           const dm = raw.match(/^(\d{4}-\d{2}-\d{2})\s*→\s*(.*)$/);
           if (!dm) continue;
           const entry = { from: dm[1] };
@@ -256,25 +326,35 @@ export function parseMdToProject(text) {
       const mp = line.match(/^\s*\*(?:Meeting plan|Meeting-Plan):\s*(.+?)\*\s*$/);
       if (mp && lastItem && mems[mems.length - 1] === lastItem) {
         const out = [];
-        for (const seg of mp[1].split(';').map(s => s.trim()).filter(Boolean)) {
+        for (const seg of mp[1]
+          .split(';')
+          .map(s => s.trim())
+          .filter(Boolean)) {
           const dm = seg.match(/^(\d{4}-\d{2}-\d{2})\s*→\s*\[(.+)\]\s*$/);
           if (!dm) continue;
           const entry = { from: dm[1], meetings: [] };
-          dm[2].split(',').map(s => s.trim()).filter(Boolean).forEach((raw, i) => {
-            const planM = raw.match(/^plans:\s*(.+)$/i);
-            if (planM) {
-              entry._parsedPlanNames = planM[1].split('+').map(s => s.trim()).filter(Boolean);
-              return;
-            }
-            const hm = raw.match(/^(.+?)\s+(\d+(?:\.\d+)?)h\s*\/\s*(d|w|2w|mo)\s*$/i);
-            if (!hm) {
-              entry.meetings.push({ id: 'mc_' + i, name: raw, hours: 0, frequency: 'weekly' });
-              return;
-            }
-            const fk = hm[3].toLowerCase();
-            const freq = fk === 'd' ? 'daily' : fk === '2w' ? 'biweekly' : fk === 'mo' ? 'monthly' : 'weekly';
-            entry.meetings.push({ id: 'mc_' + i, name: hm[1].trim(), hours: parseFloat(hm[2]), frequency: freq });
-          });
+          dm[2]
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean)
+            .forEach((raw, i) => {
+              const planM = raw.match(/^plans:\s*(.+)$/i);
+              if (planM) {
+                entry._parsedPlanNames = planM[1]
+                  .split('+')
+                  .map(s => s.trim())
+                  .filter(Boolean);
+                return;
+              }
+              const hm = raw.match(/^(.+?)\s+(\d+(?:\.\d+)?)h\s*\/\s*(d|w|2w|mo)\s*$/i);
+              if (!hm) {
+                entry.meetings.push({ id: 'mc_' + i, name: raw, hours: 0, frequency: 'weekly' });
+                return;
+              }
+              const fk = hm[3].toLowerCase();
+              const freq = fk === 'd' ? 'daily' : fk === '2w' ? 'biweekly' : fk === 'mo' ? 'monthly' : 'weekly';
+              entry.meetings.push({ id: 'mc_' + i, name: hm[1].trim(), hours: parseFloat(hm[2]), frequency: freq });
+            });
           out.push(entry);
         }
         if (out.length) lastItem.meetingChanges = out.sort((a, b) => a.from.localeCompare(b.from));
@@ -314,10 +394,19 @@ export function parseMdToProject(text) {
     if (section === 'customfields') {
       const m = line.match(/^\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|\s*$/);
       if (m && !/^ID$/i.test(m[1])) {
-        const cfId = m[1].trim(), cfName = m[2].trim(), cfType = m[3].trim(), cfExtra = m[4].trim();
+        const cfId = m[1].trim(),
+          cfName = m[2].trim(),
+          cfType = m[3].trim(),
+          cfExtra = m[4].trim();
         const cf = { id: cfId, name: cfName, type: cfType };
         if (cfType === 'uri') cf.uriTemplate = cfExtra;
-        else if (cfType === 'select') cf.options = cfExtra ? cfExtra.split(',').map(s => s.trim()).filter(Boolean) : [];
+        else if (cfType === 'select')
+          cf.options = cfExtra
+            ? cfExtra
+                .split(',')
+                .map(s => s.trim())
+                .filter(Boolean)
+            : [];
         parsedCustomFields.push(cf);
       }
       return;
@@ -344,7 +433,10 @@ export function parseMdToProject(text) {
         // saved before this rename still loads its dependencies.
         const depM = trimmed.match(/^\*(?:Requires|Benötigt):\s*(.+?)\*$/);
         if (depM) {
-          const items = depM[1].split(',').map(s => s.trim()).filter(Boolean);
+          const items = depM[1]
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean);
           // All deps are hard now. Old `~id` markers (soft) still parse,
           // they collapse into the same `deps` bucket on next save.
           const hard = [];
@@ -371,21 +463,35 @@ export function parseMdToProject(text) {
         // Parse handoff plan: *Handoff: → Max, Anna (Frontend); → Chris*
         const handM = trimmed.match(/^\*Handoff:\s*(.+?)\*$/);
         if (handM) {
-          const stages = handM[1].split(';').map(s => s.trim()).filter(Boolean);
+          const stages = handM[1]
+            .split(';')
+            .map(s => s.trim())
+            .filter(Boolean);
           lastItem.handoffPlan = stages.map(raw0 => {
             const raw = raw0.replace(/^→\s*/, '').trim();
             // "Names (Team)" split
             const tm2 = raw.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
             const namesPart = (tm2 ? tm2[1] : raw).trim();
             const teamPart = tm2 ? tm2[2].trim() : '';
-            const shorts = namesPart ? namesPart.split(',').map(s => s.trim()).filter(Boolean) : [];
+            const shorts = namesPart
+              ? namesPart
+                  .split(',')
+                  .map(s => s.trim())
+                  .filter(Boolean)
+              : [];
             return { _parsedShorts: shorts, _parsedTeam: teamPart };
           });
           return;
         }
-        if (trimmed.startsWith('*') && trimmed.endsWith('*')) { lastItem.note = (lastItem.note ? lastItem.note + ' ' : '') + trimmed.slice(1, -1); return; }
-        if (!lastItem.id.includes('.')) { lastItem.description = (lastItem.description || '') + (lastItem.description ? ' ' : '') + trimmed; }
-        else { lastItem.note = (lastItem.note ? lastItem.note + ' ' : '') + trimmed; }
+        if (trimmed.startsWith('*') && trimmed.endsWith('*')) {
+          lastItem.note = (lastItem.note ? lastItem.note + ' ' : '') + trimmed.slice(1, -1);
+          return;
+        }
+        if (!lastItem.id.includes('.')) {
+          lastItem.description = (lastItem.description || '') + (lastItem.description ? ' ' : '') + trimmed;
+        } else {
+          lastItem.note = (lastItem.note ? lastItem.note + ' ' : '') + trimmed;
+        }
       }
       return;
     }
@@ -393,10 +499,16 @@ export function parseMdToProject(text) {
     let raw = bullet[2].trim();
     const done = raw.startsWith('✅');
     const wip = raw.includes('🟡');
-    raw = raw.replace(/^✅\s*/, '').replace(/🟡\s*/g, '').trim();
+    raw = raw
+      .replace(/^✅\s*/, '')
+      .replace(/🟡\s*/g, '')
+      .trim();
     let id = '';
     const idM = raw.match(/^\*\*([A-Za-z0-9.]+)\*\*\s*/);
-    if (idM) { id = idM[1]; raw = raw.slice(idM[0].length); }
+    if (idM) {
+      id = idM[1];
+      raw = raw.slice(idM[0].length);
+    }
     // Strip order matters: writer appends these in a fixed sequence
     //   [team][assign][tagStr][decideBy][pinned][parallel]
     // so we peel them off back-to-front. Earlier versions tried to grab
@@ -407,86 +519,204 @@ export function parseMdToProject(text) {
     // `{parallel:true}` so the flag survives tag parsing cleanly.
     let parallel = false;
     let dropped = false;
-    if (raw.includes('≡')) { parallel = true; raw = raw.replace(/≡/g, '').trim(); }
+    if (raw.includes('≡')) {
+      parallel = true;
+      raw = raw.replace(/≡/g, '').trim();
+    }
     let pinnedStart = '';
     const pinM = raw.match(/📌(\d{4}-\d{2}-\d{2})/);
-    if (pinM) { pinnedStart = pinM[1]; raw = raw.replace(pinM[0], '').trim(); }
+    if (pinM) {
+      pinnedStart = pinM[1];
+      raw = raw.replace(pinM[0], '').trim();
+    }
     let decideBy = '';
     const decideByM = raw.match(/!decide:(\d{4}-\d{2}-\d{2})/);
-    if (decideByM) { decideBy = decideByM[1]; raw = raw.replace(decideByM[0], '').trim(); }
+    if (decideByM) {
+      decideBy = decideByM[1];
+      raw = raw.replace(decideByM[0], '').trim();
+    }
     // Metadata tag block: {prio:N, seq:N, severity, conf:X, cv.fieldId:value}
-    let prio = 2, seq = 0, severity = 'high', confidence = '', completedAt = '', completedStart = '', completedEnd = '', plannedStart = '', plannedEnd = '', deadlineRelevant = true, due = '', teamLock = false, fixedDurationDays = 0, displayOrder = null;
+    let prio = 2,
+      seq = 0,
+      severity = 'high',
+      confidence = '',
+      completedAt = '',
+      completedStart = '',
+      completedEnd = '',
+      plannedStart = '',
+      plannedEnd = '',
+      deadlineRelevant = true,
+      due = '',
+      teamLock = false,
+      fixedDurationDays = 0,
+      displayOrder = null;
     const customValues = {};
     const tagM = raw.match(/\s*\{([^}]+)\}\s*$/);
     if (tagM) {
       const tags = tagM[1].split(',').map(t => t.trim());
       tags.forEach(t => {
-        const pm = t.match(/^prio:(\d+)$/i); if (pm) { prio = +pm[1]; return; }
-        const sm = t.match(/^seq:(\d+)$/i); if (sm) { seq = +sm[1]; return; }
-        const cm = t.match(/^conf:(committed|estimated|exploratory)$/i); if (cm) { confidence = cm[1].toLowerCase(); return; }
-        const dm = t.match(/^done:(\d{4}-\d{2}-\d{2})$/i); if (dm) { completedAt = dm[1]; return; }
-        const dsm = t.match(/^done-start:(\d{4}-\d{2}-\d{2})$/i); if (dsm) { completedStart = dsm[1]; return; }
-        const dem = t.match(/^done-end:(\d{4}-\d{2}-\d{2})$/i); if (dem) { completedEnd = dem[1]; return; }
-        const psm = t.match(/^plan-start:(\d{4}-\d{2}-\d{2})$/i); if (psm) { plannedStart = psm[1]; return; }
-        const pem = t.match(/^plan-end:(\d{4}-\d{2}-\d{2})$/i); if (pem) { plannedEnd = pem[1]; return; }
-        const drm = t.match(/^deadline:(false|no|off)$/i); if (drm) { deadlineRelevant = false; return; }
-        const dum = t.match(/^due:(\d{4}-\d{2}-\d{2})$/i); if (dum) { due = dum[1]; return; }
-        const tlm = t.match(/^team-lock:(true|yes|on)$/i); if (tlm) { teamLock = true; return; }
-        const plm = t.match(/^parallel:(true|yes|on)$/i); if (plm) { parallel = true; return; }
-        const dpm = t.match(/^dropped:(true|yes|on)$/i); if (dpm) { dropped = true; return; }
-        const fdm = t.match(/^fixed:(\d+(?:\.\d+)?)$/i); if (fdm) { fixedDurationDays = Math.max(1, Math.ceil(+fdm[1])); return; }
-        const om = t.match(/^ord:(\d+)$/i); if (om) { displayOrder = +om[1]; return; }
-        const cvm = t.match(/^cv\.([^:]+):(.*)$/i); if (cvm) { customValues[cvm[1]] = cvm[2].trim(); return; }
-        if (/^(critical|high|medium)$/i.test(t)) { severity = t.toLowerCase(); }
+        const pm = t.match(/^prio:(\d+)$/i);
+        if (pm) {
+          prio = +pm[1];
+          return;
+        }
+        const sm = t.match(/^seq:(\d+)$/i);
+        if (sm) {
+          seq = +sm[1];
+          return;
+        }
+        const cm = t.match(/^conf:(committed|estimated|exploratory)$/i);
+        if (cm) {
+          confidence = cm[1].toLowerCase();
+          return;
+        }
+        const dm = t.match(/^done:(\d{4}-\d{2}-\d{2})$/i);
+        if (dm) {
+          completedAt = dm[1];
+          return;
+        }
+        const dsm = t.match(/^done-start:(\d{4}-\d{2}-\d{2})$/i);
+        if (dsm) {
+          completedStart = dsm[1];
+          return;
+        }
+        const dem = t.match(/^done-end:(\d{4}-\d{2}-\d{2})$/i);
+        if (dem) {
+          completedEnd = dem[1];
+          return;
+        }
+        const psm = t.match(/^plan-start:(\d{4}-\d{2}-\d{2})$/i);
+        if (psm) {
+          plannedStart = psm[1];
+          return;
+        }
+        const pem = t.match(/^plan-end:(\d{4}-\d{2}-\d{2})$/i);
+        if (pem) {
+          plannedEnd = pem[1];
+          return;
+        }
+        const drm = t.match(/^deadline:(false|no|off)$/i);
+        if (drm) {
+          deadlineRelevant = false;
+          return;
+        }
+        const dum = t.match(/^due:(\d{4}-\d{2}-\d{2})$/i);
+        if (dum) {
+          due = dum[1];
+          return;
+        }
+        const tlm = t.match(/^team-lock:(true|yes|on)$/i);
+        if (tlm) {
+          teamLock = true;
+          return;
+        }
+        const plm = t.match(/^parallel:(true|yes|on)$/i);
+        if (plm) {
+          parallel = true;
+          return;
+        }
+        const dpm = t.match(/^dropped:(true|yes|on)$/i);
+        if (dpm) {
+          dropped = true;
+          return;
+        }
+        const fdm = t.match(/^fixed:(\d+(?:\.\d+)?)$/i);
+        if (fdm) {
+          fixedDurationDays = Math.max(1, Math.ceil(+fdm[1]));
+          return;
+        }
+        const om = t.match(/^ord:(\d+)$/i);
+        if (om) {
+          displayOrder = +om[1];
+          return;
+        }
+        const cvm = t.match(/^cv\.([^:]+):(.*)$/i);
+        if (cvm) {
+          customValues[cvm[1]] = cvm[2].trim();
+          return;
+        }
+        if (/^(critical|high|medium)$/i.test(t)) {
+          severity = t.toLowerCase();
+        }
       });
       raw = raw.slice(0, raw.indexOf(tagM[0])).trim();
     }
     // Assigned: [Name1, Name2] — now genuinely at the end after tags stripped
     let assign = [];
     const assignM = raw.match(/\s*\[(.+?)\]\s*$/);
-    if (assignM) { assign = assignM[1].split(',').map(s => s.trim()); raw = raw.slice(0, raw.lastIndexOf(assignM[0])).trim(); }
+    if (assignM) {
+      assign = assignM[1].split(',').map(s => s.trim());
+      raw = raw.slice(0, raw.lastIndexOf(assignM[0])).trim();
+    }
     // Team: — TeamName (now at the end since assignment + decideBy are removed)
     let team = '';
     const teamM = raw.match(/\s*—\s+([^—]+?)\s*$/);
-    if (teamM) { team = teamM[1].trim(); raw = raw.slice(0, raw.lastIndexOf(teamM[0])); if (team) teamSet.add(team); }
+    if (teamM) {
+      team = teamM[1].trim();
+      raw = raw.slice(0, raw.lastIndexOf(teamM[0]));
+      if (team) teamSet.add(team);
+    }
     // Estimate: (SZ NTd) or (SZ NTd ×F)
-    let best = 0, factor = 1.5;
+    let best = 0,
+      factor = 1.5;
     const estM = raw.match(/\((\w+\s+)?([\d.]+)T(?:\s*×([\d.]+))?\)/);
-    if (estM) { best = parseFloat(estM[2]); if (estM[3]) factor = parseFloat(estM[3]); raw = raw.replace(estM[0], '').trim(); }
+    if (estM) {
+      best = parseFloat(estM[2]);
+      if (estM[3]) factor = parseFloat(estM[3]);
+      raw = raw.replace(estM[0], '').trim();
+    }
     // Progress
     let progress = null;
     const prgM = raw.match(/(\d+)%/);
-    if (prgM) { progress = parseInt(prgM[1]); raw = raw.replace(prgM[0], '').trim(); }
+    if (prgM) {
+      progress = parseInt(prgM[1]);
+      raw = raw.replace(prgM[0], '').trim();
+    }
     // Root type marker. GT_MARKS lists every form a saved plan may carry,
     // newest first. Whichever one is found is removed from the name —
     // leaving one behind is how a project ended up actually named after the
     // marker for its own type.
     // (decideBy's marker has already been removed, so no false positive.)
     let type = '';
-    for (const [tp, marks] of [['deadline', GT_MARKS.deadline], ['painpoint', GT_MARKS.painpoint], ['goal', GT_MARKS.goal]]) {
+    for (const [tp, marks] of [
+      ['deadline', GT_MARKS.deadline],
+      ['painpoint', GT_MARKS.painpoint],
+      ['goal', GT_MARKS.goal],
+    ]) {
       const hit = marks.find(mk => raw.includes(mk));
       if (!hit) continue;
       type = tp;
-      marks.forEach(mk => { raw = raw.split(mk).join(' '); });
+      marks.forEach(mk => {
+        raw = raw.split(mk).join(' ');
+      });
       raw = raw.replace(/\s{2,}/g, ' ').trim();
       break;
     }
     // Date
     let date = '';
     const dateM = raw.match(/\((\d{4}-\d{2}-\d{2})\)/);
-    if (dateM) { date = dateM[1]; raw = raw.replace(dateM[0], '').trim(); }
+    if (dateM) {
+      date = dateM[1];
+      raw = raw.replace(dateM[0], '').trim();
+    }
     const name = raw.replace(/\*\*/g, '').trim();
     if (!id) {
       while (idStack.length && idStack[idStack.length - 1].indent >= indent) idStack.pop();
       const parentId = idStack.length ? idStack[idStack.length - 1].id : '';
-      const siblings = tree.filter(r => { const pid = r.id.split('.').slice(0, -1).join('.'); return pid === parentId; });
+      const siblings = tree.filter(r => {
+        const pid = r.id.split('.').slice(0, -1).join('.');
+        return pid === parentId;
+      });
       id = parentId ? `${parentId}.${siblings.length + 1}` : `P${tree.filter(r => !r.id.includes('.')).length + 1}`;
     }
     idStack.push({ id, indent });
     const item = { id, name, status: done ? 'done' : wip ? 'wip' : 'open', team, best, factor, prio, deps: [], note: '', assign };
     if (seq) item.seq = seq;
     if (progress != null) item.progress = progress;
-    if (type) { item.type = type; item.severity = severity; }
+    if (type) {
+      item.type = type;
+      item.severity = severity;
+    }
     if (date) item.date = date;
     if (decideBy) item.decideBy = decideBy;
     if (pinnedStart) item.pinnedStart = pinnedStart;
@@ -510,7 +740,7 @@ export function parseMdToProject(text) {
 
   // Self-healing: clean team values that may carry noise from older corrupt exports
   // (e.g. "Backend [SL] !decide:2026-09-30" → "Backend"). Same defensive cleanup for items.
-  const sanitizeTeam = (t) => {
+  const sanitizeTeam = t => {
     if (!t) return t;
     let v = t;
     v = v.replace(/!decide:\d{4}-\d{2}-\d{2}/g, '');
@@ -540,8 +770,14 @@ export function parseMdToProject(text) {
     if (r.phases) r.phases.forEach(p => phaseTeamIds(p).forEach(teamId => teamSet.add(teamId)));
   });
   mems.forEach(m => {
-    if (m.team) { m.team = sanitizeTeam(m.team); teamSet.add(m.team); }
-    if (m.teams) { m.teams = m.teams.map(sanitizeTeam).filter(Boolean); m.teams.forEach(t => teamSet.add(t)); }
+    if (m.team) {
+      m.team = sanitizeTeam(m.team);
+      teamSet.add(m.team);
+    }
+    if (m.teams) {
+      m.teams = m.teams.map(sanitizeTeam).filter(Boolean);
+      m.teams.forEach(t => teamSet.add(t));
+    }
   });
   taskTemplates.forEach(tpl => tpl.phases.forEach(p => phaseTeamIds(p).forEach(teamId => teamSet.add(teamId))));
 
@@ -567,15 +803,17 @@ export function parseMdToProject(text) {
     if (m.team) m.team = teamLookup[m.team] || m.team;
     if (m.teams) m.teams = m.teams.map(t => teamLookup[t] || t);
   });
-  taskTemplates.forEach(tpl => tpl.phases.forEach(p => {
-    const teamsForPhase = phaseTeamIds(p).map(teamId => teamLookup[teamId] || teamId);
-    p.teams = teamsForPhase;
-    p.team = teamsForPhase[0] || '';
-  }));
+  taskTemplates.forEach(tpl =>
+    tpl.phases.forEach(p => {
+      const teamsForPhase = phaseTeamIds(p).map(teamId => teamLookup[teamId] || teamId);
+      p.teams = teamsForPhase;
+      p.team = teamsForPhase[0] || '';
+    }),
+  );
   // Resolve assignee references — try short name from MD first, then full name match,
   // finally computed initials match (for back-compat with files written by older builds)
   const computedShorts = buildMemberShortMap(mems);
-  const resolveMember = (token) => {
+  const resolveMember = token => {
     // 1. Match by short name parsed from MD (`SL`)
     const byParsedShort = mems.find(m => m._parsedShort === token);
     if (byParsedShort) return byParsedShort.id;
@@ -606,7 +844,9 @@ export function parseMdToProject(text) {
       });
     }
   });
-  vacationsArr.forEach(v => { v.person = resolveMember(v.person); });
+  vacationsArr.forEach(v => {
+    v.person = resolveMember(v.person);
+  });
   // Normalize to {person, from, to, note} — converts legacy week format on load
   const normalizedVacations = vacationsArr.map(normalizeVacation);
   // Resolve meeting-plan name refs → ids on teams + members.
@@ -637,15 +877,24 @@ export function parseMdToProject(text) {
   // First one wins on a duplicate, as it does for assignees (`resolveMember`
   // uses `find`), so a queue and the tasks it orders land on the same person.
   const memberIdByShort = new Map();
-  mems.forEach(m => { const short = m._parsedShort || computedShorts[m.id]; if (short && !memberIdByShort.has(short)) memberIdByShort.set(short, m.id); });
+  mems.forEach(m => {
+    const short = m._parsedShort || computedShorts[m.id];
+    if (short && !memberIdByShort.has(short)) memberIdByShort.set(short, m.id);
+  });
   // Strip transient _parsedShort field from members
-  mems.forEach(m => { delete m._parsedShort; });
+  mems.forEach(m => {
+    delete m._parsedShort;
+  });
 
   const metaObj = { name: projName || 'Imported Project', version: '2' };
   if (planStart) metaObj.planStart = planStart;
   if (planEnd) metaObj.planEnd = planEnd;
   if (viewStartMd) metaObj.viewStart = viewStartMd;
-  if (workDays) metaObj.workDays = workDays.split(',').map(Number).filter(n => n >= 0 && n <= 6);
+  if (workDays)
+    metaObj.workDays = workDays
+      .split(',')
+      .map(Number)
+      .filter(n => n >= 0 && n <= 6);
   // History events — parsed out of the ```planr-history``` fenced block
   let historyEvents = [];
   if (historyBlockLines && historyBlockLines.length) {
@@ -681,36 +930,56 @@ export function parseMdToProject(text) {
     const out = {};
     const queueOwners = new Set([...mems.map(m => m.id), ...teamsArr.map(tm => `team:${tm.id}`)]);
     const treeById = new Map(tree.map(n => [n.id, n]));
-    queueBlockLines.filter(l => l !== null).forEach(line => {
-      const cut = line.indexOf(' | ');
-      if (cut >= 0) {
-        const owner = line.slice(0, cut).trim();
-        const ids = line.slice(cut + 3).trim().split(/\s+/).filter(Boolean);
-        if (ids.length < 2) return;
-        const key = owner.startsWith('@') ? memberIdByShort.get(owner.slice(1))
-          : owner.startsWith('#') ? (teamLookup[owner.slice(1)] ? `team:${teamLookup[owner.slice(1)]}` : null)
-            : null;
-        if (key) out[key] = ids;
-        return;
-      }
-      const parts = line.trim().split(/\s+/);
-      if (parts.length < 3 || parts[0] === 'v1' || parts[0] === 'v2') return;
-      const owner = parts[0], ids = parts.slice(1);
-      if (owner.startsWith('team:')) {
-        const count = new Map();
-        let known = 0;
-        ids.forEach(id => { const n = treeById.get(id); if (!n) return; known++; if (n.team) count.set(n.team, (count.get(n.team) || 0) + 1); });
-        const [teamId, votes] = [...count.entries()].sort((a, b) => b[1] - a[1])[0] || [];
-        if (teamId && votes * 2 > known && queueOwners.has(`team:${teamId}`)) out[`team:${teamId}`] = ids;
-        return;
-      }
-      if (queueOwners.has(owner)) out[owner] = ids;
-    });
+    queueBlockLines
+      .filter(l => l !== null)
+      .forEach(line => {
+        const cut = line.indexOf(' | ');
+        if (cut >= 0) {
+          const owner = line.slice(0, cut).trim();
+          const ids = line
+            .slice(cut + 3)
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean);
+          if (ids.length < 2) return;
+          const key = owner.startsWith('@')
+            ? memberIdByShort.get(owner.slice(1))
+            : owner.startsWith('#')
+              ? teamLookup[owner.slice(1)]
+                ? `team:${teamLookup[owner.slice(1)]}`
+                : null
+              : null;
+          if (key) out[key] = ids;
+          return;
+        }
+        const parts = line.trim().split(/\s+/);
+        if (parts.length < 3 || parts[0] === 'v1' || parts[0] === 'v2') return;
+        const owner = parts[0],
+          ids = parts.slice(1);
+        if (owner.startsWith('team:')) {
+          const count = new Map();
+          let known = 0;
+          ids.forEach(id => {
+            const n = treeById.get(id);
+            if (!n) return;
+            known++;
+            if (n.team) count.set(n.team, (count.get(n.team) || 0) + 1);
+          });
+          const [teamId, votes] = [...count.entries()].sort((a, b) => b[1] - a[1])[0] || [];
+          if (teamId && votes * 2 > known && queueOwners.has(`team:${teamId}`)) out[`team:${teamId}`] = ids;
+          return;
+        }
+        if (queueOwners.has(owner)) out[owner] = ids;
+      });
     if (Object.keys(out).length) personQueues = out;
   }
   const project = {
-    meta: metaObj, teams: teamsArr, members: mems, tree,
-    vacations: normalizedVacations, holidays: holidaysArr,
+    meta: metaObj,
+    teams: teamsArr,
+    members: mems,
+    tree,
+    vacations: normalizedVacations,
+    holidays: holidaysArr,
     ...(taskTemplates.length ? { taskTemplates } : {}),
     ...(parsedCustomFields.length ? { customFields: parsedCustomFields } : {}),
     ...(parsedMeetingPlans.length ? { meetingPlans: parsedMeetingPlans } : {}),

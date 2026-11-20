@@ -40,7 +40,10 @@ export function withTeams(member, teamIds) {
 export function withoutTeam(member, teamId) {
   const list = memberTeams(member);
   if (!list.includes(teamId)) return member;
-  return withTeams(member, list.filter(t => t !== teamId));
+  return withTeams(
+    member,
+    list.filter(t => t !== teamId),
+  );
 }
 
 export function memberTeamNames(member, teams) {
@@ -57,12 +60,16 @@ export function memberTeamNames(member, teams) {
 // calendar span.
 export function realisedTeamShares(member, scheduled, { from = null, to = null } = {}) {
   const byTeam = new Map();
-  const add = (team, effort) => { if (effort > 0) byTeam.set(team || '', (byTeam.get(team || '') || 0) + effort); };
+  const add = (team, effort) => {
+    if (effort > 0) byTeam.set(team || '', (byTeam.get(team || '') || 0) + effort);
+  };
   const clip = (startD, endD, effort) => {
     if (!from && !to) return effort;
     if (!startD || !endD) return effort;
-    const s = +startD, e = +endD;
-    const lo = Math.max(s, from ? +from : s), hi = Math.min(e, to ? +to : e);
+    const s = +startD,
+      e = +endD;
+    const lo = Math.max(s, from ? +from : s),
+      hi = Math.min(e, to ? +to : e);
     if (hi < lo) return 0;
     const span = e - s;
     return span > 0 ? effort * ((hi - lo) / span) : effort;
@@ -72,16 +79,14 @@ export function realisedTeamShares(member, scheduled, { from = null, to = null }
   // people it books.
   for (const s of scheduled || []) {
     if (s.unscheduled || s.status === 'done') continue;
-    const people = s.assign?.length ? s.assign : (s.personId ? [s.personId] : []);
+    const people = s.assign?.length ? s.assign : s.personId ? [s.personId] : [];
     if (!people.includes(member.id)) continue;
     // Multi-assign rows occupy every assignee for the full effort.
     add(s.team, clip(s.startD, s.endD, s.effort || 0));
   }
   const total = [...byTeam.values()].reduce((a, b) => a + b, 0);
   if (total <= 0) return [];
-  return [...byTeam.entries()]
-    .map(([team, effort]) => ({ team, effort, pct: effort / total }))
-    .sort((a, b) => b.effort - a.effort);
+  return [...byTeam.entries()].map(([team, effort]) => ({ team, effort, pct: effort / total })).sort((a, b) => b.effort - a.effort);
 }
 
 // The team a task should carry once `member` is put on it. Keeps the task's

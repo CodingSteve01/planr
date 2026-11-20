@@ -33,16 +33,18 @@ function endOf(rows, rootId) {
   return end;
 }
 
-const without = (tree, rootIds) => tree.map(n =>
-  (rootIds.some(rid => under(n.id, rid)) ? { ...n, dropped: true } : n));
+const without = (tree, rootIds) => tree.map(n => (rootIds.some(rid => under(n.id, rid)) ? { ...n, dropped: true } : n));
 
 // Open projects before `rootId` in the plan's own order.
 function earlierProjects(tree, rootId) {
-  const order = sortTree(tree).filter(n => !n.id.includes('.')).map(n => n.id);
+  const order = sortTree(tree)
+    .filter(n => !n.id.includes('.'))
+    .map(n => n.id);
   const at = order.indexOf(rootId);
   if (at <= 0) return [];
-  return order.slice(0, at).filter(rid => tree.some(n => under(n.id, rid) && n.id !== rid
-    && n.status !== 'done' && !n.dropped && (n.best > 0)));
+  return order
+    .slice(0, at)
+    .filter(rid => tree.some(n => under(n.id, rid) && n.id !== rid && n.status !== 'done' && !n.dropped && n.best > 0));
 }
 
 // Who of the cause's work is in this project's way: the person with the most
@@ -54,13 +56,13 @@ function causeDetail(rows, ids, rootId, nameOf) {
     if (!r.personId || r.unscheduled || !ids.some(id => under(r.treeId || r.id, id))) continue;
     const p = byPerson.get(r.personId) || { pt: 0, from: null, to: null };
     p.pt += r.effort || 0;
-    const s = new Date(r.startD), e = new Date(r.endD);
+    const s = new Date(r.startD),
+      e = new Date(r.endD);
     if (!p.from || s < p.from) p.from = s;
     if (!p.to || e > p.to) p.to = e;
     byPerson.set(r.personId, p);
   }
-  const ranked = [...byPerson.entries()].sort((a, b) =>
-    (here.has(b[0]) - here.has(a[0])) || (b[1].pt - a[1].pt));
+  const ranked = [...byPerson.entries()].sort((a, b) => here.has(b[0]) - here.has(a[0]) || b[1].pt - a[1].pt);
   if (!ranked.length) return { person: null, pt: 0, from: null, to: null };
   const [id, p] = ranked[0];
   return { person: { id, name: nameOf(id) }, ...p };
@@ -82,10 +84,19 @@ function drivingPath(rows, rootId, today, nameOf) {
     if (new Date(cur.startD) <= today) break;
     const start = new Date(cur.startD);
     const dep = cur.blockedBy?.id && live.find(r => r.id === cur.blockedBy.id);
-    cur = dep || live
-      .filter(r => r.personId && r.personId === cur.personId && r.id !== cur.id
-        && new Date(r.endD) <= start && start - new Date(r.endD) <= 7 * DAY)
-      .sort((a, b) => new Date(b.endD) - new Date(a.endD))[0] || null;
+    cur =
+      dep ||
+      live
+        .filter(
+          r =>
+            r.personId &&
+            r.personId === cur.personId &&
+            r.id !== cur.id &&
+            new Date(r.endD) <= start &&
+            start - new Date(r.endD) <= 7 * DAY,
+        )
+        .sort((a, b) => new Date(b.endD) - new Date(a.endD))[0] ||
+      null;
   }
   // One line per work package and person: ten of one developer's tasks in a
   // row say "Noah, P8.16, May to July" and push the part that matters (the
@@ -96,11 +107,22 @@ function drivingPath(rows, rootId, today, nameOf) {
     const pkg = id.split('.').slice(0, 2).join('.');
     const prev = steps[steps.length - 1];
     if (prev && prev.pkg === pkg && prev.personId === r.personId) {
-      prev.count++; prev.endD = new Date(r.endD); prev.id = pkg;
+      prev.count++;
+      prev.endD = new Date(r.endD);
+      prev.id = pkg;
       continue;
     }
-    steps.push({ id, pkg, personId: r.personId, count: 1, name: r.name, personName: nameOf(r.personId),
-      startD: new Date(r.startD), endD: new Date(r.endD), foreign: !under(id, rootId) });
+    steps.push({
+      id,
+      pkg,
+      personId: r.personId,
+      count: 1,
+      name: r.name,
+      personName: nameOf(r.personId),
+      startD: new Date(r.startD),
+      endD: new Date(r.endD),
+      foreign: !under(id, rootId),
+    });
   }
   return steps.slice(-8).map(({ pkg, personId, ...step }) => step);
 }
@@ -119,10 +141,11 @@ export function projectWaits({ tree, scheduled, rootId, reschedule, members = []
     personId: last.personId,
     name: nameOf(last.personId),
     lastTaskId: last.treeId || last.id,
-    openPt: own.filter(r => r.personId === last.personId && new Date(r.endD) >= today)
-      .reduce((sum, r) => sum + (r.effort || 0), 0),
-    alone: members.filter(m => inTeam(m, last.team || '')
-      && !(m.end && new Date(m.end) < today) && !(m.start && new Date(m.start) > (end || today))).length <= 1,
+    openPt: own.filter(r => r.personId === last.personId && new Date(r.endD) >= today).reduce((sum, r) => sum + (r.effort || 0), 0),
+    alone:
+      members.filter(
+        m => inTeam(m, last.team || '') && !(m.end && new Date(m.end) < today) && !(m.start && new Date(m.start) > (end || today)),
+      ).length <= 1,
   };
 
   const chain = [];
@@ -148,10 +171,14 @@ export function projectWaits({ tree, scheduled, rootId, reschedule, members = []
       candidates = candidates.filter(c => !ids.includes(c));
     };
     for (;;) {
-      const trials = candidates.map(c => ({ c, e: endWithout([...removed, c]) }))
+      const trials = candidates
+        .map(c => ({ c, e: endWithout([...removed, c]) }))
         .filter(x => x.e && days(currentEnd - x.e) > 0)
         .sort((a, b) => a.e - b.e);
-      if (trials.length) { push([trials[0].c], trials[0].e); continue; }
+      if (trials.length) {
+        push([trials[0].c], trials[0].e);
+        continue;
+      }
       let best = null;
       for (let i = 0; i < candidates.length; i++) {
         for (let j = i + 1; j < candidates.length; j++) {
@@ -159,14 +186,21 @@ export function projectWaits({ tree, scheduled, rootId, reschedule, members = []
           if (e && days(currentEnd - e) > 0 && (!best || e < best.e)) best = { ids: [candidates[i], candidates[j]], e };
         }
       }
-      if (best) { push(best.ids, best.e); continue; }
+      if (best) {
+        push(best.ids, best.e);
+        continue;
+      }
       break;
     }
   }
 
   return {
-    rootId, end, deadline, lateDays, bottleneck, chain,
+    rootId,
+    end,
+    deadline,
+    lateDays,
+    bottleneck,
+    chain,
     path: drivingPath(scheduled, rootId, today, nameOf),
   };
 }
-
