@@ -112,54 +112,13 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const { modal, setModal, setMN, setModalFocus } = modalState;
   const searchState = useSearch();
   const { search, setSearch, searchIdx, setSearchIdx } = searchState;
-  const {
-    teamFilter,
-    setTeamFilter,
-    rootFilter,
-    setRootFilter,
-    personFilter,
-    setPersonFilter,
-    hideDone,
-    setHideDone,
-    showArchived,
-    setShowArchived,
-    archiveDays,
-    setArchiveDays,
-    onlyAutoAssigned,
-    setOnlyAutoAssigned,
-    onlyOverdue,
-    setOnlyOverdue,
-    onlyUnestimated,
-    setOnlyUnestimated,
-    onlyOverbooked,
-    setOnlyOverbooked,
-  } = useViewFilters();
+  const viewFilters = useViewFilters();
+  const { teamFilter, setTeamFilter, rootFilter, setRootFilter, personFilter, setPersonFilter, hideDone, setHideDone } = viewFilters;
   const [bulkEditModalOpen, setBulkEditModalOpen] = useState(false);
   const [saved, setSaved] = useState(true);
-  const {
-    history,
-    setHistory,
-    scn,
-    setScn,
-    scnRef,
-    past,
-    setPast,
-    pastRef,
-    effDate,
-    setEffDate,
-    lastSavedPlanRef,
-    dayUndoRef,
-    planHistoryRef,
-    lastSavedLeavesRef,
-    leafBaselineStaleRef,
-    scnNotice,
-    setScnNotice,
-    resetDocumentState,
-    dataRef,
-    mutate,
-    handleUndo,
-    handleRedo,
-  } = useDocumentState({ data, setData, setSaved });
+  const doc = useDocumentState({ data, setData, setSaved });
+  const { history, setHistory, scn, scnRef, past, effDate, scnNotice, setScnNotice, dataRef, mutate } = doc;
+  const { lastSavedPlanRef, lastSavedLeavesRef, leafBaselineStaleRef, resetDocumentState, handleUndo, handleRedo } = doc;
   // A different document is on screen: its undo stack is gone, and so is any
   // scenario that was open over the previous one.
   function resetHistory() {
@@ -189,17 +148,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     setMultiSel,
     setModal,
     _t,
-    mutate,
-    history,
-    setHistory,
-    scn,
-    setScn,
-    scnRef,
-    past,
-    pastRef,
-    dataRef,
-    planHistoryRef,
-    setScnNotice,
+    ...doc,
   });
   const fRef = useRef(null);
   const searchRef = useRef(null);
@@ -275,11 +224,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     session: fileSession,
     fRef,
     fileDataRef,
-    pastRef,
-    scnRef,
-    lastSavedPlanRef,
-    lastSavedLeavesRef,
-    leafBaselineStaleRef,
+    ...doc,
     composeFileForSave,
     commitSaveSideEffects,
   });
@@ -340,16 +285,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     members,
     scheduled,
     stats,
-    archiveDays,
-    showArchived,
-    hideDone,
-    rootFilter,
-    teamFilter,
-    personFilter,
-    onlyUnestimated,
-    onlyAutoAssigned,
-    onlyOverdue,
-    onlyOverbooked,
+    ...viewFilters,
     overbookedTaskIds,
     sinceDate,
     diffChangedSet,
@@ -362,24 +298,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     activeMembers,
     netRootOptions,
     overbookedTaskIds,
-    hideDone,
-    setHideDone,
-    showArchived,
-    setShowArchived,
-    onlyAutoAssigned,
-    setOnlyAutoAssigned,
-    onlyOverdue,
-    setOnlyOverdue,
-    onlyUnestimated,
-    setOnlyUnestimated,
-    onlyOverbooked,
-    setOnlyOverbooked,
-    rootFilter,
-    setRootFilter,
-    teamFilter,
-    setTeamFilter,
-    personFilter,
-    setPersonFilter,
+    ...viewFilters,
     setSearchIdx,
   });
   const scenarioView = useScenarioView({ scn, data, scheduled, scnChanges });
@@ -442,24 +361,11 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const { resLens, ...lensDates } = useResourceLens({ data, effDate });
   const { pickEffDate, effFold, pastStart, effDropDate, effContext } = useEarlierDay({
     data,
-    history,
-    setHistory,
+    ...doc,
     setData,
     setSaved,
     setTab,
-    setPast,
-    setEffDate,
-    mutate,
-    scn,
-    past,
-    effDate,
-    scnRef,
-    pastRef,
-    dataRef,
     fileDataRef,
-    lastSavedPlanRef,
-    lastSavedLeavesRef,
-    dayUndoRef,
   });
 
   // Persist the last visible schedule window for completed tasks so they stay visible
@@ -734,12 +640,8 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     tree,
     isMdFile,
     setData,
-    setPast,
-    scnRef,
-    pastRef,
+    ...doc,
     fileDataRef,
-    lastSavedPlanRef,
-    lastSavedLeavesRef,
   });
   logWritersRef.current = logWriters;
   const { loadFile, newProject, restoreMountedFile } = fileLoaders({
@@ -836,8 +738,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     viewCpSet,
   });
 
-  const view = mergeNamed(uiPrefs, fileSyncState, filterChips, selection, modalState, searchState, {
-    archiveDays,
+  const view = mergeNamed(uiPrefs, fileSyncState, filterChips, viewFilters, selection, modalState, searchState, {
     autoSave,
     bulkEditModalOpen,
     diffOnlyChanged,
@@ -845,30 +746,22 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     fileSynced,
     fileWriteOk,
     ganttRoadmapFocus,
-    hideDone,
     horizonOnlyPlanned,
     lastSavedAt,
-    personFilter,
     resLens,
-    rootFilter,
     saved,
     scnNotice,
     selected,
-    setArchiveDays,
     setAutoSave,
     setBulkEditModalOpen,
     setGanttRoadmapFocus,
-    setRootFilter,
     setScnNotice,
-    setShowArchived,
     setTab,
     setTourStep,
-    showArchived,
     showNewFeat,
     sinceDays,
     tab,
     tabFades,
-    teamFilter,
     tourStep,
   });
   // The two raw writes a component may ask for, by name. `mutate`, `setData`

@@ -3,9 +3,6 @@
     "complexity": {
       "count": 2
     },
-    "max-lines": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     }
