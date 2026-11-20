@@ -2,6 +2,7 @@ import { normalizeLoadedData } from '../utils/loadedData.js';
 import { parseMdToProject } from '../utils/markdownParse.js';
 import { isBusy, MAX_BUSY_ROUNDS, stillWritable, writeWithRetry } from '../utils/fileWrite.js';
 import { inIdsOf } from '../utils/dayLog.js';
+import { withoutPendingDates } from '../utils/history.js';
 import { exportJSON } from '../utils/exports.js';
 import { filePickerAvailable, pickFileToOpen, pickFileToSave } from '../utils/filePickers.js';
 import { pushSnapshot } from './snapshots.js';
@@ -101,7 +102,10 @@ export async function reloadFromFile(c) {
 // Used as fallback when the existing handle's permission/write fails after a reload.
 async function pickSaveHandle(c, suggestedFromName) {
   if (!filePickerAvailable()) {
-    exportJSON();
+    // No file access in this browser: the way out is a download of the plan
+    // as it would be saved, without the dates that are waiting for a save.
+    const plan = withoutPendingDates(c.fileDataRef.current || c.data);
+    exportJSON({ data: plan, meta: plan?.meta || {} });
     return null;
   }
   const { meta = {} } = c.data; // `App` has not derived its own `meta` yet when this hook is called
