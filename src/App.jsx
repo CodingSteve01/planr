@@ -12,6 +12,7 @@ import { useTour } from './app/useTour.js';
 import { useReviewWindow } from './app/useReviewWindow.js';
 import { useFileSession } from './app/useFileSession.js';
 import { useFileSync, SAVE_DEBOUNCE_MS } from './app/useFileSync.js';
+import { withDayLog, recordSavedEvents } from './app/dayLogWrite.js';
 import { usePlanModel } from './app/derived/usePlanModel.js';
 import { useVisibleTree } from './app/derived/useVisibleTree.js';
 import { useFilterChips } from './app/derived/useFilterChips.js';
@@ -1117,25 +1118,6 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     const savedPlan = recordToday(lastSavedPlanRef.current, data);
     lastSavedPlanRef.current = savedPlan;
     setData(d => withDayLog(recordSavedEvents(d, newEvents, pendingRead), savedPlan.dayLog));
-  }
-  // The document with the day log a save wrote; the same object when nothing
-  // differs, so that a save which changed nothing does not start another.
-  function withDayLog(next, log) {
-    if (deepEqual(next.dayLog || [], log || [])) return next;
-    if (!log || !log.length) {
-      const { dayLog, ...rest } = next;
-      return rest;
-    }
-    return { ...next, dayLog: log };
-  }
-  // What a finished save leaves in the document: its events, and none of the
-  // dates it read. A date set while the save was under way is another one and
-  // stays for the next save.
-  function recordSavedEvents(d, newEvents, pendingRead) {
-    const left = withoutPendingDates(d, pendingRead);
-    return newEvents && newEvents.length
-      ? { ...left, historyEvents: [...supersededByBackdate(left?.historyEvents || [], newEvents).kept, ...newEvents] }
-      : left;
   }
   function commitSaveSideEffects({ newEvents, snapshot, pendingRead, savedPlan, visit }) {
     lastSavedLeavesRef.current = snapshot;
