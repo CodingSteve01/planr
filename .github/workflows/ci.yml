@@ -7,7 +7,7 @@
 #   test      the whole suite, with the coverage floor
 #   build     the web app and the Obsidian plugin both build
 #   audit     no known high or critical vulnerability in what ships
-#   security  the repository's own semgrep rules (.semgrep/): no finding.
+#   security  the repository's own semgrep rules (semgrep/): no finding.
 #             semgrep's registry rules run beside them as advice; they
 #             change upstream, so they inform and do not block
 #
@@ -82,6 +82,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: 22, cache: npm }
       - run: python3 -m pip install --quiet semgrep==1.176.0
+      - name: The rules find what they are for
+        run: npm run security:test
       - run: npm run security
       - name: Registry rules, as advice
         continue-on-error: true

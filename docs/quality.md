@@ -67,7 +67,7 @@ and reported. `git commit --no-verify` skips them; CI does not.
   owner's word list and checks nothing without it, so it is not part of CI.
 - **Audit**: `npm audit --omit=dev --audit-level=high` on what ships.
 - **Security** (`npm run security`, semgrep): the repository's own rules in
-  `.semgrep/planr.yml`, with no finding allowed. They say what Planr promises:
+  `semgrep/planr.yml`, with no finding allowed. They say what Planr promises:
   nothing from a plan becomes code (`eval`, `new Function`), plan text reaches
   the page as text (no raw HTML), the app loads no code and sends nothing over
   a network, and a workflow pastes no contributor-controlled value into a
@@ -76,6 +76,8 @@ and reported. `git commit --no-verify` skips them; CI does not.
   not a violation gets a `nosemgrep: <rule id>` comment with the reason above
   it. Where semgrep is not installed the local check is skipped with a line
   saying so; CI installs a pinned version and fails without it.
+  `npm run security:test` runs each rule against a line it must find and one
+  it must not (the files beside the rules in `semgrep/`), so a rule cannot go quiet unnoticed.
 - **Security, as advice** (`npm run security:advice`): semgrep's registry
   rules. They change upstream, so they run in CI without blocking.
 - **Workflows**: every action is pinned to a commit, because a tag can be

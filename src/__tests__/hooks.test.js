@@ -43,12 +43,18 @@ describe('the guardrails', () => {
   });
 
   it('the security rules are the repository\'s own, and each promise has one', () => {
-    const rules = readFileSync(new URL('../../.semgrep/planr.yml', import.meta.url), 'utf8');
+    const rules = readFileSync(new URL('../../semgrep/planr.yml', import.meta.url), 'utf8');
     const ids = [...rules.matchAll(/^\s*- id: (\S+)$/gm)].map(m => m[1]);
     expect(ids).toEqual(['planr-no-eval', 'planr-no-raw-html', 'planr-no-remote-code', 'planr-no-network-calls', 'planr-workflow-no-expression-in-run', 'planr-workflow-pinned-actions']);
     expect(rules.match(/severity: ERROR/g)).toHaveLength(ids.length);
-    // What blocks is what is in the repository; the registry's rules advise.
-    const security = readFileSync(new URL('../../scripts/security.mjs', import.meta.url), 'utf8');
-    expect(security).toContain("advice ? 'p/default' : '.semgrep/'");
+    // Every rule has a fixture it must find and one it must not (run by
+    // `npm run security:test`, in CI).
+    const fixtures = ['planr.js', 'planr.jsx', 'planr.test.yaml'].map(n => readFileSync(new URL(`../../semgrep/${n}`, import.meta.url), 'utf8')).join('\n');
+    for (const id of ids) {
+      expect(fixtures, `${id}: a line that must be found`).toContain(`ruleid: ${id}`);
+      expect(fixtures, `${id}: a line that must not`).toContain(`ok: ${id}`);
+    }
+    const runs = [...ci.matchAll(/^\s*-?\s*run:\s*(.+)$/gm)].map(m => m[1].trim());
+    expect(runs).toContain('npm run security:test');
   });
 });

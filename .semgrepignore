@@ -7,3 +7,5 @@ src/utils/pdfFonts.js
 node_modules/
 dist/
 dist-obsidian/
+# Fixtures that break the rules on purpose.
+semgrep/

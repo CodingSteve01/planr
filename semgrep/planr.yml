@@ -1,0 +1,63 @@
+# The security rules this repository holds itself to. They live here, so the
+# same commit is judged the same way tomorrow; semgrep's own registry rules
+# change under us and run as advice only (`npm run security:advice`).
+rules:
+  - id: planr-no-eval
+    languages: [javascript]
+    severity: ERROR
+    message: No eval and no Function constructor. A plan file is data from outside; nothing in it may become code.
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+      - pattern: setTimeout("...", ...)
+      - pattern: setInterval("...", ...)
+
+  - id: planr-no-raw-html
+    languages: [javascript]
+    severity: ERROR
+    message: Text from a plan goes into the page as text. Setting HTML directly needs a nosemgrep with the reason why the string cannot hold plan content.
+    pattern-either:
+      - pattern: $EL.innerHTML = $X
+      - pattern: $EL.outerHTML = $X
+      - pattern: $EL.insertAdjacentHTML(...)
+      - pattern: document.write(...)
+      - pattern: <$TAG ... dangerouslySetInnerHTML={...} ... />
+
+  - id: planr-no-remote-code
+    languages: [javascript]
+    severity: ERROR
+    message: The app works offline and loads no code from a network at run time.
+    pattern-either:
+      - pattern: import("=~/^https?:/")
+      - pattern: importScripts(...)
+
+  - id: planr-no-network-calls
+    languages: [javascript]
+    severity: ERROR
+    message: Planr sends nothing anywhere. A network call needs a nosemgrep with the reason and what leaves the machine.
+    pattern-either:
+      - pattern: fetch(...)
+      - pattern: new XMLHttpRequest(...)
+      - pattern: new WebSocket(...)
+      - pattern: navigator.sendBeacon(...)
+
+  - id: planr-workflow-no-expression-in-run
+    languages: [yaml]
+    severity: ERROR
+    message: A GitHub expression pasted into a shell script is text a contributor can choose. Pass it through `env:` and use the variable.
+    patterns:
+      - pattern-inside: "steps: [...]"
+      - pattern: "run: $RUN"
+      - metavariable-regex:
+          metavariable: $RUN
+          regex: '(?s).*\$\{\{\s*(github\.(event|head_ref|ref_name)|inputs)\b.*'
+
+  - id: planr-workflow-pinned-actions
+    languages: [yaml]
+    severity: ERROR
+    message: Pin the action to a commit (40 hex digits) with the tag in a comment. A tag can be moved.
+    patterns:
+      - pattern: "uses: $ACTION"
+      - metavariable-regex:
+          metavariable: $ACTION
+          regex: '^(?!\./)(?!.*@[0-9a-f]{40}$).*$'
