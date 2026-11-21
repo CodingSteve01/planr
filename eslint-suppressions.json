@@ -686,26 +686,51 @@
       "count": 1
     }
   },
-  "src/utils/scheduler.js": {
+  "src/utils/scheduler/schedule.js": {
     "complexity": {
-      "count": 6
-    },
-    "max-depth": {
-      "count": 14
-    },
-    "max-lines": {
-      "count": 1
+      "count": 3
     },
     "max-lines-per-function": {
-      "count": 4
+      "count": 3
     },
     "max-params": {
       "count": 1
     },
-    "no-unused-vars": {
-      "count": 1
-    },
     "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "src/utils/scheduler/scheduleAssigned.js": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/utils/scheduler/scheduleExpand.js": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/utils/scheduler/scheduleTeamSlot.js": {
+    "complexity": {
+      "count": 2
+    },
+    "max-depth": {
+      "count": 9
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/utils/scheduler/treeIndex.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/utils/scheduler/treeSummary.js": {
+    "no-unused-vars": {
       "count": 1
     }
   },

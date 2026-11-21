@@ -2,6 +2,8 @@
 
 The auto-scheduler lives in [src/utils/scheduler.js](../src/utils/scheduler.js) and runs automatically on every change to `tree`, `members`, `vacations`, `planStart`, `planEnd`, or the holiday map. There is no manual "schedule" button.
 
+`scheduler.js` itself only re-exports; the code is in `src/utils/scheduler/`: `schedule.js` (setup, order of work, the per-task loop), `scheduleTeamSlot.js` (the path for unassigned tasks), `scheduleAssigned.js` (the path for assigned tasks), `scheduleExpand.js` (handoff segments into rows), `treeIndex.js` (the cached tree index and leaf lookups), `treeSummary.js` (confidence, `treeStats`, next child id) and `taskBasics.js` (effort maths, team labels, parent ids). The two paths receive the loop's state as two objects (`S` for the plan-wide state, `T` for the current task) and destructure it, so their bodies read as they did inside one function.
+
 ## Inputs
 
 | Input | Purpose |
