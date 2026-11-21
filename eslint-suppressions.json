@@ -308,16 +308,13 @@
   },
   "src/components/views/TreeView.jsx": {
     "complexity": {
-      "count": 6
-    },
-    "max-lines": {
-      "count": 1
-    },
-    "max-lines-per-function": {
       "count": 2
     },
+    "max-lines-per-function": {
+      "count": 1
+    },
     "no-unused-vars": {
-      "count": 5
+      "count": 4
     }
   },
   "src/components/views/WorkOrderView.jsx": {
@@ -396,6 +393,22 @@
   "src/components/views/gantt/useGanttSelection.js": {
     "complexity": {
       "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/views/tree/renderTreeRow.jsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/views/tree/treeKeys.js": {
+    "complexity": {
+      "count": 2
     },
     "max-lines-per-function": {
       "count": 1
@@ -669,6 +682,11 @@
     }
   },
   "src/utils/timeline.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/utils/tree/diff.js": {
     "complexity": {
       "count": 1
     }

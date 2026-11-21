@@ -21,7 +21,10 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { stickyTops, layoutScale } from '../components/views/TreeView.jsx';
 
-const src = readFileSync(path.join(process.cwd(), 'src/components/views/TreeView.jsx'), 'utf8');
+// The tree view's markup is split over several files. Read together, in the order the bars render.
+const viewFiles = ['tree/TreeToolbar.jsx', 'tree/TreeSelectionBar.jsx', 'tree/TreeHead.jsx', 'TreeView.jsx'];
+const src = viewFiles.map(f => readFileSync(path.join(process.cwd(), 'src/components/views', f), 'utf8')).join('\n');
+const scrollSrc = readFileSync(path.join(process.cwd(), 'src/utils/tree/scroll.js'), 'utf8');
 const css = readFileSync(path.join(process.cwd(), 'src/App.css'), 'utf8');
 
 describe('a sticky stack', () => {
@@ -73,7 +76,7 @@ describe('the zoom factor', () => {
 describe('the tree view', () => {
   it('divides every measured rect by the zoom before it writes a length', () => {
     expect(src).toMatch(/getBoundingClientRect\(\)\.height \|\| 0\) \/ scale/);
-    expect(src).toMatch(/box\.scrollTop \+= delta \/ layoutScale\(box\)/);
+    expect(scrollSrc).toMatch(/box\.scrollTop \+= delta \/ layoutScale\(box\)/);
   });
 
   it('measures the bars instead of assuming their height', () => {
