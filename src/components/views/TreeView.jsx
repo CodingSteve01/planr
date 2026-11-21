@@ -21,10 +21,15 @@ import { canTreeCommand, canTreeCommandMany, dropRows, remapIds } from '../../ut
 import { setDragBadge } from '../../utils/dragBadge.js';
 import { withKey, ariaChord } from '../../utils/shortcuts.js';
 import { KEYMAP_OPEN_EVENT } from '../../utils/events.js';
+import { depth, stickyTops, layoutScale, isTypingTarget } from '../../utils/tree/layout.js';
+import { diffBadgeFor, collectDiffKeepIds } from '../../utils/tree/diff.js';
+import { filterRows, collapseTargets, rowAfterDeleting } from '../../utils/tree/rows.js';
+import { shortInitials, scheduleRanges, siblingPosition } from '../../utils/tree/derive.js';
+import { keepRowInView } from '../../utils/tree/scroll.js';
 
-function depth(id) {
-  return id.split('.').length;
-}
+// Other modules and tests import these from here.
+export { stickyTops, layoutScale, isTypingTarget };
+
 // STATUS_LBL is built inside the component so it can use t() — see statusLbl below
 // Priority indicator: chevron-style glyphs (up = urgent, down = low)
 // Four marks from one family. Priority 1 used to be a media-control glyph, which macOS and
@@ -36,57 +41,6 @@ function depth(id) {
 // carries the meaning without the colour, which four coloured dots would not.
 const PRIO_ICON = { 1: 'prioCritical', 2: 'prioHigh', 3: 'prioMedium', 4: 'prioLow' };
 const PRIO_COL = { 1: 'var(--re)', 2: 'var(--am)', 3: 'var(--ac)', 4: 'var(--tx3)' };
-// Text entry, as far as a keyboard shortcut is concerned. Checkboxes and the
-// like are excluded deliberately: arrows there are navigation, not editing.
-const NON_TEXT_INPUT = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file', 'image']);
-
-/**
- * Where each element of a sticky stack starts, and where the next thing after
- * it starts. Given the heights of the bars that stick above a table head, top
- * to bottom, returns one offset per bar plus a final one for the head.
- *
- * A missing bar counts as nothing, so the same call works whether or not the
- * selection bar is on screen.
- */
-export function stickyTops(heights) {
-  const tops = [];
-  let acc = 0;
-  for (const h of heights) {
-    tops.push(acc);
-    acc += h > 0 ? h : 0;
-  }
-  tops.push(acc);
-  return tops;
-}
-
-/**
- * How many screen pixels one of the element's own CSS pixels comes to.
- *
- * The UI scale setting puts `zoom` on the app root, and under `zoom`
- * getBoundingClientRect() answers in zoomed pixels while `top`, `scrollTop`
- * and friends are read in the element's own. offsetWidth is the one length
- * that stays unzoomed, so the ratio of the two is the factor. Widths, not
- * heights: offsetWidth is rounded to a whole pixel, and over the width of the
- * tree that rounding stays far below a pixel of error.
- */
-export function layoutScale(el) {
-  const w = el?.offsetWidth;
-  const r = w ? el.getBoundingClientRect().width / w : 1;
-  return r > 0 && Number.isFinite(r) ? r : 1;
-}
-
-// Anything that is editing rather than navigating. A structural shortcut
-// pressed here belongs to the control: ⌘⇧←/→ selects to the line's edge in a
-// text field, ⌥←/→ walks by word, ↑/↓ picks a value in a combobox.
-export function isTypingTarget(el) {
-  if (!el || typeof el !== 'object') return false;
-  if (el.isContentEditable) return true;
-  if (el.getAttribute?.('role') === 'combobox') return true;
-  const tag = el.tagName;
-  if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
-  if (tag !== 'INPUT') return false;
-  return !NON_TEXT_INPUT.has(String(el.type || 'text').toLowerCase());
-}
 
 function TreeViewImpl({
   tree,
@@ -201,98 +155,18 @@ function TreeViewImpl({
   // done-in-window, or progress jump). Parents kept when they have at least
   // one matching descendant so the tree shape reads.
   // Per-row diff: returns null when no change, else badge descriptor.
-  const computeDiffBadge = r => {
-    if (!pastLeafState) return null;
-    const isLeaf = !tree.some(o => o.id !== r.id && o.id.startsWith(r.id + '.'));
-    if (!isLeaf) return null;
-    const past = pastLeafState.get(r.id);
-    const nowStatus = r.status || 'open';
-    const nowProg = typeof r.progress === 'number' ? r.progress : nowStatus === 'done' ? 100 : nowStatus === 'wip' ? 50 : 0;
-    if (!past) return { kind: 'new', label: t('diff.labelNew'), tip: t('diff.tipNew') };
-    if (past.status !== 'done' && nowStatus === 'done')
-      return {
-        kind: 'done',
-        label: t('diff.labelDone'),
-        tip: r.completedAt ? t('diff.tipDone') + ' (' + r.completedAt + ')' : t('diff.tipDone'),
-      };
-    if (nowProg > (past.progress || 0)) {
-      const delta = Math.round(nowProg - (past.progress || 0));
-      if (delta >= 1) return { kind: 'progress', label: `+${delta}%`, tip: t('diff.tipProgress', past.progress || 0, nowProg) };
-    }
-    return null;
-  };
+  const computeDiffBadge = r => diffBadgeFor(r, { tree, pastLeafState, t });
   // Set of ids the filter should keep visible: every leaf with a diff plus
   // each of its ancestors. Computed once per change in pastLeafState/tree.
   const diffKeepIds = useMemo(() => {
     if (!onlyChanged || !pastLeafState) return null;
-    const keep = new Set();
-    for (const r of tree) {
-      if (computeDiffBadge(r)) {
-        keep.add(r.id);
-        const parts = r.id.split('.');
-        for (let i = 1; i < parts.length; i++) keep.add(parts.slice(0, i).join('.'));
-      }
-    }
-    return keep;
+    return collectDiffKeepIds(tree, computeDiffBadge);
   }, [onlyChanged, pastLeafState, tree]);
 
   // Parent-then-children, displayOrder-aware sort — see utils/treeEdit.js
   // sortTree(), which is the same algorithm this used to carry inline (now
   // shared with the keyboard cursor's row-order tests).
   const sorted = useMemo(() => sortTree(tree), [tree]);
-
-  // Keep the cursor on screen.
-  //
-  // This used to ask whether the row was inside the WINDOW
-  // (`rect.top >= 0 && rect.bottom <= innerHeight`). The tree does not
-  // scroll the window — it scrolls a container that starts well below the
-  // top of the page, under the topbar, the tab bar and the sub-toolbar. So
-  // a row that had scrolled up behind that chrome still reported `top >= 0`
-  // and counted as visible: moving the cursor up, it simply disappeared and
-  // nothing scrolled. Measured: container top at y=160, cursor row at y=36.
-  //
-  // It also used `block: 'nearest'`, which does the least scrolling that
-  // technically works and leaves the row glued to the very edge with no
-  // context after it.
-  //
-  // So: measure against the scroll container, allow for whatever is sticky
-  // at its top (the table head), and leave a row's worth of room on either
-  // side so you can see where you are going.
-  const ROW_MARGIN = 34;
-
-  function scrollParentOf(el) {
-    let node = el?.parentElement;
-    while (node && node !== document.body) {
-      const style = getComputedStyle(node);
-      if (/(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight + 2) return node;
-      node = node.parentElement;
-    }
-    return null;
-  }
-
-  function keepRowInView(row) {
-    if (!row) return;
-    const box = scrollParentOf(row);
-    if (!box) {
-      row.scrollIntoView({ behavior: 'auto', block: 'nearest' });
-      return;
-    }
-    const rowRect = row.getBoundingClientRect();
-    const boxRect = box.getBoundingClientRect();
-    // The table head sticks to the top of the scroller; anything under it is
-    // as invisible as anything above the scroller itself.
-    const headRect = box.querySelector('.tree-tbl thead')?.getBoundingClientRect();
-    const delta = scrollAdjustment({
-      rowTop: rowRect.top,
-      rowBottom: rowRect.bottom,
-      boxTop: boxRect.top,
-      boxBottom: boxRect.bottom,
-      headBottom: headRect?.bottom ?? null,
-      margin: ROW_MARGIN,
-    });
-    // The rects are in zoomed pixels, scrollTop is in the box's own.
-    if (delta) box.scrollTop += delta / layoutScale(box);
-  }
 
   useEffect(() => {
     if (!selected?.id) return;
@@ -326,17 +200,7 @@ function TreeViewImpl({
       return n;
     });
   // If there's a selection, collapse/expand only acts on selected items + their descendants. Otherwise, all items.
-  const targetIds = () => {
-    if (!multiSel || multiSel.size === 0) return tree.filter(r => hasChildren(tree, r.id)).map(r => r.id);
-    const ids = new Set();
-    multiSel.forEach(id => {
-      if (hasChildren(tree, id)) ids.add(id);
-      tree.forEach(r => {
-        if (r.id.startsWith(id + '.') && hasChildren(tree, r.id)) ids.add(r.id);
-      });
-    });
-    return [...ids];
-  };
+  const targetIds = () => collapseTargets(tree, multiSel);
   const collapseAll = () =>
     setCollapsed(s => {
       const n = new Set(s);
@@ -354,61 +218,10 @@ function TreeViewImpl({
   // because the two answer different questions: a row inside a folded branch
   // is one keystroke from being seen, a row a filter excludes is not there at
   // all. `noMoveIsLost` below depends on telling those apart.
-  const filteredRows = useMemo(() => {
-    let f = sorted;
-    if (rootFilter) {
-      f = f.filter(r => r.id === rootFilter || r.id.startsWith(rootFilter + '.'));
-    }
-    if (teamFilter) {
-      const matchIds = new Set();
-      f.forEach(r => {
-        if ((r.team || '') === teamFilter) {
-          matchIds.add(r.id);
-          const parts = r.id.split('.');
-          for (let i = 1; i < parts.length; i++) {
-            matchIds.add(parts.slice(0, i).join('.'));
-          }
-        }
-      });
-      f = f.filter(r => matchIds.has(r.id));
-    }
-    if (personFilter) {
-      const matchIds = new Set();
-      f.forEach(r => {
-        if ((r.assign || []).includes(personFilter)) {
-          matchIds.add(r.id);
-          const parts = r.id.split('.');
-          for (let i = 1; i < parts.length; i++) {
-            matchIds.add(parts.slice(0, i).join('.'));
-          }
-        }
-      });
-      f = f.filter(r => matchIds.has(r.id));
-    }
-    if (search) {
-      const q = search.toLowerCase();
-      f = f.filter(r => r.id.toLowerCase().includes(q) || r.name.toLowerCase().includes(q) || (r.note || '').toLowerCase().includes(q));
-    }
-    if (diffKeepIds) {
-      f = f.filter(r => diffKeepIds.has(r.id));
-    }
-    // Planning-horizon filter: only narrows the row list when the user has
-    // turned "Only planned in window" on. Without the toggle the rest of
-    // the UI (badges, dimming) still reacts to the horizon, but nothing
-    // is hidden from the tree.
-    if (horizonIds && horizonOnlyPlanned) {
-      const keep = new Set();
-      for (const r of f) {
-        if (horizonIds.has(r.id)) {
-          keep.add(r.id);
-          const parts = r.id.split('.');
-          for (let i = 1; i < parts.length; i++) keep.add(parts.slice(0, i).join('.'));
-        }
-      }
-      f = f.filter(r => keep.has(r.id));
-    }
-    return f;
-  }, [sorted, search, teamFilter, rootFilter, personFilter, diffKeepIds, horizonIds, horizonOnlyPlanned]);
+  const filteredRows = useMemo(
+    () => filterRows(sorted, { rootFilter, teamFilter, personFilter, search, diffKeepIds, horizonIds, horizonOnlyPlanned }),
+    [sorted, search, teamFilter, rootFilter, personFilter, diffKeepIds, horizonIds, horizonOnlyPlanned],
+  );
   const filt = useMemo(() => filterCollapsedRows(filteredRows, collapsed), [filteredRows, collapsed]);
 
   // A move never hides what it moved.
@@ -436,113 +249,18 @@ function TreeViewImpl({
   }, [filteredRows]);
 
   // Resolve member ID to short initials with collision handling
-  const shortMap = useMemo(() => {
-    const map = {},
-      counts = {};
-    const bases = (members || []).map(m => {
-      const words = (m.name || '').trim().split(/\s+/).filter(Boolean);
-      if (!words.length) return '?';
-      return words.length === 1
-        ? words[0].slice(0, 2).toUpperCase()
-        : words
-            .map(w => w[0])
-            .join('')
-            .toUpperCase();
-    });
-    bases.forEach(b => {
-      counts[b] = (counts[b] || 0) + 1;
-    });
-    const seen = {};
-    (members || []).forEach((m, i) => {
-      const base = bases[i];
-      if (counts[base] === 1) map[m.id] = base;
-      else {
-        seen[base] = (seen[base] || 0) + 1;
-        map[m.id] = base + seen[base];
-      }
-    });
-    return map;
-  }, [members]);
+  const shortMap = useMemo(() => shortInitials(members), [members]);
   const memberShort = id => shortMap[id] || '?';
   const sMap = useMemo(() => (scheduled ? Object.fromEntries(scheduled.map(s => [s.id, s])) : {}), [scheduled]);
-  // Effective team per node — own team falls back to nearest ancestor team.
-  // Used to suppress the "● Team" pill when it is the same as the inherited
-  // parent team (kills repeated "Backend" labels on every descendant row).
-  const effTeam = useMemo(() => {
-    const m = {};
-    sorted.forEach(node => {
-      const pid = node.id.split('.').slice(0, -1).join('.');
-      const parentEff = pid ? m[pid] || '' : '';
-      m[node.id] = node.team || parentEff;
-    });
-    return m;
-  }, [sorted]);
   const memberFullName = id => (members || []).find(x => x.id === id)?.name || id;
   const teamColor = tid => teams?.find(x => x.id === pt(tid))?.color || 'var(--tx3)';
   const teamName = tid => teams?.find(x => x.id === pt(tid))?.name || tid || '';
   const fmtDate = d => (d ? d.toLocaleDateString('de-DE', { day: '2-digit', month: 'short' }) : '');
-  const scheduleRangeById = useMemo(() => {
-    const childrenByParent = {};
-    tree.forEach(node => {
-      const pid = node.id.split('.').slice(0, -1).join('.') || '';
-      if (!childrenByParent[pid]) childrenByParent[pid] = [];
-      childrenByParent[pid].push(node.id);
-    });
-    const makeWindow = (startValue, endValue) => {
-      const start = startValue ? (startValue instanceof Date ? startValue : localDate(startValue)) : null;
-      const end = endValue ? (endValue instanceof Date ? endValue : localDate(endValue)) : start;
-      if (!start || !end) return null;
-      return start <= end ? { start, end } : { start: end, end: start };
-    };
-    const map = {};
-    const visit = id => {
-      if (Object.prototype.hasOwnProperty.call(map, id)) return map[id];
-      const node = tree.find(entry => entry.id === id);
-      if (!node) return null;
-      const childIds = childrenByParent[id] || [];
-      if (!childIds.length) {
-        const actual =
-          node.status === 'done'
-            ? makeWindow(node.completedStart || node.completedAt, node.completedAt || node.completedEnd || node.completedStart)
-            : null;
-        const scheduledWindow = sMap[id]?.startD && sMap[id]?.endD ? makeWindow(sMap[id].startD, sMap[id].endD) : null;
-        map[id] = actual || scheduledWindow;
-        return map[id];
-      }
-      const childWindows = childIds.map(visit).filter(Boolean);
-      if (!childWindows.length) {
-        map[id] = null;
-        return null;
-      }
-      map[id] = {
-        start: new Date(Math.min(...childWindows.map(window => window.start.getTime()))),
-        end: new Date(Math.max(...childWindows.map(window => window.end.getTime()))),
-      };
-      return map[id];
-    };
-    (childrenByParent[''] || []).forEach(visit);
-    return map;
-  }, [tree, sMap]);
+  const scheduleRangeById = useMemo(() => scheduleRanges(tree, sMap), [tree, sMap]);
 
   const hasSelection = multiSel && multiSel.size > 0;
   // Compute position of `selected` within its sibling group — drives first/last button disabled state.
-  const selPos = useMemo(() => {
-    if (!selected?.id) return null;
-    const parts = selected.id.split('.');
-    const isRoot = parts.length === 1;
-    const myPrefix = isRoot ? selected.id.match(/^[A-Za-z]+/)?.[0] || '' : '';
-    const rank = r => (typeof r.displayOrder === 'number' ? r.displayOrder : parseInt(r.id.split('.').pop().replace(/\D/g, '')) || 0);
-    const siblings = tree
-      .filter(x => {
-        if (isRoot) return !x.id.includes('.') && (x.id.match(/^[A-Za-z]+/)?.[0] || '') === myPrefix;
-        return x.id.split('.').slice(0, -1).join('.') === parts.slice(0, -1).join('.');
-      })
-      .sort((a, b) => {
-        return rank(a) - rank(b) || a.id.localeCompare(b.id, undefined, { numeric: true });
-      });
-    const idx = siblings.findIndex(x => x.id === selected.id);
-    return { idx, count: siblings.length };
-  }, [selected?.id, tree]);
+  const selPos = useMemo(() => siblingPosition(tree, selected?.id), [selected?.id, tree]);
 
   // The sticky stack measures itself.
   //
@@ -1125,25 +843,12 @@ function TreeViewImpl({
     handleEditBlur();
   }
 
-  // Where the cursor goes after a delete: the row above, else the row below,
-  // else nothing. Landing on `null` meant every delete cost you a mouse trip
-  // back into the tree — and with ⌫ now one keystroke, that is most of the
-  // work. Computed BEFORE the delete, from the rows as they are on screen.
-  function rowAfterDeleting(ids) {
-    const gone = new Set(ids);
-    const idx = visibleIds.findIndex(id => gone.has(id));
-    if (idx < 0) return null;
-    for (let i = idx - 1; i >= 0; i--) if (!gone.has(visibleIds[i])) return filt[i];
-    for (let i = idx + 1; i < visibleIds.length; i++) if (!gone.has(visibleIds[i])) return filt[i];
-    return null;
-  }
-
   function doDelete() {
     const ids = hasSelection ? [...multiSel] : selected?.id ? [selected.id] : [];
     if (!ids.length) return;
     // Descendants disappear with their parent, so they count as gone too.
     const alsoGone = tree.filter(r => ids.some(id => r.id.startsWith(id + '.'))).map(r => r.id);
-    const next = rowAfterDeleting([...ids, ...alsoGone]);
+    const next = rowAfterDeleting(visibleIds, filt, [...ids, ...alsoGone]);
     if (hasSelection) onBulkDelete?.(ids);
     else onDelete?.(ids[0]);
     // After App's own setSel(null) — so this wins, and the cursor stays put.

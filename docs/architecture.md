@@ -554,3 +554,15 @@ gets the values and setters. The functions that were over the limits moved as
 they stood. The components still take the view's
 locals one prop each, under the view's own short names: that is the state
 after a move, not the cut to aim for.
+
+### The tree view's parts
+
+`src/components/views/TreeView.jsx` holds the view's state, its effects and its
+handlers. Pure code it calls from its memos is under `src/utils/tree/`: `layout.js`
+(row depth, the sticky stack, the UI scale, what counts as a typing target),
+`diff.js` (the change badge and the ids the "only changes" filter keeps), `rows.js`
+(the filters, the collapse targets, the row the cursor lands on after a delete),
+`derive.js` (short initials, schedule windows, position among siblings) and
+`scroll.js` (keeping a row in view under the sticky head), each with unit tests.
+`TreeView.jsx` still exports `stickyTops`, `layoutScale` and `isTypingTarget`,
+because other modules and tests import them from there.

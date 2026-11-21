@@ -308,7 +308,7 @@
   },
   "src/components/views/TreeView.jsx": {
     "complexity": {
-      "count": 6
+      "count": 5
     },
     "max-lines": {
       "count": 1
@@ -669,6 +669,11 @@
     }
   },
   "src/utils/timeline.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/utils/tree/diff.js": {
     "complexity": {
       "count": 1
     }
