@@ -1,5 +1,6 @@
 import { useT } from '../../../i18n.jsx';
-import { KVRow, Section, activatable, S_COLOR, S_DOT } from './InsightParts.jsx';
+import { KVRow, Section, activatable } from './InsightParts.jsx';
+import { S_COLOR, S_DOT } from '../../../utils/statusMarks.js';
 
 // Dependencies section
 export function DepsSection({ preds, succs, inheritedPreds, sec, onOpenItem }) {

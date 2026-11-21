@@ -6,7 +6,7 @@ import { diffDays, localDate } from '../../utils/date.js';
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
 import { summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
-import { S_COLOR } from './insights/InsightParts.jsx';
+import { S_COLOR } from '../../utils/statusMarks.js';
 import { InsightNameBlock, InsightStatusBlock } from './insights/InsightHeader.jsx';
 import { TimingSection } from './insights/TimingSection.jsx';
 import { EffortSection, SubtasksSection } from './insights/EffortSection.jsx';

@@ -1,5 +1,5 @@
 import { Icon } from '../../shared/Icon.jsx';
-import { S_DOT } from '../../../utils/briefing/briefingMarks.js';
+import { S_DOT } from '../../../utils/statusMarks.js';
 import { JiraRow, JiraSection } from './JiraParts.jsx';
 import { useT } from '../../../i18n.jsx';
 

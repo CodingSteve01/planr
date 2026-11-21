@@ -1,6 +1,7 @@
 import { progressPctLabel } from '../../../utils/progress.js';
 import { useT } from '../../../i18n.jsx';
-import { activatable, S_DOT, S_LABEL } from './InsightParts.jsx';
+import { activatable, S_LABEL } from './InsightParts.jsx';
+import { S_DOT } from '../../../utils/statusMarks.js';
 
 // Name + description — clickable, jumps to Details tab
 export function InsightNameBlock({ node, onEditSection }) {

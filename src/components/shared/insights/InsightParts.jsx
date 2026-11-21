@@ -1,5 +1,3 @@
-export const S_DOT = { open: '○', wip: '◐', done: '●' };
-export const S_COLOR = { open: 'var(--tx3)', wip: 'var(--am)', done: 'var(--gr)' };
 export const S_LABEL = { open: 'tv.statusOpen', wip: 'tv.statusWip', done: 'tv.statusDone' };
 
 export function KVRow({ label, children, style }) {

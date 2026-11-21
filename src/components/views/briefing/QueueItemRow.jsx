@@ -17,7 +17,6 @@ export function QueueItemRow({ s, personId, iMap, members, shortMap, now, cpSet,
   const primary = allAssign.map(id => shortMap[id] || (id || '').slice(0, 2).toUpperCase()).join('/') || shortMap[personId];
   return (
     <div
-      key={s.id}
       style={{
         display: 'flex',
         alignItems: 'center',

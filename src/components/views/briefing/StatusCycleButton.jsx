@@ -1,6 +1,6 @@
 import { nextStatus } from '../../../utils/treeEdit.js';
 import { statusChangePatch } from '../../../utils/completion.js';
-import { S_DOT, S_COLOR } from '../../../utils/briefing/briefingMarks.js';
+import { S_DOT, S_COLOR } from '../../../utils/statusMarks.js';
 import { useT } from '../../../i18n.jsx';
 
 // Status dot, clicked to cycle open → wip → done → open — the same field a
