@@ -60,9 +60,9 @@ for (const theme of ['dark', 'light']) {
       const dialog = await openItemDialog(page, NAMES.login);
       const controls = await lowestContrast(dialog, 'input, textarea, select, button, [role="tab"]');
       expect(controls.what, 'no dialog control was measured').not.toBe('');
-      // Controls carry text too, so they are held to text contrast (WCAG AA), not
+      // Controls carry text too, so they are held to the same floor as text, not
       // to the 3:1 of a bare component boundary.
-      expect(controls.ratio, `dialog control ${controls.what}`).toBeGreaterThanOrEqual(4.5);
+      expect(controls.ratio, `dialog control ${controls.what}`).toBeGreaterThanOrEqual(5.5);
     });
   });
 }
