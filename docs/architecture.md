@@ -36,7 +36,7 @@ src/
       SumView.jsx          — per-goal progress summary; its panels live in views/sum/
       QuickEdit.jsx        — sidebar editor (primary interaction); tabs and fields live in views/quickedit/
       PlanReview.jsx       — folded into Plan mode's tab bar (Decisions, Team Capacity, Blocked); one section component per tab in review/
-      BriefingView.jsx     — Run mode's only view: attention list, per-person queues, Jira drift
+      BriefingView.jsx     — Run mode's only view: attention list, per-person queues, Jira drift (one component per block in briefing/)
       Onboard.jsx          — first-launch onboarding
       ReportView.jsx       — Report mode's only view — ExportCards as a screen, not a modal
     modals/

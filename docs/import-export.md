@@ -540,7 +540,7 @@ and [`src/__tests__/jiraExportDropped.test.jsx`](../src/__tests__/jiraExportDrop
 
 Not an export — the way back. It used to live behind its own **Export… →
 Jira-Abgleich** dialog; that dialog is gone, and the two halves below now
-render inline in **Run mode's Jira drift section** (`BriefingView.jsx`) —
+render inline in **Run mode's Jira drift section** (`views/briefing/JiraDriftSection.jsx`, state in `BriefingView.jsx`) —
 link health is always visible, a collapsible paste box replaces the
 "Compare" tab. Nothing about the parsing or matching changed, only where the
 result is shown; Phase 7 is expected to make Jira a real connected source,

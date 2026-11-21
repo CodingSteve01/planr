@@ -313,11 +313,11 @@ Also found: `sprintDays`/`setHd`/`sprintEnd`/`upcoming`/`sprintGroups` (SumView.
 
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
-| Horizon buttons ("Diese Woche"/"2 Wochen"/"4 Wochen") | Sets a local horizonDays, filters every card | src/components/views/BriefingView.jsx:222-226 | Run | 1 | ↔ possibly related to/duplicating the project-wide horizon picker and the dead sprint-horizon control in SumView; a code comment in SumView (54-56) suggests a deliberate separation |
-| Button "Todo exportieren" | Calls onExportTodo(horizonDays) (export, read-only) | src/components/views/BriefingView.jsx:227-234 | Run | 1 | ↔ possibly duplicates the PDF/DOCX report exports (Report) |
-| Person-card task row | Opens the task's detail | src/components/views/BriefingView.jsx:325-327 | Run | 1 | 🔧 mechanics exposed (raw task ID shown before the name) |
-| Milestone row | Opens the root item's detail | src/components/views/BriefingView.jsx:373-375 | Run | 1 | (also: Review) |
-| Risk row ("overdue"/"late"/"exploratory, date near") | Opens the affected item | src/components/views/BriefingView.jsx:396-398 | Run | 1 | (also: Review); 🔧 mechanics exposed (raw ID) |
+| Horizon buttons ("Diese Woche"/"2 Wochen"/"4 Wochen") | Sets a local horizonDays, filters every card | src/components/views/BriefingView.jsx | Run | 1 | ↔ possibly related to/duplicating the project-wide horizon picker and the dead sprint-horizon control in SumView; a code comment in SumView (54-56) suggests a deliberate separation |
+| Button "Todo exportieren" | Calls onExportTodo(horizonDays) (export, read-only) | src/components/views/BriefingView.jsx | Run | 1 | ↔ possibly duplicates the PDF/DOCX report exports (Report) |
+| Person-card task row | Opens the task's detail | src/components/views/briefing/QueueItemRow.jsx | Run | 1 | 🔧 mechanics exposed (raw task ID shown before the name) |
+| Milestone row | Opens the root item's detail | src/components/views/briefing/MilestonesSection.jsx | Run | 1 | (also: Review) |
+| Risk row ("overdue"/"late"/"exploratory, date near") | Opens the affected item | src/components/views/briefing/AttentionSection.jsx | Run | 1 | (also: Review); 🔧 mechanics exposed (raw ID) |
 
 ## Onboarding (Onboard.jsx)
 
