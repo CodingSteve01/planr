@@ -138,7 +138,7 @@ export function TimingSection({
           const endIso = sc.blockedBy.endD instanceof Date ? sc.blockedBy.endD.toISOString().slice(0, 10) : String(sc.blockedBy.endD);
           const meta = [blockerPerson, endIso].filter(Boolean).join(' · ');
           return (
-            <KVRow label={t('ins.blockedBy') || 'Wartet auf'}>
+            <KVRow label={t('ins.blockedBy')}>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--tx2)' }}>
                 ~{' '}
                 <a
