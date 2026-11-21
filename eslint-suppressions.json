@@ -272,15 +272,9 @@
   },
   "src/components/views/ResView.jsx": {
     "complexity": {
-      "count": 2
-    },
-    "max-lines": {
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 1
-    },
-    "no-unused-vars": {
       "count": 1
     }
   },
@@ -395,6 +389,14 @@
       "count": 1
     },
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/views/res/ReadRows.jsx": {
+    "complexity": {
+      "count": 1
+    },
+    "no-unused-vars": {
       "count": 1
     }
   },
