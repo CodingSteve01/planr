@@ -34,7 +34,7 @@ src/
       HolView.jsx          — holidays editor
       DLView.jsx           — deadlines / goals summary
       SumView.jsx          — per-goal progress summary
-      QuickEdit.jsx        — sidebar editor (primary interaction)
+      QuickEdit.jsx        — sidebar editor (primary interaction); tabs and fields live in views/quickedit/
       PlanReview.jsx       — folded into Plan mode's tab bar (Decisions, Team Capacity, Blocked)
       BriefingView.jsx     — Run mode's only view: attention list, per-person queues, Jira drift
       Onboard.jsx          — first-launch onboarding

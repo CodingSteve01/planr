@@ -301,9 +301,6 @@
   },
   "src/components/views/QuickEdit.jsx": {
     "complexity": {
-      "count": 2
-    },
-    "max-lines": {
       "count": 1
     },
     "max-lines-per-function": {
@@ -429,6 +426,21 @@
       "count": 1
     },
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/views/quickedit/EffortTab.jsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/components/views/quickedit/LeafTimingFields.jsx": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/components/views/quickedit/OverviewTab.jsx": {
+    "complexity": {
       "count": 1
     }
   },
