@@ -29,12 +29,12 @@ src/
     views/
       TreeView.jsx         — hierarchical editor (primary authoring view)
       GanttView.jsx        — Gantt chart — see docs/gantt.md
-      NetGraph.jsx         — network graph — see docs/network-graph.md
+      NetGraph.jsx         — network graph — see docs/network-graph.md; its parts live in views/net/, the layout in utils/net/
       ResView.jsx          — resources: teams + members
       HolView.jsx          — holidays editor
       DLView.jsx           — deadlines / goals summary
-      SumView.jsx          — per-goal progress summary
-      QuickEdit.jsx        — sidebar editor (primary interaction)
+      SumView.jsx          — per-goal progress summary; its panels live in views/sum/
+      QuickEdit.jsx        — sidebar editor (primary interaction); tabs and fields live in views/quickedit/
       PlanReview.jsx       — folded into Plan mode's tab bar (Decisions, Team Capacity, Blocked)
       BriefingView.jsx     — Run mode's only view: attention list, per-person queues, Jira drift
       Onboard.jsx          — first-launch onboarding

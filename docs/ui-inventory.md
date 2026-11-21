@@ -175,6 +175,8 @@ Reachable from the tree's multi-selection ("⤢ Modal" button, Gantt's "Bulk edi
 
 ## Netzwerk (NetGraph.jsx)
 
+The toolbar, edges, node cards, context menu and empty states now live in `src/components/views/net/`; NetGraph.jsx keeps the state and composes them. The `NetGraph.jsx:<line>` references below predate that split.
+
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
 | "Fit" button | Zooms/pans to selection/search results/whole graph | src/components/views/NetGraph.jsx:561 | Build | 1 | (also: Plan); pure viewport action |
@@ -286,6 +288,8 @@ No editable controls found — the view is entirely read-only (used inside SumVi
 
 ## Overview / SumView (SumView.jsx)
 
+The panels now live in `src/components/views/sum/` (SumHeadline, SumKpis, RoadmapSwitcher, DiffBanner, RetroPanel, ConfidencePanel, PulseCheck, ResourcesSection, GoalCard, TopItemsTable); SumView.jsx keeps the figures and composes them. The `SumView.jsx:<line>` references below predate that split.
+
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
 | "Open Plan Review" link (confidence panel) | Jumps to the Planning tab | src/components/views/SumView.jsx:274 | Review | 1 | (also: Plan) |
@@ -346,6 +350,8 @@ Also found: `sprintDays`/`setHd`/`sprintEnd`/`upcoming`/`sprintGroups` (SumView.
 | AssignModal (via showAssignModal) | Would set team/persons across the multi-selection | src/components/views/TreeView.jsx:577-599 | remove | — | dead trigger — nothing in this file ever calls `setShowAssignModal(true)` |
 
 ## QuickEdit (QuickEdit.jsx) — side panel of the sanctioned editing surface
+
+The tab bodies now live in `src/components/views/quickedit/` (InsightsTab, OverviewTab, RootFields, WorkflowTab, EffortTab, LeafTimingFields, DeadlineRelevantField, PredecessorsField, PredecessorList, SuccessorsField, QuickEditHeader, QuickEditActions); QuickEdit.jsx keeps the state and composes them. The `QuickEdit.jsx:<line>` references in the table below predate that split and point at the original single file.
 
 Reached by selecting a row in TreeView; fields commit instantly per-edit (no separate Save step). None of its own writes are flagged ⚠ — this is the one permitted editing surface.
 

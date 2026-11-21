@@ -173,7 +173,7 @@ the theme's own muted/faint text colours are not used as-is are in
 | File:line | Before | After |
 |---|---|---|
 | `src/components/views/NetGraph.jsx:411` | `SC = { done: '#22c55e', wip: '#f59e0b', ... }` | `done: 'var(--st-done)', wip: 'var(--st-wip)'` |
-| `src/components/views/NetGraph.jsx:655` | `diffStroke = diffDoneHere ? '#10b981' : ...` | `diffDoneHere ? 'var(--st-done)' : ...` |
+| `src/components/views/net/NetNode.jsx` | `diffStroke = diffDoneHere ? '#10b981' : ...` | `diffDoneHere ? 'var(--st-done)' : ...` |
 | `src/components/views/GanttView.jsx:2643` | `` `2px solid ${done ? '#10b981' : '#f59e0b'}` `` | done branch → `var(--st-done)` |
 | `src/components/views/TimetableView.jsx:186` | `background: '#10b981'` (doneInWindow badge) | `background: 'var(--st-done)'` |
 

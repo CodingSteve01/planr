@@ -1,7 +1,7 @@
 // The scenario comparison as a PDF.
 //
 // This file only lays out. Every figure and every word arrives ready-made in
-// `model`, built beside the comparison dialog (components/shared/Scenario.jsx,
+// `model`, built beside the comparison dialog (components/shared/scenario/useScenarioReport.js,
 // `useScenarioReport`) from the same comparison the dialog shows — so the
 // paper cannot say something the screen did not.
 //

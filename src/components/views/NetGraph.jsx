@@ -1,466 +1,22 @@
 import { useState, useRef, useEffect, useMemo, memo } from 'react';
-import { Icon } from '../shared/Icon.jsx';
-import { fixedFrame, toFixedPoint, usePortalRoot } from '../../utils/embedHost.js';
+import { usePortalRoot } from '../../utils/embedHost.js';
 import { Tip } from '../shared/Tooltip.jsx';
 import { pt } from '../../utils/scheduler.js';
 import { buildMemberShortMap } from '../../App.jsx';
 import { chainShorts } from '../../utils/handoff.js';
-import { useT } from '../../i18n.jsx';
-import { progressPctLabel } from '../../utils/progress.js';
+import { NODE_W, NODE_H } from '../../utils/net/geometry.js';
+import { computeLayout } from '../../utils/net/layout.js';
+import { hierPath, depPath } from '../../utils/net/edges.js';
+import { NetToolbar } from './net/NetToolbar.jsx';
+import { NetEdges } from './net/NetEdges.jsx';
+import { NetNode } from './net/NetNode.jsx';
+import { NetContextMenu } from './net/NetContextMenu.jsx';
+import { NetLegend } from './net/NetLegend.jsx';
+import { NetEmptyState } from './net/NetEmptyState.jsx';
+import { NetTooBig } from './net/NetTooBig.jsx';
 
-const NODE_W = 130;
-const NODE_H = 44;
-// How much of a name fits on one line of a node at fontSize 7.5.
-const NAME_CHARS = 26;
+export { wrapTwoLines } from '../../utils/net/label.js';
 
-// Break a name over at most two lines, at a space rather than mid-word, and
-// mark it with an ellipsis when even two lines are not enough. Returns
-// [firstLine, secondLine] with an empty second line when one line was plenty.
-//
-// SVG <text> does no wrapping, so a node's label is broken here or not at all.
-// It used to be `slice(0, 26)` and `slice(26, 52)`, which cut wherever the
-// count landed: "Zulieferung aus dem Betrieb steht" arrived as "Zulieferung
-// aus dem Betrie" over "b steht".
-export function wrapTwoLines(name, limit = NAME_CHARS) {
-  const text = String(name ?? '').trim();
-  if (text.length <= limit) return [text, ''];
-  const breakAt = str => {
-    const space = str.lastIndexOf(' ', limit);
-    // A single word longer than the line has nowhere to break; cut it rather
-    // than let it run past the node.
-    return space > limit * 0.5 ? space : limit;
-  };
-  const cut = breakAt(text);
-  const first = text.slice(0, cut).trimEnd();
-  const restRaw = text.slice(cut).trimStart();
-  if (restRaw.length <= limit) return [first, restRaw];
-  const cut2 = breakAt(restRaw);
-  return [first, `${restRaw.slice(0, cut2).trimEnd()}…`];
-}
-const GAP_X = 10;
-const GAP_Y = 10;
-const TREE_GAP = 24;
-const LEVEL_GAP = 20; // vertical gap between parent and children levels
-
-function buildChildMap(tree) {
-  const map = {};
-  tree.forEach(r => {
-    const pid = r.id.split('.').slice(0, -1).join('.');
-    if (!map[pid]) map[pid] = [];
-    map[pid].push(r);
-  });
-  Object.values(map).forEach(items => items.sort((a, b) => a.id.localeCompare(b.id)));
-  return map;
-}
-
-function layoutSubtree(node, childMap) {
-  const children = childMap[node.id] || [];
-  const pos = {};
-
-  if (!children.length) {
-    pos[node.id] = { x: 0, y: 0 };
-    return { pos, w: NODE_W, h: NODE_H };
-  }
-
-  // If ALL children are leaves → compact 2-column layout (like old L2 groups)
-  const allLeaves = children.every(c => !childMap[c.id]?.length);
-  if (allLeaves) {
-    const half = Math.ceil(children.length / 2);
-    const left = children.slice(0, half),
-      right = children.slice(half);
-    const cy = NODE_H + LEVEL_GAP;
-    left.forEach((c, i) => {
-      pos[c.id] = { x: 0, y: cy + i * (NODE_H + GAP_Y) };
-    });
-    const rx = right.length ? NODE_W + GAP_X : 0;
-    right.forEach((c, i) => {
-      pos[c.id] = { x: rx, y: cy + i * (NODE_H + GAP_Y) };
-    });
-    const gw = right.length ? NODE_W * 2 + GAP_X : NODE_W;
-    const lastY = cy + (Math.max(left.length, right.length) - 1) * (NODE_H + GAP_Y) + NODE_H;
-    pos[node.id] = { x: (gw - NODE_W) / 2, y: 0 };
-    return { pos, w: gw, h: lastY };
-  }
-
-  // Otherwise: children as subtrees — use multi-row grid if too many
-  const childLayouts = children.map(child => layoutSubtree(child, childMap));
-
-  // Determine optimal number of columns: target ~2:1 aspect ratio
-  const avgW = childLayouts.reduce((s, l) => s + l.w, 0) / childLayouts.length;
-  const avgH = childLayouts.reduce((s, l) => s + l.h, 0) / childLayouts.length;
-  let cols = childLayouts.length;
-  if (childLayouts.length > 3) {
-    // Try different column counts, pick the one closest to 2:1
-    let bestCols = cols,
-      bestRatio = Infinity;
-    for (let c = 2; c <= Math.min(childLayouts.length, 6); c++) {
-      const rows = Math.ceil(childLayouts.length / c);
-      const estW = c * (avgW + TREE_GAP);
-      const estH = rows * (avgH + LEVEL_GAP);
-      const ratio = estW / Math.max(estH, 1);
-      const penalty = Math.abs(Math.log(ratio / 2));
-      if (penalty < bestRatio) {
-        bestRatio = penalty;
-        bestCols = c;
-      }
-    }
-    cols = bestCols;
-  }
-
-  // Place children in grid rows
-  const rows = [];
-  for (let i = 0; i < childLayouts.length; i += cols) {
-    rows.push(childLayouts.slice(i, i + cols));
-  }
-
-  let maxRowW = 0;
-  const rowMeta = rows.map(row => {
-    const rowW = row.reduce((s, l) => s + l.w + TREE_GAP, -TREE_GAP);
-    const rowH = Math.max(...row.map(l => l.h));
-    maxRowW = Math.max(maxRowW, rowW);
-    return { rowW, rowH };
-  });
-
-  const cy = NODE_H + LEVEL_GAP;
-  let yOff = 0;
-  rows.forEach((row, ri) => {
-    const { rowW, rowH } = rowMeta[ri];
-    const rowXOff = (maxRowW - rowW) / 2; // center each row
-    let x = rowXOff;
-    row.forEach(layout => {
-      Object.entries(layout.pos).forEach(([id, p]) => {
-        pos[id] = { x: x + p.x, y: cy + yOff + p.y };
-      });
-      x += layout.w + TREE_GAP;
-    });
-    yOff += rowH + LEVEL_GAP;
-  });
-
-  const width = Math.max(NODE_W, maxRowW);
-  const height = cy + yOff - LEVEL_GAP;
-  pos[node.id] = { x: (width - NODE_W) / 2, y: 0 };
-  return { pos, w: width, h: height };
-}
-
-// ── Flip a tree vertically (parent at bottom instead of top) ────────────────
-function flipTree(t) {
-  const flipped = {};
-  Object.entries(t.pos).forEach(([id, p]) => {
-    flipped[id] = { x: p.x, y: t.h - p.y - NODE_H };
-  });
-  return { ...t, pos: flipped, flipped: true };
-}
-
-// ── Bin-pack trees with TD/BU flip optimization ─────────────────────────────
-function binPackTrees(trees) {
-  const sorted = [...trees].sort((a, b) => b.w * b.h - a.w * a.h);
-  const placed = [];
-
-  sorted.forEach(t => {
-    const variants = [t, flipTree(t)];
-    const cands = [{ x: 0, y: 0 }];
-    placed.forEach(p => {
-      cands.push({ x: p.x + p.w + TREE_GAP, y: p.y });
-      cands.push({ x: p.x, y: p.y + p.h + TREE_GAP });
-      cands.push({ x: p.x + p.w + TREE_GAP, y: 0 });
-      cands.push({ x: 0, y: p.y + p.h + TREE_GAP });
-      placed.forEach(q => {
-        if (p === q) return;
-        cands.push({ x: p.x + p.w + TREE_GAP, y: q.y + q.h + TREE_GAP });
-        cands.push({ x: p.x, y: q.y + q.h + TREE_GAP });
-      });
-    });
-
-    let bestX = 0,
-      bestY = 0,
-      bestScore = Infinity,
-      bestVariant = t;
-    variants.forEach(v => {
-      cands.forEach(c => {
-        if (c.x < 0 || c.y < 0) return;
-        const overlaps = placed.some(
-          p => c.x < p.x + p.w + TREE_GAP && c.x + v.w + TREE_GAP > p.x && c.y < p.y + p.h + TREE_GAP && c.y + v.h + TREE_GAP > p.y,
-        );
-        if (overlaps) return;
-        const bx = Math.max(c.x + v.w, ...placed.map(p => p.x + p.w));
-        const by = Math.max(c.y + v.h, ...placed.map(p => p.y + p.h));
-        const ratio = bx / Math.max(by, 1);
-        const ratioPenalty = 1 + Math.abs(Math.log(ratio / 2)) * 3;
-        const score = bx * by * ratioPenalty;
-        if (score < bestScore) {
-          bestScore = score;
-          bestX = c.x;
-          bestY = c.y;
-          bestVariant = v;
-        }
-      });
-    });
-
-    placed.push({ x: bestX, y: bestY, w: bestVariant.w, h: bestVariant.h, tree: bestVariant });
-  });
-
-  // Post-process: flip trees in the bottom half to BU
-  if (placed.length > 1) {
-    const medianY = placed.reduce((s, p) => s + p.y, 0) / placed.length;
-    placed.forEach(p => {
-      if (p.y > medianY && !p.tree.flipped) {
-        const flipped = {};
-        Object.entries(p.tree.pos).forEach(([id, np]) => {
-          flipped[id] = { x: np.x, y: p.tree.h - np.y - NODE_H };
-        });
-        p.tree = { ...p.tree, pos: flipped, flipped: true };
-      }
-    });
-  }
-
-  // Compaction: push each tree as far up-left as possible (bounding-box, clean gaps)
-  const G = TREE_GAP;
-  for (let pass = 0; pass < 3; pass++) {
-    placed.forEach((t, i) => {
-      const others = placed.filter((_, j) => j !== i);
-      for (let step = G * 2; step > 0; step = Math.floor(step / 2)) {
-        while (t.y - step >= 0) {
-          const ny = t.y - step;
-          const ok = !others.some(o => t.x < o.x + o.w + G && t.x + t.w + G > o.x && ny < o.y + o.h + G && ny + t.h + G > o.y);
-          if (ok) t.y = ny;
-          else break;
-        }
-      }
-      for (let step = G * 2; step > 0; step = Math.floor(step / 2)) {
-        while (t.x - step >= 0) {
-          const nx = t.x - step;
-          const ok = !others.some(o => nx < o.x + o.w + G && nx + t.w + G > o.x && t.y < o.y + o.h + G && t.y + t.h + G > o.y);
-          if (ok) t.x = nx;
-          else break;
-        }
-      }
-    });
-  }
-
-  return placed;
-}
-
-function computeLayout(tree) {
-  const iMap = Object.fromEntries(tree.map(r => [r.id, r]));
-  const childMap = buildChildMap(tree);
-  const roots = (childMap[''] || []).filter(r => !r.id.includes('.'));
-
-  // Layout each root tree recursively (N-level), then bin-pack
-  const trees = roots.map(root => ({ id: root.id, ...layoutSubtree(root, childMap) }));
-  const packed = binPackTrees(trees);
-
-  const pos = {};
-  packed.forEach(p => {
-    Object.entries(p.tree.pos).forEach(([id, np]) => {
-      pos[id] = { x: p.x + np.x, y: p.y + np.y };
-    });
-  });
-
-  // Orphans
-  const totalH = packed.length ? Math.max(...packed.map(p => p.y + p.h)) : 0;
-  let oy = totalH + NODE_H;
-  tree
-    .filter(r => !pos[r.id])
-    .forEach(r => {
-      pos[r.id] = { x: 0, y: oy };
-      oy += NODE_H + GAP_Y;
-    });
-
-  const edges = [];
-  tree.forEach(r => {
-    const pid = r.id.split('.').slice(0, -1).join('.');
-    if (pid && iMap[pid] && pos[pid] && pos[r.id]) {
-      edges.push({ id: `h|${pid}|${r.id}`, from: pid, to: r.id, isHier: true });
-    }
-  });
-  tree.forEach(r => {
-    (r.deps || []).forEach(d => {
-      if (iMap[d] && pos[d] && pos[r.id]) {
-        edges.push({ id: `d|${r.id}|${d}`, from: r.id, to: d, isHier: false, depOwner: r.id, depTarget: d, isSoft: false });
-      }
-    });
-    (r.softDeps || []).forEach(d => {
-      if (iMap[d] && pos[d] && pos[r.id]) {
-        edges.push({ id: `s|${r.id}|${d}`, from: r.id, to: d, isHier: false, depOwner: r.id, depTarget: d, isSoft: true });
-      }
-    });
-  });
-
-  return { pos, edges };
-}
-
-// ── Hierarchy edge: adapts to TD (parent above) or BU (parent below) ────────
-function hierPath(fp, tp) {
-  const px = fp.x + NODE_W / 2,
-    cx = tp.x + NODE_W / 2;
-  if (fp.y < tp.y) {
-    // TD: parent above child — exit bottom, enter top
-    const busY = fp.y + NODE_H + LEVEL_GAP / 2;
-    return `M${px},${fp.y + NODE_H} L${px},${busY} L${cx},${busY} L${cx},${tp.y}`;
-  } else {
-    // BU: parent below child — exit top, enter bottom
-    const busY = fp.y - LEVEL_GAP / 2;
-    return `M${px},${fp.y} L${px},${busY} L${cx},${busY} L${cx},${tp.y + NODE_H}`;
-  }
-}
-
-// ── Dep edge: obstacle-aware orthogonal routing ─────────────────────────────
-function depPath(fp, tp, allBoxes) {
-  const PAD = 6,
-    ARR = 8;
-  const fcx = fp.x + NODE_W / 2,
-    fcy = fp.y + NODE_H / 2;
-  const tcx = tp.x + NODE_W / 2,
-    tcy = tp.y + NODE_H / 2;
-  const dx = tcx - fcx,
-    dy = tcy - fcy;
-
-  // Exit point from source (side closest to target)
-  const exitR = { x: fp.x + NODE_W, y: fcy };
-  const exitL = { x: fp.x, y: fcy };
-  const exitB = { x: fcx, y: fp.y + NODE_H };
-  const exitT = { x: fcx, y: fp.y };
-
-  // Entry point on target — from the side the LAST segment approaches
-  const enterL = { x: tp.x - ARR, y: tcy };
-  const enterR = { x: tp.x + NODE_W + ARR, y: tcy };
-  const enterT = { x: tcx, y: tp.y - ARR };
-  const enterB = { x: tcx, y: tp.y + NODE_H + ARR };
-
-  function hitsNode(ax, ay, bx, by) {
-    const lx = Math.min(ax, bx) - PAD,
-      rx = Math.max(ax, bx) + PAD;
-    const ty = Math.min(ay, by) - PAD,
-      by2 = Math.max(ay, by) + PAD;
-    return allBoxes.some(b => {
-      if (b.x === fp.x && b.y === fp.y) return false;
-      if (b.x === tp.x && b.y === tp.y) return false;
-      return b.x < rx && b.x + NODE_W > lx && b.y < by2 && b.y + NODE_H > ty;
-    });
-  }
-
-  function route(exit, mid, enter) {
-    const pts = mid ? [exit, ...mid, enter] : [exit, enter];
-    let hits = 0;
-    for (let i = 0; i < pts.length - 1; i++) if (hitsNode(pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y)) hits++;
-    const path = 'M' + pts.map(p => `${p.x},${p.y}`).join(' L');
-    const lp = pts[Math.floor(pts.length / 2)];
-    return { path, hits, labelPt: { x: lp.x, y: lp.y - 8 } };
-  }
-
-  const routes = [];
-  const mx = (fcx + tcx) / 2,
-    my = (fcy + tcy) / 2;
-
-  if (Math.abs(dx) >= Math.abs(dy)) {
-    // Mostly horizontal
-    const ex = dx > 0 ? exitR : exitL;
-    const en = dx > 0 ? enterL : enterR; // enter from the side facing the source
-    routes.push(
-      route(
-        ex,
-        [
-          { x: mx, y: ex.y },
-          { x: mx, y: en.y },
-        ],
-        en,
-      ),
-    );
-    // Also try vertical mid
-    routes.push(
-      route(
-        exitB,
-        [
-          { x: exitB.x, y: my },
-          { x: enterT.x, y: my },
-        ],
-        enterT,
-      ),
-    );
-  } else {
-    // Mostly vertical
-    const ex = dy > 0 ? exitB : exitT;
-    const en = dy > 0 ? enterT : enterB;
-    routes.push(
-      route(
-        ex,
-        [
-          { x: ex.x, y: my },
-          { x: en.x, y: my },
-        ],
-        en,
-      ),
-    );
-    // Also try horizontal mid
-    routes.push(
-      route(
-        exitR,
-        [
-          { x: mx, y: exitR.y },
-          { x: mx, y: enterL.y },
-        ],
-        enterL,
-      ),
-    );
-  }
-
-  // Via top margin — enter from TOP
-  const topY = Math.min(fp.y, tp.y) - 30;
-  routes.push(
-    route(
-      exitT,
-      [
-        { x: exitT.x, y: topY },
-        { x: enterT.x, y: topY },
-      ],
-      enterT,
-    ),
-  );
-
-  // Via bottom margin — enter from BOTTOM
-  const botY = Math.max(fp.y + NODE_H, tp.y + NODE_H) + 30;
-  routes.push(
-    route(
-      exitB,
-      [
-        { x: exitB.x, y: botY },
-        { x: enterB.x, y: botY },
-      ],
-      enterB,
-    ),
-  );
-
-  // Via right margin — enter from RIGHT
-  const rightX = Math.max(fp.x + NODE_W, tp.x + NODE_W) + 25;
-  routes.push(
-    route(
-      exitR,
-      [
-        { x: rightX, y: exitR.y },
-        { x: rightX, y: enterR.y },
-      ],
-      enterR,
-    ),
-  );
-
-  // Via left margin — enter from LEFT
-  const leftX = Math.min(fp.x, tp.x) - 25;
-  routes.push(
-    route(
-      exitL,
-      [
-        { x: leftX, y: exitL.y },
-        { x: leftX, y: enterL.y },
-      ],
-      enterL,
-    ),
-  );
-
-  routes.sort((a, b) => a.hits - b.hits || a.path.length - b.path.length);
-  return routes[0];
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 function NetGraphImpl({
   tree: _treeProp,
   scheduled,
@@ -483,7 +39,6 @@ function NetGraphImpl({
   onDeleteNode,
 }) {
   const portalRoot = usePortalRoot();
-  const { t } = useT();
   // Sets of leaf ids that completed / progressed in the diff window. Used to
   // ring matching nodes in the SVG so the graph reflects sprint movement.
   const _diffDoneSet = diffDoneIds instanceof Set ? diffDoneIds : new Set(diffDoneIds || []);
@@ -734,28 +289,7 @@ function NetGraphImpl({
     return () => window.removeEventListener('click', h);
   }, []);
 
-  if (!items.length)
-    return (
-      <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
-        <div style={{ textAlign: 'center', color: 'var(--tx3)' }}>
-          <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}>
-            <Icon name="network" size={32} strokeWidth={1.4} />
-          </div>
-          <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>
-            {isFiltered ? 'No items match this filter' : 'No items yet'}
-          </div>
-          {isFiltered ? (
-            <div style={{ fontSize: 12, color: 'var(--tx3)' }}>Adjust the root or team filter to widen the graph.</div>
-          ) : (
-            onAddNode && (
-              <button className="btn btn-pri" onClick={onAddNode}>
-                + Add first item
-              </button>
-            )
-          )}
-        </div>
-      </div>
-    );
+  if (!items.length) return <NetEmptyState isFiltered={isFiltered} onAddNode={onAddNode} />;
 
   // ── Too big to draw is not the same as too big to use ────────────────────
   // On a real plan this view drew all 404 nodes at 11% zoom: a dust cloud
@@ -768,102 +302,25 @@ function NetGraphImpl({
   // and picking a project here sets the same filter every other view reads.
   const TOO_MANY_NODES = 140;
   if (items.length > TOO_MANY_NODES && !isFiltered && !showAll) {
-    return (
-      <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
-          <span style={{ color: 'var(--tx3)' }}>
-            <Icon name="network" size={32} strokeWidth={1.4} />
-          </span>
-          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--tx)' }}>{t('ng.tooBigTitle', items.length)}</div>
-          <div style={{ fontSize: 12, color: 'var(--tx3)', lineHeight: 1.5 }}>{t('ng.tooBigBody')}</div>
-          {onPickRoot && roots.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 4 }}>
-              {roots.map(root => (
-                <button key={root.id} type="button" className="btn btn-sec btn-sm" onClick={() => onPickRoot(root.id)}>
-                  {root.name || root.id}
-                </button>
-              ))}
-            </div>
-          )}
-          <button type="button" className="btn btn-ghost btn-xs" style={{ marginTop: 2 }} onClick={() => setShowAll(true)}>
-            {t('ng.tooBigAnyway')}
-          </button>
-        </div>
-      </div>
-    );
+    return <NetTooBig itemCount={items.length} onPickRoot={onPickRoot} roots={roots} setShowAll={setShowAll} />;
   }
 
   if (!layout) return null;
 
   return (
     <div className="netgraph-wrap" style={{ cursor: panning ? 'grabbing' : 'default' }}>
-      <div className="ng-toolbar">
-        <button
-          className="btn btn-pri btn-sm"
-          onClick={fitToScreen}
-          data-htip={searchMatches?.size ? t('ng.fitToMatchesTip') : t('ng.fitToSelectionTip')}
-        >
-          Fit
-        </button>
-        <button
-          className="btn btn-sec btn-sm"
-          onClick={() => {
-            const newPan = { x: 12, y: 12 };
-            panRef.current = newPan;
-            zoomRef.current = 1.5;
-            setZoom(1.5);
-            setPan(newPan);
-          }}
-          data-htip={t('ng.resetZoomTip')}
-        >
-          {Math.round((zoom / 1.5) * 100)}%
-        </button>
-        <button
-          className="btn btn-sec btn-sm"
-          onClick={() => {
-            const r = svgRef.current?.getBoundingClientRect();
-            if (!r) return;
-            const mx = r.width / 2,
-              my = r.height / 2;
-            const cz = zoomRef.current,
-              cp = panRef.current;
-            const nz = Math.min(3, cz * 1.25);
-            const np = { x: mx - (mx - cp.x) * (nz / cz), y: my - (my - cp.y) * (nz / cz) };
-            zoomRef.current = nz;
-            panRef.current = np;
-            setZoom(nz);
-            setPan(np);
-          }}
-        >
-          +
-        </button>
-        <button
-          className="btn btn-sec btn-sm"
-          onClick={() => {
-            const r = svgRef.current?.getBoundingClientRect();
-            if (!r) return;
-            const mx = r.width / 2,
-              my = r.height / 2;
-            const cz = zoomRef.current,
-              cp = panRef.current;
-            const nz = Math.max(0.05, cz * 0.8);
-            const np = { x: mx - (mx - cp.x) * (nz / cz), y: my - (my - cp.y) * (nz / cz) };
-            zoomRef.current = nz;
-            panRef.current = np;
-            setZoom(nz);
-            setPan(np);
-          }}
-        >
-          −
-        </button>
-        {searchMatches && (
-          <span style={{ fontSize: 12, color: searchMatches.size ? 'var(--am)' : 'var(--re)', fontFamily: 'var(--mono)', marginLeft: 6 }}>
-            {searchMatchList.length
-              ? `${(((searchIdx % searchMatchList.length) + searchMatchList.length) % searchMatchList.length) + 1} / ${searchMatchList.length}`
-              : '0 matches'}
-          </span>
-        )}
-      </div>
+      <NetToolbar
+        fitToScreen={fitToScreen}
+        panRef={panRef}
+        searchIdx={searchIdx}
+        searchMatchList={searchMatchList}
+        searchMatches={searchMatches}
+        setPan={setPan}
+        setZoom={setZoom}
+        svgRef={svgRef}
+        zoom={zoom}
+        zoomRef={zoomRef}
+      />
 
       <svg
         ref={svgRef}
@@ -883,74 +340,7 @@ function NetGraphImpl({
           </marker>
         </defs>
         <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
-          {/* Hierarchy edges (tree connectors) */}
-          {allEdges
-            .filter(e => e.isHier)
-            .map(e => {
-              const isActive = activeId && (e.from === activeId || e.to === activeId);
-              return (
-                <path
-                  key={e.id}
-                  d={e.path}
-                  fill="none"
-                  stroke={isActive ? 'var(--tx2)' : 'var(--b3)'}
-                  strokeWidth={isActive ? 1.5 : 0.8}
-                  opacity={isActive ? 0.7 : 0.35}
-                />
-              );
-            })}
-
-          {/* Dependency edges — hard = solid blue / red (CP), soft = grey + thinner */}
-          {allEdges
-            .filter(e => !e.isHier)
-            .map(e => {
-              const isCp = cpSet?.has(e.from) && cpSet?.has(e.to);
-              const isActive = activeId && (e.from === activeId || e.to === activeId);
-              const op = isActive ? 0.9 : isCp ? 0.7 : e.isSoft ? 0.55 : 0.7;
-              const owner = iMap[e.depOwner || e.from];
-              const label = owner?._depLabels?.[e.depTarget || e.to] || '';
-              const lp = e.labelPt;
-              const stroke = isCp ? 'var(--re)' : e.isSoft ? 'var(--tx3)' : 'var(--ac)';
-              return (
-                <g key={e.id}>
-                  <path
-                    d={e.path}
-                    fill="none"
-                    stroke={stroke}
-                    strokeWidth={isActive ? 2.5 : isCp ? 1.5 : e.isSoft ? 0.8 : 1}
-                    opacity={op}
-                    markerEnd={isCp ? 'url(#ar-cp)' : 'url(#ar-d)'}
-                  />
-                  {label && isActive && lp && (
-                    <>
-                      <rect
-                        x={lp.x - label.length * 2.5 - 4}
-                        y={lp.y - 7}
-                        width={label.length * 5 + 8}
-                        height={13}
-                        rx={3}
-                        fill="var(--bg2)"
-                        stroke="var(--ac)"
-                        strokeWidth={0.5}
-                        opacity={0.92}
-                        style={{ pointerEvents: 'none' }}
-                      />
-                      <text
-                        x={lp.x}
-                        y={lp.y + 3}
-                        fontSize={7}
-                        fill="var(--ac)"
-                        textAnchor="middle"
-                        fontFamily="var(--mono)"
-                        style={{ pointerEvents: 'none' }}
-                      >
-                        {label}
-                      </text>
-                    </>
-                  )}
-                </g>
-              );
-            })}
+          <NetEdges activeId={activeId} allEdges={allEdges} cpSet={cpSet} iMap={iMap} />
 
           {/* Uniform card nodes */}
           {items.map(r => {
@@ -959,278 +349,48 @@ function NetGraphImpl({
             const sc = sMap[r.id];
             const tc = gTC(r.team);
             const stC = SC[r.status] || '#4f8ef7';
-            const isSel = selId === r.id;
-            const isDone = r.status === 'done';
-            const isCp = cpSet?.has(r.id);
-            const isConn = connectedSet?.has(r.id);
-            // Only dim on deliberate selection — hover alone should not push non-connected nodes into the background.
-            const subtreeDimmed = selId && connectedSet && connectedSet.size > 3 && !connectedSet.has(r.id);
-            const isRoot = !r.id.includes('.');
-            const depth = r.id.split('.').length;
-            const prog = stats?.[r.id]?._progress ?? 0;
-            const pR = 5,
-              pCx = NODE_W - 8,
-              pCy = 8;
-            const pCirc = 2 * Math.PI * pR;
-            const pOff = pCirc * (1 - prog / 100);
-            // Search highlight: matches stay full opacity + amber outline; non-matches dim.
-            const isMatch = searchMatches?.has(r.id);
-            const isActiveMatch = r.id === activeMatchId;
-            const searchDimmed = searchMatches && searchMatches.size > 0 && !isMatch;
-            // "Only changed" mode: dim nodes that didn't move in the window so
-            // the eye locks onto the active sprint subset without rearranging
-            // the layout. Roots stay legible because their subtree may contain
-            // changed leaves even when the root id itself isn't in the set.
-            // Diff / Horizon do NOT dim the graph any more — the matching nodes
-            // already wear a ring (see the rect overlay below), so dimming the
-            // rest only made labels unreadable without adding signal. Hard
-            // filtering happens upstream via the "Only" toggles.
-            const finalOpacity = subtreeDimmed ? 0.45 : searchDimmed ? 0.35 : 1;
-            const diffDoneHere = _diffDoneSet.has(r.id);
-            const diffProgHere = !diffDoneHere && _diffProgSet.has(r.id);
-            // The amber branch marks "progressed within the diff window", not
-            // wip — kept as a literal, see docs/design-tokens.md "Not yet mapped".
-            const diffStroke = diffDoneHere ? 'var(--st-done)' : diffProgHere ? 'var(--diff)' : null;
             return (
-              <g key={r.id} transform={`translate(${p.x},${p.y})`} opacity={finalOpacity}>
-                {diffStroke && (
-                  <rect
-                    x={-3}
-                    y={-3}
-                    width={NODE_W + 6}
-                    height={NODE_H + 6}
-                    rx={7}
-                    fill="none"
-                    stroke={diffStroke}
-                    strokeWidth={2}
-                    style={{ pointerEvents: 'none', filter: `drop-shadow(0 0 4px ${diffStroke})` }}
-                  >
-                    <animate attributeName="opacity" values="1;.55;1" dur="2.4s" repeatCount="indefinite" />
-                  </rect>
-                )}
-                <rect
-                  width={NODE_W}
-                  height={NODE_H}
-                  rx={5}
-                  fill={isDone ? 'var(--bg-done)' : isRoot ? tc : 'var(--bg2)'}
-                  stroke={
-                    isActiveMatch
-                      ? 'var(--ac)'
-                      : isMatch
-                        ? 'var(--am)'
-                        : isSel
-                          ? 'var(--ac)'
-                          : isCp
-                            ? 'var(--re)'
-                            : isConn
-                              ? tc
-                              : isRoot
-                                ? tc
-                                : tc + '44'
-                  }
-                  strokeWidth={isMatch ? 2.5 : isSel ? 2.5 : isRoot ? 2 : isConn ? 1.5 : isCp ? 1.5 : 0.7}
-                  style={{ cursor: 'pointer' }}
-                  onClick={e => {
-                    e.stopPropagation();
-                    setSelId(isSel ? null : r.id);
-                  }}
-                  onDoubleClick={e => {
-                    e.stopPropagation();
-                    onNodeClick(r);
-                  }}
-                  onContextMenu={e => onCtx(e, r)}
-                  onMouseEnter={e => {
-                    setTip({ item: { ...r, ...(sc || {}) }, x: e.clientX, y: e.clientY });
-                    setHoverId(r.id);
-                  }}
-                  onMouseLeave={() => {
-                    setTip(null);
-                    setHoverId(null);
-                  }}
-                />
-                {/* Circular progress */}
-                <circle
-                  cx={pCx}
-                  cy={pCy}
-                  r={pR}
-                  fill="none"
-                  stroke={isRoot ? '#ffffff22' : 'var(--b2)'}
-                  strokeWidth={1.5}
-                  style={{ pointerEvents: 'none' }}
-                />
-                {prog > 0 && (
-                  <circle
-                    cx={pCx}
-                    cy={pCy}
-                    r={pR}
-                    fill="none"
-                    stroke={prog >= 100 ? 'var(--gr)' : stC}
-                    strokeWidth={1.5}
-                    strokeDasharray={pCirc}
-                    strokeDashoffset={pOff}
-                    strokeLinecap="round"
-                    transform={`rotate(-90 ${pCx} ${pCy})`}
-                    style={{ pointerEvents: 'none' }}
-                  />
-                )}
-                {prog >= 100 && (
-                  <text
-                    x={pCx}
-                    y={pCy + 1.5}
-                    fontSize={5}
-                    textAnchor="middle"
-                    fill="var(--gr)"
-                    fontWeight={700}
-                    style={{ pointerEvents: 'none' }}
-                  >
-                    ●
-                  </text>
-                )}
-                {/* The raw number, not the formatted one, used to go in here: a
-                leaf 2.562761506276151 % of the way through printed all
-                sixteen digits across the node. progress.js is the single
-                source for this figure AND its rounding, precisely so the
-                graph cannot disagree with the tree. */}
-                {prog > 0 && prog < 100 && (
-                  <text
-                    x={pCx}
-                    y={pCy + 2}
-                    fontSize={4}
-                    textAnchor="middle"
-                    fill={isRoot ? '#ffffffcc' : 'var(--tx3)'}
-                    fontFamily="var(--mono)"
-                    style={{ pointerEvents: 'none' }}
-                  >
-                    {progressPctLabel(prog)}
-                  </text>
-                )}
-                {/* ID */}
-                <text
-                  x={5}
-                  y={10}
-                  fontSize={6}
-                  fill={isRoot ? '#ffffffaa' : 'var(--tx3)'}
-                  fontFamily="var(--mono)"
-                  style={{ pointerEvents: 'none' }}
-                >
-                  {r.id}
-                </text>
-                {/* Name (2 lines) */}
-                <text
-                  x={5}
-                  y={21}
-                  fontSize={7.5}
-                  fill={isRoot ? '#ffffff' : tc}
-                  fontWeight={depth <= 1 ? 700 : depth <= 2 ? 600 : 500}
-                  style={{ pointerEvents: 'none' }}
-                >
-                  {(() => {
-                    // Two lines, broken where a reader would break them. Slicing
-                    // at character 26 split "Zulieferung aus dem Betrieb steht"
-                    // into "…Betrie" / "b steht"; SVG <text> does no wrapping of
-                    // its own, so the break has to be chosen here.
-                    const [first, rest] = wrapTwoLines(r.name, NAME_CHARS);
-                    if (!rest) return first;
-                    return (
-                      <>
-                        {first}
-                        <tspan x={5} dy={10}>
-                          {rest}
-                        </tspan>
-                      </>
-                    );
-                  })()}
-                </text>
-                {/* Info line with priority chevron (for leaves) */}
-                {(() => {
-                  const isLeafNode = !hasChildrenSet.has(r.id);
-                  // SVG <text>, so an <Icon> cannot go here — these are the
-                  // nearest plain-font stand-ins for the chevrons the tree draws.
-                  const PRIO_GLYPH = { 1: '^^', 2: '^', 3: '=', 4: 'v' };
-                  const PRIO_COL = { 1: '#f87171', 2: '#fbbf24', 3: '#6ca0ff', 4: '#8090a8' };
-                  const showPrio = isLeafNode && r.prio;
-                  const y = wrapTwoLines(r.name, NAME_CHARS)[1] ? 40 : 33;
-                  return (
-                    <>
-                      {showPrio && (
-                        <text x={5} y={y} fontSize={7} fill={PRIO_COL[r.prio]} fontWeight={700} style={{ pointerEvents: 'none' }}>
-                          {PRIO_GLYPH[r.prio]}
-                        </text>
-                      )}
-                      {sc && (
-                        <text
-                          x={showPrio ? 14 : 5}
-                          y={y}
-                          fontSize={5.5}
-                          fill={isRoot ? '#ffffffaa' : sc.autoAssigned ? 'var(--am)' : 'var(--tx3)'}
-                          fontFamily="var(--mono)"
-                          style={{ pointerEvents: 'none' }}
-                        >
-                          {sc.effort?.toFixed(0)}d · {assignLabel(r, sc)}
-                        </text>
-                      )}
-                    </>
-                  );
-                })()}
-              </g>
+              <NetNode
+                key={r.id}
+                activeMatchId={activeMatchId}
+                assignLabel={assignLabel}
+                connectedSet={connectedSet}
+                cpSet={cpSet}
+                diffDoneSet={_diffDoneSet}
+                diffProgSet={_diffProgSet}
+                hasChildrenSet={hasChildrenSet}
+                onCtx={onCtx}
+                onNodeClick={onNodeClick}
+                p={p}
+                r={r}
+                sc={sc}
+                searchMatches={searchMatches}
+                selId={selId}
+                setHoverId={setHoverId}
+                setSelId={setSelId}
+                setTip={setTip}
+                stC={stC}
+                stats={stats}
+                tc={tc}
+              />
             );
           })}
         </g>
       </svg>
 
       {ctxMenu && (
-        <div
-          className="layer-popover"
-          style={{
-            position: 'fixed',
-            ...(({ x, y }) => ({ left: x, top: y }))(toFixedPoint(ctxMenu.x, ctxMenu.y, fixedFrame(portalRoot))),
-            background: 'var(--bg2)',
-            border: '1px solid var(--b2)',
-            borderRadius: 'var(--r)',
-            padding: 4,
-            boxShadow: 'var(--sh)',
-            minWidth: 140,
-          }}
-          onClick={e => e.stopPropagation()}
-        >
-          <div
-            style={{ padding: '5px 10px', fontSize: 12, cursor: 'pointer', borderRadius: 4 }}
-            className="tr"
-            onClick={() => {
-              onNodeClick(iMap[ctxMenu.id]);
-              setCtxMenu(null);
-            }}
-          >
-            Edit {ctxMenu.id}
-          </div>
-          <div
-            style={{ padding: '5px 10px', fontSize: 12, cursor: 'pointer', borderRadius: 4, color: 'var(--re)' }}
-            className="tr"
-            onClick={() => {
-              onDeleteNode(ctxMenu.id);
-              setSelId(null);
-              setCtxMenu(null);
-            }}
-          >
-            Delete
-          </div>
-        </div>
+        <NetContextMenu
+          ctxMenu={ctxMenu}
+          iMap={iMap}
+          onDeleteNode={onDeleteNode}
+          onNodeClick={onNodeClick}
+          portalRoot={portalRoot}
+          setCtxMenu={setCtxMenu}
+          setSelId={setSelId}
+        />
       )}
 
-      <div className="ng-legend">
-        <div className="ng-li">
-          <div style={{ width: 14, height: 1, background: 'var(--b3)', flexShrink: 0 }} />
-          Hierarchy
-        </div>
-        <div className="ng-li">
-          <div style={{ width: 14, height: 0, borderTop: '1.5px solid var(--ac)', flexShrink: 0 }} />
-          Dependency
-        </div>
-        <div className="ng-li" style={{ color: 'var(--re)' }}>
-          Crit. path
-        </div>
-        <span style={{ color: 'var(--tx3)', fontSize: 10 }}>Scroll=pan · Pinch=zoom · Click=highlight · Dbl-click=edit</span>
-      </div>
+      <NetLegend />
       {tip && (
         <Tip
           item={tip.item}

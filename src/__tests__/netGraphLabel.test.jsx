@@ -54,7 +54,7 @@ describe('the percentage in a node ring', () => {
   });
 
   it('is not rendered straight from the stats object', () => {
-    const src = readFileSync(path.join(process.cwd(), 'src/components/views/NetGraph.jsx'), 'utf8');
+    const src = readFileSync(path.join(process.cwd(), 'src/components/views/net/NodeRing.jsx'), 'utf8');
     // The bug in one line: `>{prog}<` inside the ring's <text>.
     expect(src).not.toMatch(/>\{prog\}</);
     expect(src).toMatch(/progressPctLabel\(prog\)/);
