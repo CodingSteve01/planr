@@ -11,14 +11,14 @@ export function NetEmptyState({ isFiltered, onAddNode }) {
           <Icon name="network" size={32} strokeWidth={1.4} />
         </div>
         <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>
-          {isFiltered ? 'No items match this filter' : t('g.noItems')}
+          {isFiltered ? t('ng.noMatch') : t('g.noItems')}
         </div>
         {isFiltered ? (
-          <div style={{ fontSize: 12, color: 'var(--tx3)' }}>{t('net.widenFilter')}</div>
+          <div style={{ fontSize: 12, color: 'var(--tx3)' }}>{t('ng.widenFilter')}</div>
         ) : (
           onAddNode && (
             <button className="btn btn-pri" onClick={onAddNode}>
-              + Add first item
+              {t('ng.addFirst')}
             </button>
           )
         )}

@@ -80,7 +80,11 @@ describe('NetEmptyState', () => {
     inLang('en', <NetEmptyState isFiltered={false} />);
     expect(screen.getByText('No items yet')).toBeTruthy();
     cleanup();
+    inLang('en', <NetEmptyState isFiltered={false} onAddNode={() => {}} />);
+    expect(screen.getByRole('button', { name: '+ Add first item' })).toBeTruthy();
+    cleanup();
     inLang('en', <NetEmptyState isFiltered />);
+    expect(screen.getByText('No items match this filter')).toBeTruthy();
     expect(screen.getByText('Adjust the root or team filter to widen the graph.')).toBeTruthy();
   });
 
@@ -88,7 +92,11 @@ describe('NetEmptyState', () => {
     inLang('de', <NetEmptyState isFiltered={false} />);
     expect(screen.getByText('Noch keine Items')).toBeTruthy();
     cleanup();
+    inLang('de', <NetEmptyState isFiltered={false} onAddNode={() => {}} />);
+    expect(screen.getByRole('button', { name: '+ Erstes Item anlegen' })).toBeTruthy();
+    cleanup();
     inLang('de', <NetEmptyState isFiltered />);
+    expect(screen.getByText('Kein Item passt zu diesem Filter')).toBeTruthy();
     expect(screen.getByText('Passe den Wurzel- oder Team-Filter an, um den Graphen zu erweitern.')).toBeTruthy();
   });
 });

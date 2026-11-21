@@ -13,7 +13,9 @@ const stopEvent = e => {
 
 // Every try… function below returns true when it consumed the key (whether or
 // not it did anything), so the caller stops at the first match — the same
-// order of checks and early returns as one long if-chain.
+// order of checks and early returns as one long if-chain. The one exception is
+// tryEditAltField: its caller returns after it whatever it did, so it returns
+// nothing.
 
 // ── The inline name input ───────────────────────────────────────────────
 
@@ -117,15 +119,14 @@ export function handleFieldKey(c, e, isLast) {
 // ── The grid ────────────────────────────────────────────────────────────
 
 const ARROW_COMMAND = { ArrowUp: 'moveUp', ArrowDown: 'moveDown', ArrowRight: 'indent', ArrowLeft: 'outdent' };
-const isArrow = (key, a, b) => key === a || key === b;
-const isVertical = key => isArrow(key, 'ArrowUp', 'ArrowDown');
-const isHorizontal = key => isArrow(key, 'ArrowLeft', 'ArrowRight');
-const isLetter = (key, a, b) => key === a || key === b;
+const isEither = (key, a, b) => key === a || key === b;
+const isVertical = key => isEither(key, 'ArrowUp', 'ArrowDown');
+const isHorizontal = key => isEither(key, 'ArrowLeft', 'ArrowRight');
 
 // ⌘A — every row on screen, i.e. what the filters and folds left. Only from
 // the grid itself; inside a field it is the field's.
 function trySelectAll(c, e, key, bare) {
-  if (bare || e.shiftKey || e.altKey || !isLetter(key, 'a', 'A') || !c.onSelectAll) return false;
+  if (bare || e.shiftKey || e.altKey || !isEither(key, 'a', 'A') || !c.onSelectAll) return false;
   stopEvent(e);
   c.onSelectAll(c.filt.map(x => x.id));
   return true;
@@ -172,7 +173,7 @@ function tryNewSibling(c, e, key) {
 
 // Home / End — the first and the last row on screen.
 function tryHomeEnd(c, e, key, bare) {
-  if (!isArrow(key, 'Home', 'End') || !bare || e.altKey || e.shiftKey) return false;
+  if (!isEither(key, 'Home', 'End') || !bare || e.altKey || e.shiftKey) return false;
   const row = key === 'Home' ? c.filt[0] : c.filt[c.filt.length - 1];
   if (!row) return true;
   e.preventDefault();
@@ -215,6 +216,8 @@ function stepLeft(c, id, kids) {
 
 // ←/→ — the tree idiom every file browser and outliner shares.
 function tryBranchNav(c, e, key) {
+  // Only reached with a selected row; said here so a reorder cannot make it throw.
+  if (!c.selected?.id) return false;
   if (!isHorizontal(key)) return false;
   e.preventDefault();
   const id = c.selected.id;
@@ -226,6 +229,8 @@ function tryBranchNav(c, e, key) {
 
 // Tab / F2 / Enter / Delete / e — the row-level gestures on the selection.
 function tryRowKeys(c, e, key, bare) {
+  // Only reached with a selected row; said here so a reorder cannot make it throw.
+  if (!c.selected?.id) return false;
   const { selected } = c;
   if (key === 'Tab') {
     e.preventDefault();
@@ -250,9 +255,9 @@ function tryRowKeys(c, e, key, bare) {
     return true;
   }
   // The full editor, for everything deeper than the inline edit.
-  if (isLetter(key, 'e', 'E') && bare && !e.altKey && c.onFullEdit) {
+  if (isEither(key, 'e', 'E') && bare && !e.altKey && c.onFullEdit) {
     e.preventDefault();
-    if (selected?.id) c.onFullEdit(selected);
+    c.onFullEdit(selected);
     return true;
   }
   return false;
