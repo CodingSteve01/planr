@@ -190,12 +190,6 @@
     "complexity": {
       "count": 1
     },
-    "max-lines": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 1
-    },
     "no-unused-vars": {
       "count": 2
     }
@@ -213,6 +207,11 @@
       "count": 1
     },
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/shared/insights/TimingSection.jsx": {
+    "complexity": {
       "count": 1
     }
   },
@@ -241,10 +240,7 @@
   },
   "src/components/views/BriefingView.jsx": {
     "complexity": {
-      "count": 3
-    },
-    "max-lines": {
-      "count": 1
+      "count": 2
     },
     "max-lines-per-function": {
       "count": 1
@@ -278,14 +274,8 @@
     "complexity": {
       "count": 2
     },
-    "max-lines": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
-    },
-    "no-unused-vars": {
-      "count": 2
     }
   },
   "src/components/views/PlanRoadmap.jsx": {
@@ -347,7 +337,12 @@
       "count": 4
     },
     "max-lines-per-function": {
-      "count": 3
+      "count": 1
+    }
+  },
+  "src/components/views/briefing/QueueItemRow.jsx": {
+    "complexity": {
+      "count": 1
     }
   },
   "src/components/views/gantt/BarOverlays.jsx": {
@@ -535,18 +530,19 @@
       "count": 3
     }
   },
-  "src/utils/exports.js": {
+  "src/utils/export/ganttExport.js": {
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/utils/export/jiraCsv.js": {
     "complexity": {
       "count": 1
-    },
-    "max-lines": {
-      "count": 1
-    },
+    }
+  },
+  "src/utils/export/reportDocx.js": {
     "max-lines-per-function": {
-      "count": 4
-    },
-    "no-unused-vars": {
-      "count": 1
+      "count": 2
     }
   },
   "src/utils/gantt/items.js": {
@@ -762,17 +758,30 @@
       "count": 2
     }
   },
-  "src/utils/scenario.js": {
-    "complexity": {
-      "count": 9
-    },
-    "max-lines-per-function": {
-      "count": 3
-    }
-  },
   "src/utils/scenarioCompare.js": {
     "complexity": {
       "count": 3
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/utils/scenarioCore/describeChanges.js": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/utils/scenarioCore/patchDiff.js": {
+    "complexity": {
+      "count": 4
+    }
+  },
+  "src/utils/scenarioCore/portablePatch.js": {
+    "complexity": {
+      "count": 2
     },
     "max-lines-per-function": {
       "count": 1

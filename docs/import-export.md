@@ -540,7 +540,7 @@ and [`src/__tests__/jiraExportDropped.test.jsx`](../src/__tests__/jiraExportDrop
 
 Not an export — the way back. It used to live behind its own **Export… →
 Jira-Abgleich** dialog; that dialog is gone, and the two halves below now
-render inline in **Run mode's Jira drift section** (`BriefingView.jsx`) —
+render inline in **Run mode's Jira drift section** (`views/briefing/JiraDriftSection.jsx`, state in `BriefingView.jsx`) —
 link health is always visible, a collapsible paste box replaces the
 "Compare" tab. Nothing about the parsing or matching changed, only where the
 result is shown; Phase 7 is expected to make Jira a real connected source,
@@ -590,7 +590,7 @@ writes `status` + `progress` on the affected leaves (`done` → 100, `open` → 
 done-window metadata are then derived by the same effects that handle a hand
 edit.
 
-### Word Report (`src/utils/exports.js` → `exportReportDocx`)
+### Word Report (`src/utils/export/reportDocx.js` → `exportReportDocx`)
 
 Runs the same `generateReport()` HTML through [`@turbodocx/html-to-docx`](https://github.com/TurboDocx/html-to-docx). Output is one-to-one with the Management Summary PDF: key figures, risks, planning confidence, roadmap (rasterized to a hi-res PNG and embedded as `<img>`), goals/deadlines, team capacity cards, critical path, detailed schedule per team.
 

@@ -490,7 +490,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const resActions = useResourceActions({ members, teams, planStart, effDate, effFold, resLens, mutate, act });
   const { onHolUpdate } = resActions;
 
-  // Export context — shared data bag for all export functions in utils/exports.js.
+  // Export context — shared data bag for all export functions in utils/export/ (imported through utils/exports.js).
   // diff / horizonIds / horizonEnd / futureProgressByRootId / roadmapAssignment
   // must be forwarded so the PDF Subway-Map renders the SAME line assignments
   // and overlays as the on-screen Roadmap.jsx — otherwise the export shows a

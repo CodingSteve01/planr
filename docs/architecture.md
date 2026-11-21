@@ -35,8 +35,8 @@ src/
       DLView.jsx           — deadlines / goals summary
       SumView.jsx          — per-goal progress summary; its panels live in views/sum/
       QuickEdit.jsx        — sidebar editor (primary interaction); tabs and fields live in views/quickedit/
-      PlanReview.jsx       — folded into Plan mode's tab bar (Decisions, Team Capacity, Blocked)
-      BriefingView.jsx     — Run mode's only view: attention list, per-person queues, Jira drift
+      PlanReview.jsx       — folded into Plan mode's tab bar (Decisions, Team Capacity, Blocked); one section component per tab in review/
+      BriefingView.jsx     — Run mode's only view: attention list, per-person queues, Jira drift (one component per block in briefing/)
       Onboard.jsx          — first-launch onboarding
       ReportView.jsx       — Report mode's only view — ExportCards as a screen, not a modal
     modals/
@@ -78,12 +78,14 @@ src/
                              because two Planr panes can be open at once)
     tipText.js             — the tooltip dialect (**bold**, __muted__, newline, "- " detail);
                              replaced the HTML-in-a-string tooltips that needed innerHTML
-    exports.js             — all export functions (CSV, Sprint MD, Mermaid, SVG, PNG, PDF)
+    exports.js             — one import point for all export functions (CSV, Sprint MD, Mermaid, SVG, PNG, PDF); the code is in export/
     markdown.js            — Markdown writer (buildMarkdownText)
     markdownParse.js       — Markdown reader (parseMdToProject) — out of App.jsx so a plan can
                              be read without mounting one
-    scenario.js            — scenarios as patches: diffPlan / applyPatch, the list of changes,
-                             and the name tokens that carry a patch through a Markdown file
+    scenario.js            — scenarios as patches: one import point for the modules in scenarioCore/
+                             (patchDiff: diffPlan / applyPatch, scenarioList, describeChanges: the
+                             list of changes, portablePatch: the name tokens that carry a patch
+                             through a Markdown file)
     scenarioCompare.js     — plan against scenario: schedules both, reports what moves
     report.js              — HTML report generation (bilingual, auto-print) + buildReportModel()
     pdfExports.js          — re-exports the pdfmake exports; the code is in utils/pdf/
@@ -403,7 +405,7 @@ Manual Dark / Light / Auto toggle in Settings. The selected theme is stored in `
 
 Export-related logic has been extracted from `App.jsx` into dedicated modules:
 
-- `src/utils/exports.js` — CSV, Sprint MD, Mermaid, SVG, PNG, PDF export functions
+- `src/utils/exports.js` — re-exports the CSV, Sprint MD, Mermaid, SVG, PNG, PDF export functions kept in `src/utils/export/` (`textExports.js`, `jiraCsv.js`, `networkExport.js`, `ganttExport.js`, `svgRaster.js`, `reportDocx.js`, `fileHelpers.js`)
 - `src/utils/markdown.js` — Markdown parsing (`parseMdToProject`) and writing (`buildMarkdownText`)
 - `src/utils/report.js` — HTML report generation (bilingual, opens in new tab, auto-triggers print)
 

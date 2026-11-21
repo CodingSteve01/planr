@@ -38,7 +38,6 @@ describe('working out the order in the planning review', () => {
             teams={[{ id: 'T1', name: 'Team' }]}
             confidence={{}}
             cpSet={new Set()}
-            stats={{}}
             onOpenItem={() => {}}
             onUpdate={() => {}}
             reschedule={reschedule}

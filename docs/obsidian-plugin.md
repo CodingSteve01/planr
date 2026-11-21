@@ -283,7 +283,7 @@ npm run build:obsidian          # → dist-obsidian/{main.js,manifest.json,style
 esbuild, not Vite — Obsidian wants a single CommonJS bundle it can `require()`,
 so dynamic imports get inlined and there is no code splitting. Two Vite-isms
 are handled in `obsidian/esbuild.config.mjs`: the `?url` asset import in
-`src/utils/exports.js` becomes an inlined blob URL, and `fileHandleStore.js`
+`src/utils/export/reportDocx.js` becomes an inlined blob URL, and `fileHandleStore.js`
 resolves to the vault version.
 
 `main.js` is around 4.5 MI, most of it the `html-to-docx` browser bundle and
@@ -351,7 +351,7 @@ The three that took actual work:
   rendered as elements. The roadmap's richer tooltips travel as JSON in
   `data-tip` and are rendered with the app's own components; generated markup
   goes in through `DOMParser` — into an inert document, adopted node by node —
-  rather than as a string. What is left is `src/utils/exports.js`, which builds
+  rather than as a string. What is left is `src/utils/export/reportDocx.js`, which builds
   a detached document for the Word export and never attaches it to the page.
 
   One trap, paid for once: `renderRoadmapSvg` returns *two* documents in one

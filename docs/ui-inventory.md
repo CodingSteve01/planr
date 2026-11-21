@@ -161,15 +161,15 @@ Reachable from the tree's multi-selection ("⤢ Modal" button, Gantt's "Bulk edi
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
 | Section tabs (Decide/Phases/Team capacity/Load/Blocked/Warnings/Critical paths) | Switches the visible section | src/components/views/PlanReview.jsx:181-182 | Review | 1 | pure view switch, no data write |
-| Row click in "Decide" | Opens the item editor (onOpenItem → NodeModal) | src/components/views/PlanReview.jsx:203-204 | Review | 1 | (also: Plan); ↔ duplicates the tree's own "⊞ Full edit" entry point |
-| "Adopt auto-assignment" button (only when a scheduler suggestion exists) | Adopts the scheduler's suggestion as a fixed assignment | src/components/views/PlanReview.jsx:216-218 (logic 119-124) | Plan | 1 | ⚠ writes data outside the tree — writes node.assign and node.team directly via onUpdate |
-| Phase filter tabs "Current phases" / "All open" | Shows only current or all open phases | src/components/views/PlanReview.jsx:230-231 | Review | 1 | pure filter switch |
-| Task header click (phases section) | Opens the item editor | src/components/views/PlanReview.jsx:246 | Review | 1 | ↔ duplicates the tree editor entry point |
-| Phase status icon click (○/◐) | Cycles this phase open→wip→done | src/components/views/PlanReview.jsx:255-256 (logic 98-102) | Run | 1 | (also: Plan); ⚠ writes data outside the tree — writes node.phases and possibly derived status/progress via onUpdate |
-| Row click in "Blocked" | Opens the item editor; shows the blocker as a tooltip | src/components/views/PlanReview.jsx:320-322 | Review | 1 | |
-| Row click "date overdue" | Opens the item editor | src/components/views/PlanReview.jsx:353-354 | Review | 1 | |
-| Row click "truncated by offboarding" | Opens the item editor | src/components/views/PlanReview.jsx:374-375 | Review | 1 | |
-| Critical-path chain button (per node) | Opens the item editor | src/components/views/PlanReview.jsx:414-432 | Review | 1 | |
+| Row click in "Decide" | Opens the item editor (onOpenItem → NodeModal) | src/components/views/review/DecideSection.jsx | Review | 1 | (also: Plan); ↔ duplicates the tree's own "⊞ Full edit" entry point |
+| "Adopt auto-assignment" button (only when a scheduler suggestion exists) | Adopts the scheduler's suggestion as a fixed assignment | src/components/views/review/DecideSection.jsx (logic `acceptAuto` in src/components/views/PlanReview.jsx) | Plan | 1 | ⚠ writes data outside the tree — writes node.assign and node.team directly via onUpdate |
+| Phase filter tabs "Current phases" / "All open" | Shows only current or all open phases | src/components/views/review/PhasesSection.jsx | Review | 1 | pure filter switch |
+| Task header click (phases section) | Opens the item editor | src/components/views/review/PhasesSection.jsx | Review | 1 | ↔ duplicates the tree editor entry point |
+| Phase status icon click (○/◐) | Cycles this phase open→wip→done | src/components/views/review/PhasesSection.jsx (logic `advancePhase` in src/components/views/PlanReview.jsx) | Run | 1 | (also: Plan); ⚠ writes data outside the tree — writes node.phases and possibly derived status/progress via onUpdate |
+| Row click in "Blocked" | Opens the item editor; shows the blocker as a tooltip | src/components/views/review/BlockedSection.jsx | Review | 1 | |
+| Row click "date overdue" | Opens the item editor | src/components/views/review/WarningsSection.jsx | Review | 1 | |
+| Row click "truncated by offboarding" | Opens the item editor | src/components/views/review/WarningsSection.jsx | Review | 1 | |
+| Critical-path chain button (per node) | Opens the item editor | src/components/views/review/CriticalSection.jsx | Review | 1 | |
 | ResourceLoadMatrix (Load tab) | Shows resource load across weeks | src/components/views/PlanReview.jsx:297-305 | Plan | 1 | unsure — embedded component outside the read scope, may carry its own controls |
 | Unused `SearchSelect` import | — | src/components/views/PlanReview.jsx:5 | remove | — | dead import, never used in render — no actual control on the surface |
 
@@ -313,11 +313,11 @@ Also found: `sprintDays`/`setHd`/`sprintEnd`/`upcoming`/`sprintGroups` (SumView.
 
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
-| Horizon buttons ("Diese Woche"/"2 Wochen"/"4 Wochen") | Sets a local horizonDays, filters every card | src/components/views/BriefingView.jsx:222-226 | Run | 1 | ↔ possibly related to/duplicating the project-wide horizon picker and the dead sprint-horizon control in SumView; a code comment in SumView (54-56) suggests a deliberate separation |
-| Button "Todo exportieren" | Calls onExportTodo(horizonDays) (export, read-only) | src/components/views/BriefingView.jsx:227-234 | Run | 1 | ↔ possibly duplicates the PDF/DOCX report exports (Report) |
-| Person-card task row | Opens the task's detail | src/components/views/BriefingView.jsx:325-327 | Run | 1 | 🔧 mechanics exposed (raw task ID shown before the name) |
-| Milestone row | Opens the root item's detail | src/components/views/BriefingView.jsx:373-375 | Run | 1 | (also: Review) |
-| Risk row ("overdue"/"late"/"exploratory, date near") | Opens the affected item | src/components/views/BriefingView.jsx:396-398 | Run | 1 | (also: Review); 🔧 mechanics exposed (raw ID) |
+| Horizon buttons ("Diese Woche"/"2 Wochen"/"4 Wochen") | Sets a local horizonDays, filters every card | src/components/views/BriefingView.jsx | Run | 1 | ↔ possibly related to/duplicating the project-wide horizon picker and the dead sprint-horizon control in SumView; a code comment in SumView (54-56) suggests a deliberate separation |
+| Button "Todo exportieren" | Calls onExportTodo(horizonDays) (export, read-only) | src/components/views/BriefingView.jsx | Run | 1 | ↔ possibly duplicates the PDF/DOCX report exports (Report) |
+| Person-card task row | Opens the task's detail | src/components/views/briefing/QueueItemRow.jsx | Run | 1 | 🔧 mechanics exposed (raw task ID shown before the name) |
+| Milestone row | Opens the root item's detail | src/components/views/briefing/MilestonesSection.jsx | Run | 1 | (also: Review) |
+| Risk row ("overdue"/"late"/"exploratory, date near") | Opens the affected item | src/components/views/briefing/AttentionSection.jsx | Run | 1 | (also: Review); 🔧 mechanics exposed (raw ID) |
 
 ## Onboarding (Onboard.jsx)
 
@@ -403,20 +403,20 @@ Reached by selecting a row in TreeView; fields commit instantly per-edit (no sep
 
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
-| Name/description block click | Jumps to Overview/Details | src/components/shared/TaskInsights.jsx:207-230 | Build | 1 | |
-| Status+progress header click | Jumps to Workflow/Details | src/components/shared/TaskInsights.jsx:233-252 | Build | 1 | |
-| Timing section click | Jumps to Timing | src/components/shared/TaskInsights.jsx:258 | Build | 1 | |
-| "Wartet auf" (blocked-by) link | Opens the blocking item — in the dialog it navigates the dialog, in the side panel it selects the item | src/components/shared/TaskInsights.jsx:351-373 | Build | 1 | the side panel passed no `onOpenItem` until Sept 2026, so there the link did nothing |
-| Effort section click | Jumps to Effort | src/components/shared/TaskInsights.jsx:379 | Build | 1 | |
-| People section click | Jumps to Overview/Details, assignee picker focused | src/components/shared/TaskInsights.jsx:432 | Build | 1 | |
-| "Split" button (handoff chain) | Materializes the handoff chain as sibling tasks | src/components/shared/TaskInsights.jsx:468-471 | Build | 1 | calls onSplitHandoff — a sanctioned tree write, reached only from inside the tree editor |
-| "Split" button (truncated by offboarding) | Splits at the consumed/remaining ratio | src/components/shared/TaskInsights.jsx:473-480 | Build | 1 | calls onSplitTaskAtProgress — same as above |
-| Phases section click | Jumps to Workflow | src/components/shared/TaskInsights.jsx:532 | Build | 1 | |
-| Phase dot inline toggle | Cycles a phase open→wip→done | src/components/shared/TaskInsights.jsx:541-547 | Build | 1 | writes node.phases directly — sanctioned (reached only from the tree editor) |
-| Dependencies section click | Jumps to Timing | src/components/shared/TaskInsights.jsx:561 | Build | 1 | |
-| Predecessor/successor/inherited-dep link click | Opens that item (dialog: navigates; side panel: selects) | src/components/shared/TaskInsights.jsx:566-605 | Build | 1 | |
-| Custom fields section click | Jumps to Overview | src/components/shared/TaskInsights.jsx:611 | Build | 1 | |
-| Custom-field URI link click | Opens the external link | src/components/shared/TaskInsights.jsx:618 | Build | 1 | navigation only, no mutation |
+| Name/description block click | Jumps to Overview/Details | src/components/shared/insights/InsightHeader.jsx:9-45 | Build | 1 | |
+| Status+progress header click | Jumps to Workflow/Details | src/components/shared/insights/InsightHeader.jsx:58-59 | Build | 1 | |
+| Timing section click | Jumps to Timing | src/components/shared/insights/TimingSection.jsx:26 | Build | 1 | |
+| "Wartet auf" (blocked-by) link | Opens the blocking item — in the dialog it navigates the dialog, in the side panel it selects the item | src/components/shared/insights/TimingSection.jsx:135-153 | Build | 1 | the side panel passed no `onOpenItem` until Sept 2026, so there the link did nothing |
+| Effort section click | Jumps to Effort | src/components/shared/insights/EffortSection.jsx:9 | Build | 1 | |
+| People section click | Jumps to Overview/Details, assignee picker focused | src/components/shared/insights/PeopleSection.jsx:10 | Build | 1 | |
+| "Split" button (handoff chain) | Materializes the handoff chain as sibling tasks | src/components/shared/insights/HandoffSection.jsx:20-28 | Build | 1 | calls onSplitHandoff — a sanctioned tree write, reached only from inside the tree editor |
+| "Split" button (truncated by offboarding) | Splits at the consumed/remaining ratio | src/components/shared/insights/HandoffSection.jsx:34-44 | Build | 1 | calls onSplitTaskAtProgress — same as above |
+| Phases section click | Jumps to Workflow | src/components/shared/insights/PhasesSection.jsx:15 | Build | 1 | |
+| Phase dot inline toggle | Cycles a phase open→wip→done | src/components/shared/insights/PhasesSection.jsx:28-56 | Build | 1 | writes node.phases directly — sanctioned (reached only from the tree editor) |
+| Dependencies section click | Jumps to Timing | src/components/shared/insights/DepsSection.jsx:9 | Build | 1 | |
+| Predecessor/successor/inherited-dep link click | Opens that item (dialog: navigates; side panel: selects) | src/components/shared/insights/DepsSection.jsx:10-72 | Build | 1 | |
+| Custom fields section click | Jumps to Overview | src/components/shared/insights/CustomFieldsSection.jsx:10 | Build | 1 | |
+| Custom-field URI link click | Opens the external link | src/components/shared/insights/CustomFieldsSection.jsx:14-26 | Build | 1 | navigation only, no mutation |
 
 ## Phases (shared: PhaseList + PhaseEditPopout, used in QuickEdit, NodeModal, SettingsModal templates, and the bulk-edit modal)
 
@@ -698,13 +698,13 @@ Every place that mutates plan/task data (the explicit P2 audit). "Sanctioned" me
 - Every field commit in QuickEdit.jsx (name, notes, status, progress, phases, team, assign, effort, dates, dependencies — see the QuickEdit table above), all via `patchNode`/`commitNode` → `onUpdate` (App.jsx `updateNode`, App.jsx:1833).
 - TreeView.jsx row drag-reorder → `onReorder` (App.jsx `reorderSibling`, App.jsx:2159).
 - TreeView.jsx per-row quick-add, contextual delete, SelectionActionBar bulk status → `onQuickAdd`/`onDelete`/`onTaskUpdate` (App.jsx `addNode`:2056, `deleteNode`:1907, `updateNode`:1833).
-- TaskInsights.jsx "Split" buttons → `onSplitHandoff` (App.jsx:1915) / `onSplitTaskAtProgress` (App.jsx:1997), reached only from inside QuickEdit/NodeModal.
+- insights/HandoffSection.jsx (part of TaskInsights.jsx) "Split" buttons → `onSplitHandoff` (App.jsx:1915) / `onSplitTaskAtProgress` (App.jsx:1997), reached only from inside QuickEdit/NodeModal.
 
 **Outside the tree (⚠, the actual P2 audit):**
 - **GanttView.jsx** — by far the largest source: drag-to-reschedule (pinnedStart), drag-to-resize (fixedDurationDays / completedEnd / completedStart), drag-to-reorder (seq/prio), drag-to-link (deps), the pin-badge clear, the × dependency badge, and the entire multi-select toolbar (Link, reorder arrows, priority up/down, remove links) — all call `onSeqUpdate`/`onTaskUpdate`/`onAddDep`/`onRemoveDep`/`onReorderSibling` directly from the Gantt (see GanttView.jsx:1102-2129, 2817-3141 in the table above).
 - **NetGraph.jsx:701** — context-menu "Delete" calls `onDeleteNode` directly, guarded only by `confirm()`.
-- **PlanReview.jsx:119-124** (`acceptAuto`, triggered 216-218) — writes `node.assign`/`node.team` via `onUpdate`.
-- **PlanReview.jsx:98-102** (`advancePhase`, triggered 255-256) — writes `node.phases` and derived status/progress via `onUpdate`.
+- **PlanReview.jsx** (`acceptAuto`, triggered in review/DecideSection.jsx) — writes `node.assign`/`node.team` via `onUpdate`.
+- **PlanReview.jsx** (`advancePhase`, triggered in review/PhasesSection.jsx) — writes `node.phases` and derived status/progress via `onUpdate`.
 - **NodeModal.jsx** — its entire field set (see its table above), whenever opened from Gantt (`onBarClick`), NetGraph (`onNodeClick`), PlanReview (`onOpenItem`), or JiraSyncModal (`openItem`) instead of from the tree's own "⊞ Full edit" button.
 - **JiraSyncModal.jsx:271-274 → App.jsx:1858-1863** (`onJiraApplyStatus`) — applies accepted Jira status patches via `setData` directly on the whole tree, bypassing `updateNode` entirely. The single largest batch-write path outside the tree editor.
 - **SnapshotModal.jsx:78-80** — "↶ Restore" replaces the entire project with a snapshot via `setData`, bypassing the tree editor (a whole-project operation, not a field edit, but still outside the sanctioned surface).

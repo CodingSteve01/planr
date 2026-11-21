@@ -8,7 +8,7 @@ not, it is discarded, or kept for the next meeting.
 ## The model: a scenario is a patch
 
 A scenario is **not a copy** of the plan. It is the list of what differs
-(`utils/scenario.js`, `diffPlan`), and the scenario on screen is the plan with
+(`utils/scenarioCore/patchDiff.js`, `diffPlan`), and the scenario on screen is the plan with
 that list applied (`applyPatch`).
 
 This is the decision everything else follows from. A copy goes stale the first

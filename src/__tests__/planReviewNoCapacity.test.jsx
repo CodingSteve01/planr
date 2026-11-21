@@ -31,7 +31,6 @@ describe('planning review warnings', () => {
             meetingPlans={meetingPlans}
             confidence={{}}
             cpSet={new Set()}
-            stats={{}}
             onOpenItem={() => {}}
             onUpdate={() => {}}
           />
