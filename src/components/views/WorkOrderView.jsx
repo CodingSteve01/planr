@@ -1,5 +1,4 @@
 import { Fragment, useEffect, useMemo, useRef, useState, memo } from 'react';
-import { PersonChip } from '../shared/PersonChip.jsx';
 import { useT } from '../../i18n.jsx';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
 import { Icon } from '../shared/Icon.jsx';
@@ -8,9 +7,10 @@ import { assigneeOf, queueOwnerOf, reconcileQueue } from '../../utils/personQueu
 import { queueBlockers } from '../../utils/queueBlockers.js';
 import { fieldPatchForKey } from '../../utils/treeEdit.js';
 import { withKey } from '../../utils/shortcuts.js';
-import { statusChangePatch } from '../../utils/completion.js';
 import { setDragBadge } from '../../utils/dragBadge.js';
-import { SelectionActionBar } from '../shared/SelectionActionBar.jsx';
+import { QueueOwnerHeader } from './workorder/QueueOwnerHeader.jsx';
+import { QueueDoerChip, QueuePath, QueueBlockedMark } from './workorder/QueueRowCells.jsx';
+import { WorkOrderSelectionBar } from './workorder/WorkOrderSelectionBar.jsx';
 
 // In which order does who work.
 //
@@ -405,74 +405,7 @@ function WorkOrderViewImpl({
         const sorted = !!personQueues?.[owner];
         return (
           <div key={owner} style={{ marginBottom: 20 }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                marginBottom: 6,
-                paddingBottom: 4,
-                borderBottom: '2px solid var(--b)',
-              }}
-            >
-              <span
-                style={{ width: 8, height: 8, borderRadius: label.team ? 2 : 8, background: label.color || 'var(--ac)', flexShrink: 0 }}
-              />
-              <span style={{ fontSize: 12, fontWeight: 600 }}>{label.name}</span>
-              {label.team && <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('wo.unassigned')}</span>}
-              <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{ordered.length}</span>
-              {(() => {
-                // Multi-select is the tree's, and just as invisible here as it was
-                // there: the rows highlight and nothing says a move takes all of
-                // them. Only shown from two — one picked row is just the cursor.
-                const mine = ordered.filter(id => picked.has(id)).length;
-                if (mine < 2) return null;
-                return (
-                  <span
-                    data-testid="wo-picked"
-                    data-htip={t('wo.pickedTip')}
-                    style={{
-                      fontSize: 10,
-                      color: 'var(--ac)',
-                      background: 'var(--ac2)',
-                      border: '1px solid var(--ac)',
-                      borderRadius: 3,
-                      padding: '0 5px',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {t('wo.picked', mine)}
-                  </span>
-                );
-              })()}
-              {sorted && (
-                <>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      color: 'var(--tx2)',
-                      background: 'var(--bg3)',
-                      border: '1px solid var(--b2)',
-                      borderRadius: 3,
-                      padding: '0 5px',
-                    }}
-                    data-htip={t('g.queueSortedTip')}
-                  >
-                    {t('g.queueSorted')}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-xs"
-                    data-testid={`queue-reset-${owner}`}
-                    data-htip={t('g.queueReset')}
-                    onClick={() => onQueueReset?.(owner)}
-                    style={{ padding: '1px 6px', fontSize: 11 }}
-                  >
-                    {t('g.queueReset')}
-                  </button>
-                </>
-              )}
-            </div>
+            <QueueOwnerHeader label={label} owner={owner} ordered={ordered} picked={picked} sorted={sorted} onQueueReset={onQueueReset} />
             <table className="tree-tbl">
               <tbody>
                 {ordered.map((id, i) => {
@@ -565,18 +498,7 @@ function WorkOrderViewImpl({
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          {(() => {
-                            const doer = doerById.get(id);
-                            if (!doer) return null;
-                            // Same chip as the tree, the Gantt and the Planning tab.
-                            // This view invented the `~name` vocabulary that all of
-                            // them now share; it may as well use the component.
-                            return (
-                              <span data-queue-who data-auto={doer.auto ? 'true' : undefined}>
-                                <PersonChip auto={doer.auto} short={doer.name} title={doer.auto ? t('wo.autoWho') : t('wo.fixedWho')} />
-                              </span>
-                            );
-                          })()}
+                          <QueueDoerChip doer={doerById.get(id)} />
                         </td>
                         <td style={{ padding: '3px 6px' }}>
                           {/* Where it lives, in the two parts that answer it: which
@@ -588,60 +510,7 @@ function WorkOrderViewImpl({
                       with the header gone it is simply the same four names on
                       forty rows, and the names of the tasks disappeared into
                       it. */}
-                          {(() => {
-                            const chain = pathOf(id);
-                            const project = chain[0] || '';
-                            const parent = chain.length > 1 ? chain[chain.length - 1] : '';
-                            // …and only where it CHANGES. Forty rows from one package
-                            // printed the same two names forty times and the task
-                            // names drowned in them. Saying it once and then only when
-                            // it moves makes the crossings visible, which is the thing
-                            // this list is for: you can see where one project's work
-                            // gives way to another's.
-                            const prevChain = prevId ? pathOf(prevId) : [];
-                            const sameProject = project && prevChain[0] === project;
-                            const sameParent =
-                              sameProject && parent && (prevChain.length > 1 ? prevChain[prevChain.length - 1] : '') === parent;
-                            // Always both, and the CHANGE is what stands out. Printing
-                            // them only where they changed made the list quiet but
-                            // left most rows without a parent at all — reported as
-                            // "I don't always see the parents". A row read on its
-                            // own has to say where it lives; the crossings from one
-                            // project or package to the next are carried by weight
-                            // and colour instead of by absence.
-                            const mark = changed => (changed ? { color: 'var(--tx2)', fontWeight: 600 } : undefined);
-                            return (
-                              <div
-                                data-queue-path
-                                data-htip={[id, ...chain].join(' › ')}
-                                style={{
-                                  fontSize: 10,
-                                  color: 'var(--tx3)',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                }}
-                              >
-                                <span style={{ fontFamily: 'var(--mono)' }}>{id}</span>
-                                {project && (
-                                  <>
-                                    <span style={{ color: 'var(--b3)' }}> · </span>
-                                    <span data-queue-project data-changed={sameProject ? undefined : 'true'} style={mark(!sameProject)}>
-                                      {project}
-                                    </span>
-                                  </>
-                                )}
-                                {parent && (
-                                  <>
-                                    <span style={{ color: 'var(--b3)' }}> › </span>
-                                    <span data-queue-parent data-changed={sameParent ? undefined : 'true'} style={mark(!sameParent)}>
-                                      {parent}
-                                    </span>
-                                  </>
-                                )}
-                              </div>
-                            );
-                          })()}
+                          <QueuePath id={id} prevId={prevId} pathOf={pathOf} />
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                             <div
                               data-queue-title
@@ -660,38 +529,7 @@ function WorkOrderViewImpl({
                       it waits for work still outstanding, and — louder — the
                       work it waits for is BELOW it here, so the order as
                       arranged cannot happen. */}
-                            {(() => {
-                              const wait = held.get(id);
-                              if (!wait) return null;
-                              const late = wait.later.length > 0;
-                              const names = wait.waitsFor.map(d => {
-                                const n = allById.get(d);
-                                return n?.name ? `${d} · ${n.name}` : d;
-                              });
-                              return (
-                                <span
-                                  data-queue-blocked={late ? 'order' : 'dep'}
-                                  data-htip={`${late ? t('wo.blockedLaterTip') : t('wo.blockedTip')}\n${names.join('\n')}`}
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 3,
-                                    flexShrink: 0,
-                                    fontSize: 10,
-                                    fontFamily: 'var(--mono)',
-                                    borderRadius: 3,
-                                    padding: '0 4px',
-                                    color: late ? 'var(--st-risk)' : 'var(--tx3)',
-                                    background: late ? 'var(--st-risk-soft)' : 'var(--bg3)',
-                                    border: `1px solid ${late ? 'var(--st-risk)' : 'var(--b2)'}`,
-                                  }}
-                                >
-                                  <Icon name="link" size={9} />
-                                  {wait.waitsFor[0]}
-                                  {wait.waitsFor.length > 1 ? ` +${wait.waitsFor.length - 1}` : ''}
-                                </span>
-                              );
-                            })()}
+                            <QueueBlockedMark id={id} held={held} allById={allById} />
                           </div>
                         </td>
                         <td
@@ -738,58 +576,17 @@ function WorkOrderViewImpl({
       {/* The tree's selection bar, for the same reason it has one: a picked
         block is something you then want to DO something with, and keys
         alone are invisible. Moves act on the block's owner queue. */}
-      <SelectionActionBar
-        count={picked.size > 1 ? picked.size : 0}
+      <WorkOrderSelectionBar
+        picked={picked}
+        allById={allById}
         onClear={() => {
           setPicked(new Set());
           extendRef.current = null;
         }}
-        testId="wo-selection-actionbar"
-      >
-        {onOpenBulkEdit && (
-          <button
-            type="button"
-            className="sab-assign-trigger"
-            onClick={() => onOpenBulkEdit([...picked])}
-            data-htip={t('g.bulkEditTip')}
-            data-testid="wo-bulk-edit"
-          >
-            <span className="sab-icon">
-              <Icon name="checkSquare" size={13} />
-            </span>
-            <span>{t('g.bulkEdit')}</span>
-          </button>
-        )}
-        <span className="sab-divider" />
-        <button type="button" className="btn btn-sec" data-testid="wo-move-first" onClick={() => onQueueReorder?.([...picked], 'first')}>
-          {t('g.ctxRunFirst')}
-        </button>
-        <button type="button" className="btn btn-sec" data-testid="wo-move-last" onClick={() => onQueueReorder?.([...picked], 'last')}>
-          {t('g.ctxRunLast')}
-        </button>
-        <span className="sab-divider" />
-        {[
-          ['open', t('tv.statusOpen')],
-          ['wip', t('tv.statusWip')],
-          ['done', t('tv.statusDone')],
-        ].map(([status, label]) => (
-          <button
-            key={status}
-            type="button"
-            className="btn btn-sec"
-            data-testid={`wo-status-${status}`}
-            data-htip={t('tv.bulkStatusTip', label)}
-            onClick={() => {
-              for (const id of picked) {
-                const node = allById.get(id);
-                if (node && node.status !== status) onTaskUpdate?.({ ...node, ...statusChangePatch(node, status) });
-              }
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </SelectionActionBar>
+        onOpenBulkEdit={onOpenBulkEdit}
+        onQueueReorder={onQueueReorder}
+        onTaskUpdate={onTaskUpdate}
+      />
     </div>
   );
 }

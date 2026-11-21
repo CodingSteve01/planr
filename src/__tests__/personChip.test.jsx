@@ -71,7 +71,7 @@ describe('the views', () => {
       'src/components/views/tree/renderTreeRow.jsx', // the tree's rows draw the people
       'src/components/views/gantt/GanttLabelColumn.jsx', // the Gantt's left column draws the people
       'src/components/views/review/DecideSection.jsx',
-      'src/components/views/WorkOrderView.jsx',
+      'src/components/views/workorder/QueueRowCells.jsx', // the Work order's rows draw the people
     ]) {
       const src = readFileSync(path.join(process.cwd(), file), 'utf8');
       expect(src, `${file} does not use PersonChip`).toMatch(/PersonChip/);
