@@ -175,6 +175,8 @@ Reachable from the tree's multi-selection ("⤢ Modal" button, Gantt's "Bulk edi
 
 ## Netzwerk (NetGraph.jsx)
 
+The toolbar, edges, node cards, context menu and empty states now live in `src/components/views/net/`; NetGraph.jsx keeps the state and composes them. The `NetGraph.jsx:<line>` references below predate that split.
+
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
 | "Fit" button | Zooms/pans to selection/search results/whole graph | src/components/views/NetGraph.jsx:561 | Build | 1 | (also: Plan); pure viewport action |

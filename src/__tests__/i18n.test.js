@@ -139,6 +139,7 @@ const TOOLTIP_TRANSLATED_FILES = [
   'components/views/sum/SumKpis.jsx',
   'components/views/sum/TopItemsTable.jsx',
   'components/views/NetGraph.jsx',
+  'components/views/net/NetToolbar.jsx',
   'components/shared/TaskInsights.jsx',
   'components/shared/SearchBox.jsx',
   'components/shared/HandoffPlanEditor.jsx',

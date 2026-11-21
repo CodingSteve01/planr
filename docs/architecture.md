@@ -29,7 +29,7 @@ src/
     views/
       TreeView.jsx         — hierarchical editor (primary authoring view)
       GanttView.jsx        — Gantt chart — see docs/gantt.md
-      NetGraph.jsx         — network graph — see docs/network-graph.md
+      NetGraph.jsx         — network graph — see docs/network-graph.md; its parts live in views/net/, the layout in utils/net/
       ResView.jsx          — resources: teams + members
       HolView.jsx          — holidays editor
       DLView.jsx           — deadlines / goals summary

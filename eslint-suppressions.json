@@ -263,13 +263,10 @@
   },
   "src/components/views/NetGraph.jsx": {
     "complexity": {
-      "count": 3
-    },
-    "max-lines": {
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 2
+      "count": 1
     }
   },
   "src/components/views/Onboard.jsx": {
@@ -423,6 +420,16 @@
       "count": 1
     },
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/views/net/NetEdges.jsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/components/views/net/NetNode.jsx": {
+    "complexity": {
       "count": 1
     }
   },
@@ -606,6 +613,11 @@
     },
     "max-lines-per-function": {
       "count": 3
+    }
+  },
+  "src/utils/net/edges.js": {
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "src/utils/orderSearch.js": {

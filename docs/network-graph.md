@@ -4,7 +4,7 @@ Dependency-topology view with bin-packed, compact layout. Not a timeline — the
 
 ## Layout
 
-Rendered in [NetGraph.jsx](../src/components/views/NetGraph.jsx). The algorithm is recursive and has been iterated on many times — the current version produces compact, readable graphs across a range of tree shapes.
+Rendered in [NetGraph.jsx](../src/components/views/NetGraph.jsx), whose node cards, edges and toolbar live in `src/components/views/net/`; the layout algorithm itself is in `src/utils/net/layout.js` and the edge routing in `src/utils/net/edges.js`. The algorithm is recursive and has been iterated on many times — the current version produces compact, readable graphs across a range of tree shapes.
 
 **Per-subtree layout:**
 - **2-column grid** for items with few leaves — minimizes width
