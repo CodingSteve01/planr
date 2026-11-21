@@ -12,7 +12,6 @@ import { useT } from '../../i18n.jsx';
 import { localDate } from '../../utils/date.js';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
-import { SelectionActionBar } from '../shared/SelectionActionBar.jsx';
 import { hasChain, chainShorts, chainTooltip } from '../../utils/handoff.js';
 import { stateAsOf } from '../../utils/history.js';
 import { sortTree, filterCollapsedRows, fieldPatchForKey, parsePastedRows, scrollAdjustment } from '../../utils/treeEdit.js';
@@ -27,6 +26,7 @@ import { keepRowInView } from '../../utils/tree/scroll.js';
 import { TreeToolbar } from './tree/TreeToolbar.jsx';
 import { TreeSelectionBar } from './tree/TreeSelectionBar.jsx';
 import { TreeHead } from './tree/TreeHead.jsx';
+import { TreeBulkBar } from './tree/TreeBulkBar.jsx';
 
 // Other modules and tests import these from here.
 export { stickyTops, layoutScale, isTypingTarget };
@@ -1695,46 +1695,14 @@ function TreeViewImpl({
           })}
         </tbody>
       </table>
-      <SelectionActionBar count={multiSel?.size || 0} onClear={() => onClearSelection?.()} testId="tree-selection-actionbar">
-        <button
-          type="button"
-          className="sab-assign-trigger"
-          onClick={() => onOpenBulkEdit?.()}
-          data-htip={t('g.bulkEditTip')}
-          data-testid="tree-bulk-edit-trigger"
-        >
-          <span className="sab-icon">
-            <Icon name="checkSquare" size={13} />
-          </span>
-          <span>{t('g.bulkEdit') || 'Massenänderung…'}</span>
-        </button>
-        <span className="sab-divider" />
-        {[
-          ['open', t('tv.statusOpen') || 'open'],
-          ['wip', t('tv.statusWip') || 'wip'],
-          ['done', t('tv.statusDone') || 'done'],
-        ].map(([stVal, label]) => (
-          <button
-            key={stVal}
-            type="button"
-            className="btn btn-sec"
-            onClick={() => {
-              (tree || []).forEach(node => {
-                if (!multiSel?.has(node.id) || !onTaskUpdate) return;
-                if (node.status === stVal) return;
-                // statusChangePatch, not a bare { status } — see the Space
-                // branch in utils/treeEdit.js. Setting a row to done here has
-                // to stamp the same dates the dropdown does, or the Soll/Ist
-                // comparison silently misses everything changed in bulk.
-                onTaskUpdate({ ...node, ...statusChangePatch(node, stVal) });
-              });
-            }}
-            data-htip={t('tv.bulkStatusTip', label)}
-          >
-            {label}
-          </button>
-        ))}
-      </SelectionActionBar>
+      <TreeBulkBar
+        multiSel={multiSel}
+        tree={tree}
+        onClearSelection={onClearSelection}
+        onOpenBulkEdit={onOpenBulkEdit}
+        onTaskUpdate={onTaskUpdate}
+        t={t}
+      />
     </div>
   );
 }
