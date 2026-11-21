@@ -51,3 +51,22 @@ function movedText(t, fmt, x) {
   return parts.join(' · ');
 }
 export { KIND_ORDER, personDiffers, projectTone, plainTone, TAB_IDS, capPct, storyLines, movedText };
+
+// What a row of the comparison says about presence and lateness, once: the
+// dialog turns these into badges and the report into words, and both read the
+// same table, so a new value cannot reach one and miss the other.
+export const PRESENCE_LABEL = {
+  added: { key: 'scn.added', badge: 'new' },
+  removed: { key: 'scn.removed', badge: 'muted' },
+  dropped: { key: 'scn.droppedBadge', badge: 'muted' },
+  unscheduled: { key: 'scn.unscheduled', badge: 'muted' },
+  scheduled: { key: 'scn.newlyScheduled', badge: 'new' },
+};
+
+// 'nowLate' | 'nowOnTime' | 'stillLate' | null
+export function latenessOf(p) {
+  if (p.workLate && !p.baseLate) return 'nowLate';
+  if (p.baseLate && !p.workLate && p.presence === 'both') return 'nowOnTime';
+  if (p.workLate) return 'stillLate';
+  return null;
+}

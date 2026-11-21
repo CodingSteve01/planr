@@ -11,7 +11,6 @@ export function QuickEditActions({ f, node, onDelete, onDuplicate, onSplitTaskAt
       {onDuplicate && (
         <button
           className="btn btn-sec"
-          style={{ flex: 1, minWidth: 100 }}
           onClick={() => onDuplicate(node.id)}
           style={{ flex: 1, minWidth: 100, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
         >
@@ -25,7 +24,6 @@ export function QuickEditActions({ f, node, onDelete, onDuplicate, onSplitTaskAt
       {onSplitTaskAtProgress && f.status === 'wip' && f.progress > 0 && f.progress < 100 && !hasChildren(tree, node.id) && (
         <button
           className="btn btn-sec"
-          style={{ flex: 1, minWidth: 100 }}
           data-htip={t('split.task.tip')}
           onClick={() => {
             const raw = prompt(t('split.task.prompt', f.progress), String(f.progress));
@@ -37,7 +35,7 @@ export function QuickEditActions({ f, node, onDelete, onDuplicate, onSplitTaskAt
             }
             onSplitTaskAtProgress(node.id, p);
           }}
-          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+          style={{ flex: 1, minWidth: 100, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
         >
           <Icon name="subtask" size={12} />
           {t('split.btn')}

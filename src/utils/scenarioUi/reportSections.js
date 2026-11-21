@@ -1,4 +1,4 @@
-import { KIND_ORDER, capPct, movedText } from './compareFigures.js';
+import { KIND_ORDER, PRESENCE_LABEL, capPct, latenessOf, movedText } from './compareFigures.js';
 import { changeTitle } from './fieldLabels.js';
 
 // The tables and figures of the scenario report, one function per section.
@@ -9,26 +9,16 @@ const REPORT_TASK_LIMIT = 40;
 
 const bold = (value, tone) => ({ text: value, bold: true, ...(tone ? { tone } : {}) });
 const projectState = (t, p) => {
-  if (p.workLate && !p.baseLate) return { text: t('scn.nowLate'), tone: 'risk', bold: true };
-  if (p.baseLate && !p.workLate && p.presence === 'both') return { text: t('scn.nowOnTime'), tone: 'done', bold: true };
+  const late = latenessOf(p);
+  if (late === 'nowLate') return { text: t('scn.nowLate'), tone: 'risk', bold: true };
+  if (late === 'nowOnTime') return { text: t('scn.nowOnTime'), tone: 'done', bold: true };
   if (p.presence === 'added') return t('scn.added');
   if (p.presence === 'removed') return t('scn.removed');
   // Both can be true and both matter: late in the plan already, and
   // the end is not what moves.
   return [p.workLate ? t('scn.stillLate') : '', !p.shift && p.moved > 0 ? t('scn.endHeld') : ''].filter(Boolean).join(' · ');
 };
-const presenceOf = (t, x) =>
-  x.presence === 'added'
-    ? ` (${t('scn.added')})`
-    : x.presence === 'removed'
-      ? ` (${t('scn.removed')})`
-      : x.presence === 'dropped'
-        ? ` (${t('scn.droppedBadge')})`
-        : x.presence === 'unscheduled'
-          ? ` (${t('scn.unscheduled')})`
-          : x.presence === 'scheduled'
-            ? ` (${t('scn.newlyScheduled')})`
-            : '';
+const presenceOf = (t, x) => (PRESENCE_LABEL[x.presence] ? ` (${t(PRESENCE_LABEL[x.presence].key)})` : '');
 const opMark = c => (c.op === 'add' ? '+' : c.op === 'remove' ? '−' : '~');
 
 export function changesSection(t, fmt, text, list) {

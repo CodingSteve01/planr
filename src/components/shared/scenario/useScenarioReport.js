@@ -15,7 +15,7 @@ import { useFieldText } from './useFieldText.js';
 
 // The comparison as a document: the same figures and the same words as the
 // dialog, as plain rows a PDF can lay out (utils/scenarioReport.js). Built
-// here, beside the dialog, so the two cannot drift — a report that says
+// from the same tables as the dialog (utils/scenarioUi/compareFigures.js), so the two cannot drift — a report that says
 // something else than the screen it was exported from is worse than none.
 // Returns a function; nothing is computed until somebody asks for the PDF.
 export function useScenarioReport({ scenario, planName, base, work, comparison, changes, conflicts }) {
