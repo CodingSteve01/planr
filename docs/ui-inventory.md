@@ -286,6 +286,8 @@ No editable controls found — the view is entirely read-only (used inside SumVi
 
 ## Overview / SumView (SumView.jsx)
 
+The panels now live in `src/components/views/sum/` (SumHeadline, SumKpis, RoadmapSwitcher, DiffBanner, RetroPanel, ConfidencePanel, PulseCheck, ResourcesSection, GoalCard, TopItemsTable); SumView.jsx keeps the figures and composes them. The `SumView.jsx:<line>` references below predate that split.
+
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
 | "Open Plan Review" link (confidence panel) | Jumps to the Planning tab | src/components/views/SumView.jsx:274 | Review | 1 | (also: Plan) |

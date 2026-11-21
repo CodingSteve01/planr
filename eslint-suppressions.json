@@ -317,16 +317,13 @@
   },
   "src/components/views/SumView.jsx": {
     "complexity": {
-      "count": 4
-    },
-    "max-lines": {
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 2
+      "count": 1
     },
     "no-unused-vars": {
-      "count": 15
+      "count": 2
     }
   },
   "src/components/views/TimetableView.jsx": {
@@ -445,6 +442,21 @@
     }
   },
   "src/components/views/res/ReadRows.jsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/components/views/sum/GoalCard.jsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/components/views/sum/RetroPanel.jsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/components/views/sum/RoadmapSwitcher.jsx": {
     "complexity": {
       "count": 1
     }
