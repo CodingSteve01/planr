@@ -73,4 +73,13 @@ describe('a cached tree row follows what it shows', () => {
     view.rerender(ui({ changedIds: null }));
     expect(document.querySelector('.scn-row')).toBeNull();
   });
+
+  it("the review window's badge, when the state it compares with changes", () => {
+    // The task is open now. Against a past that does not know it, it is new;
+    // against a past where it was already open, nothing changed.
+    const view = render(ui({ diff: { pastLeafState: new Map() } }));
+    expect(rowText()).toContain('NEW');
+    view.rerender(ui({ diff: { pastLeafState: new Map([['P1.1', { status: 'open', progress: 0 }]]) } }));
+    expect(rowText()).not.toContain('NEW');
+  });
 });
