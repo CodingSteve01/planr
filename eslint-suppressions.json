@@ -308,7 +308,7 @@
   },
   "src/components/views/TreeView.jsx": {
     "complexity": {
-      "count": 4
+      "count": 2
     },
     "max-lines-per-function": {
       "count": 1
@@ -401,6 +401,14 @@
   "src/components/views/tree/renderTreeRow.jsx": {
     "complexity": {
       "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/views/tree/treeKeys.js": {
+    "complexity": {
+      "count": 2
     },
     "max-lines-per-function": {
       "count": 1
