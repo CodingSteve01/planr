@@ -604,20 +604,77 @@
       "count": 1
     }
   },
-  "src/utils/roadmap.js": {
+  "src/utils/roadmap/assignment.js": {
     "complexity": {
-      "count": 13
+      "count": 1
     },
     "max-depth": {
       "count": 10
     },
-    "max-lines": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/utils/roadmap/format.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/utils/roadmap/model.js": {
+    "complexity": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "src/utils/roadmap/nodeMeta.js": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/utils/roadmap/rawLines.js": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/utils/roadmap/renderLegend.js": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/utils/roadmap/renderLines.js": {
+    "complexity": {
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 5
+      "count": 1
+    }
+  },
+  "src/utils/roadmap/renderProgress.js": {
+    "complexity": {
+      "count": 2
+    }
+  },
+  "src/utils/roadmap/renderSvg.js": {
+    "complexity": {
+      "count": 1
     },
-    "no-unused-vars": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/utils/roadmap/stationPlacement.js": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
       "count": 2
     }
   },
