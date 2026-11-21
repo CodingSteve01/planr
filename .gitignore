@@ -5,6 +5,7 @@ dist/
 index.html.bak
 .DS_Store
 dist-obsidian/
+e2e/.output/
 obsidian/.vault-path
 
 # Real plan files used for local testing — never committed.
