@@ -759,17 +759,30 @@
       "count": 2
     }
   },
-  "src/utils/scenario.js": {
-    "complexity": {
-      "count": 9
-    },
-    "max-lines-per-function": {
-      "count": 3
-    }
-  },
   "src/utils/scenarioCompare.js": {
     "complexity": {
       "count": 3
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/utils/scenarioCore/describeChanges.js": {
+    "complexity": {
+      "count": 3
+    },
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/utils/scenarioCore/patchDiff.js": {
+    "complexity": {
+      "count": 4
+    }
+  },
+  "src/utils/scenarioCore/portablePatch.js": {
+    "complexity": {
+      "count": 2
     },
     "max-lines-per-function": {
       "count": 1

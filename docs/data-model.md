@@ -281,7 +281,7 @@ date (`cap`, `weeklyHours`, `meetings`, `meetingPlanIds` on a member;
 ```
 
 `patch` is the output of `diffPlan(plan, scenario)` in
-[`utils/scenario.js`](../src/utils/scenario.js) — per id-list `add` / `del` /
+[`utils/scenarioCore/patchDiff.js`](../src/utils/scenarioCore/patchDiff.js) — per id-list `add` / `del` /
 `set` / `unset`, per value-list `add` / `del`. The scenario's full data is never
 stored; it is `applyPatch(plan, patch)`. See [scenarios.md](scenarios.md).
 

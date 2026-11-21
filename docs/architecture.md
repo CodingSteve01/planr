@@ -82,8 +82,10 @@ src/
     markdown.js            — Markdown writer (buildMarkdownText)
     markdownParse.js       — Markdown reader (parseMdToProject) — out of App.jsx so a plan can
                              be read without mounting one
-    scenario.js            — scenarios as patches: diffPlan / applyPatch, the list of changes,
-                             and the name tokens that carry a patch through a Markdown file
+    scenario.js            — scenarios as patches: one import point for the modules in scenarioCore/
+                             (patchDiff: diffPlan / applyPatch, scenarioList, describeChanges: the
+                             list of changes, portablePatch: the name tokens that carry a patch
+                             through a Markdown file)
     scenarioCompare.js     — plan against scenario: schedules both, reports what moves
     report.js              — HTML report generation (bilingual, auto-print) + buildReportModel()
     pdfExports.js          — re-exports the pdfmake exports; the code is in utils/pdf/
