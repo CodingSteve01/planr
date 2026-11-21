@@ -26,6 +26,7 @@ import { shortInitials, scheduleRanges, siblingPosition } from '../../utils/tree
 import { keepRowInView } from '../../utils/tree/scroll.js';
 import { TreeToolbar } from './tree/TreeToolbar.jsx';
 import { TreeSelectionBar } from './tree/TreeSelectionBar.jsx';
+import { TreeHead } from './tree/TreeHead.jsx';
 
 // Other modules and tests import these from here.
 export { stickyTops, layoutScale, isTypingTarget };
@@ -1637,35 +1638,7 @@ function TreeViewImpl({
         />
       )}
       <table className="tree-tbl">
-        <thead>
-          <tr>
-            <th data-col="gutter" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>
-              {showIds ? 'ID' : ''}
-            </th>
-            <th data-col="name" style={{ background: 'var(--bg)', width: '100%' }}>
-              {t('col.name')}
-            </th>
-            <th data-col="team" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>
-              {t('col.team')}
-            </th>
-            <th data-col="who" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>
-              {t('col.who')}
-            </th>
-            <th data-col="signal" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>
-              {t('col.signal')}
-            </th>
-            <th data-col="effort" className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>
-              {t('col.effort')}
-            </th>
-            <th data-col="progress" className="r" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>
-              %
-            </th>
-            <th data-col="schedule" style={{ background: 'var(--bg)', whiteSpace: 'nowrap' }}>
-              {t('col.schedule')}
-            </th>
-            <th data-col="acts" style={{ background: 'var(--bg)', whiteSpace: 'nowrap', textAlign: 'center' }}></th>
-          </tr>
-        </thead>
+        <TreeHead showIds={showIds} t={t} />
         <tbody>
           {filt.map((r, idx) => {
             // ── Why this row is cached ────────────────────────────────────
