@@ -22,7 +22,7 @@ import path from 'node:path';
 import { stickyTops, layoutScale } from '../components/views/TreeView.jsx';
 
 // The tree view's markup is split over several files. Read together, in the order the bars render.
-const viewFiles = ['tree/TreeToolbar.jsx', 'TreeView.jsx'];
+const viewFiles = ['tree/TreeToolbar.jsx', 'tree/TreeSelectionBar.jsx', 'TreeView.jsx'];
 const src = viewFiles.map(f => readFileSync(path.join(process.cwd(), 'src/components/views', f), 'utf8')).join('\n');
 const scrollSrc = readFileSync(path.join(process.cwd(), 'src/utils/tree/scroll.js'), 'utf8');
 const css = readFileSync(path.join(process.cwd(), 'src/App.css'), 'utf8');
