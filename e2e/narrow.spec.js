@@ -25,3 +25,17 @@ test('at 700 px the page does not scroll sideways and the top-bar switches work'
   await expect(page.getByTestId('effective-menu')).toBeVisible();
   expect(await overflow(), 'menus open').toBeLessThanOrEqual(0);
 });
+
+test('at 700 px the save status is shown whole or not at all', async ({ page }) => {
+  await page.goto('http://planr.test/planr/');
+  await expect(treeRow(page, NAMES.invoices)).toBeVisible();
+  const status = page.locator('.topbar-status');
+  if (await status.isVisible()) {
+    const inner = await status.boundingBox();
+    const outer = await page.locator('.topbar-file').boundingBox();
+    expect(inner.x).toBeGreaterThanOrEqual(outer.x);
+    expect(inner.x + inner.width).toBeLessThanOrEqual(outer.x + outer.width);
+  } else {
+    await expect(status).toBeHidden();
+  }
+});
