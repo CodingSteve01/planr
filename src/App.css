@@ -119,7 +119,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px
 /* First to go when the window gets genuinely narrow: a count you can also
    read off the Overview. */
 @media (max-width: 1100px){ .topbar-count,.topbar-count + .vsep{display:none;} }
-@media (max-width: 900px){ .topbar-file{flex:0 1 160px;} }
+@media (max-width: 900px){ .topbar-file{flex:0 1 160px;} .topbar-status{display:none;} }
 .logo{font-size:15px;font-weight:700;letter-spacing:-.5px;cursor:pointer;user-select:none;}
 .logo-dot{color:var(--ac);}
 .vsep{width:1px;height:18px;background:var(--b2);flex-shrink:0;}

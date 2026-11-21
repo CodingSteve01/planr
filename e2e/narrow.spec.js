@@ -25,3 +25,11 @@ test('at 700 px the page does not scroll sideways and the top-bar switches work'
   await expect(page.getByTestId('effective-menu')).toBeVisible();
   expect(await overflow(), 'menus open').toBeLessThanOrEqual(0);
 });
+
+test('at 700 px the save status text is hidden and the save dot stays', async ({ page }) => {
+  await page.goto('http://planr.test/planr/');
+  await expect(treeRow(page, NAMES.invoices)).toBeVisible();
+  // The text would be cut mid-word in the 160 px file block; the dot carries the state.
+  await expect(page.locator('.topbar-status')).toBeHidden();
+  await expect(page.locator('.topbar-file .save-dot')).toBeVisible();
+});

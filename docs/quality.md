@@ -149,10 +149,7 @@ not in `npm run quality` or the pre-push hook: it needs a browser and takes
 longer.
 
 The page is cut off from the network: a request to anywhere but the built
-files fails the test that made it. One host is answered instead of refused,
-because the built web app still loads its display font from Google Fonts
-(`index.html`); that is a known gap in "works offline, sends nothing", listed
-in the fixture, and to be closed by shipping the font with the app.
+files fails the test that made it, and the display font ships with the app.
 
 ## Raising a limit, lowering the baseline
 
