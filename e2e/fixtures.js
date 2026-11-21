@@ -38,6 +38,9 @@ export function fileFor(pathname) {
   return existsSync(file) && statSync(file).isFile() ? file : null;
 }
 
+// Hosts the built app is known to ask today. Keep this list short, and empty when it can be.
+const KNOWN_EXTERNAL = /^fonts\.(googleapis|gstatic)\.com$/;
+
 export const test = base.extend({
   // What the page starts with, over the defaults in seed.js: `{ plan, prefs }`.
   // Override per describe block with `test.use({ seed: { plan, prefs } })`.
@@ -57,6 +60,20 @@ export const test = base.extend({
       if (!file) return route.fulfill({ status: 404, body: 'not in dist/' });
       return route.fulfill({ path: file, contentType: TYPES[path.extname(file)] || 'application/octet-stream' });
     });
+    // Nothing else may leave the page. The one request the built app makes
+    // today is a display font from Google Fonts (index.html); it is answered
+    // with an empty stylesheet so the tests do not depend on the network.
+    // Anything beyond that is a finding: the app is meant to work offline and
+    // to send nothing anywhere.
+    await context.route(
+      url => !url.href.startsWith(ORIGIN),
+      route => {
+        const url = new URL(route.request().url());
+        if (KNOWN_EXTERNAL.test(url.hostname)) return route.fulfill({ status: 200, contentType: 'text/css', body: '' });
+        problems.push(`network: the page asked for ${url.origin}${url.pathname}`);
+        return route.abort();
+      },
+    );
     const store = { ...PREFS, ...seed.prefs, planr_v2: JSON.stringify(seed.plan || seedPlan()) };
     // Only the first load of a test is seeded: a reload must keep what the app wrote.
     await context.addInitScript(entries => {

@@ -53,12 +53,16 @@ for (const theme of ['dark', 'light']) {
       await expect(treeRow(page, NAMES.invoices)).toBeVisible();
       const tree = await lowestContrast(page.locator('.main'), '[data-testid="tree-row-name"]');
       expect(tree.what, 'no tree row was measured').not.toBe('');
-      expect(tree.ratio, `tree row ${tree.what}`).toBeGreaterThanOrEqual(3);
+      // Text: the palette promises 6:1 and more (paletteContrast.test.js); a
+      // rendered row well under that is a wrong token or a hard-coded colour.
+      expect(tree.ratio, `tree row ${tree.what}`).toBeGreaterThanOrEqual(5.5);
 
       const dialog = await openItemDialog(page, NAMES.login);
       const controls = await lowestContrast(dialog, 'input, textarea, select, button, [role="tab"]');
       expect(controls.what, 'no dialog control was measured').not.toBe('');
-      expect(controls.ratio, `dialog control ${controls.what}`).toBeGreaterThanOrEqual(3);
+      // Controls carry text too, so they are held to text contrast (WCAG AA), not
+      // to the 3:1 of a bare component boundary.
+      expect(controls.ratio, `dialog control ${controls.what}`).toBeGreaterThanOrEqual(4.5);
     });
   });
 }

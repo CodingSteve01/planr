@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures.js';
+import { DAY_ZOOM } from '../src/utils/gantt/helpers.js';
 import { openTab } from './helpers.js';
 
 const bars = page => page.locator('.gbar[data-task-bar]');
@@ -26,7 +27,8 @@ test('the schedule has one bar per task, a drag pins a task, undo takes the pin 
   const box = await bar.boundingBox();
   const y = box.y + box.height / 2;
   const x = box.x + 20;
-  const dayPx = 14;
+  // A week is DAY_ZOOM pixels wide in day zoom.
+  const dayPx = DAY_ZOOM / 7;
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x + dayPx, y, { steps: 4 });
@@ -35,7 +37,8 @@ test('the schedule has one bar per task, a drag pins a task, undo takes the pin 
 
   // The bar is pinned to the new start: a pin badge shows and the bar sits further right.
   await expect(bar).toContainText('▸');
-  expect(await left(bar)).toBeGreaterThan(before);
+  // At least one day further right: the app snaps to the next workable day.
+  expect((await left(bar)) - before).toBeGreaterThanOrEqual(dayPx);
   await expect
     .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('planr_v2')).tree.find(n => n.id === 'P2.2').pinnedStart))
     .toBeTruthy();
