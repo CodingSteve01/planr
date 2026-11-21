@@ -3,8 +3,8 @@
 **Offline-first project scheduling tool with auto-scheduling, critical path analysis, and network graph visualization.**
 
 ![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)
-![React 18](https://img.shields.io/badge/React-18-61dafb.svg)
-![Vite 6](https://img.shields.io/badge/Vite-6-646cff.svg)
+![React 19](https://img.shields.io/badge/React-19-61dafb.svg)
+![Vite 8](https://img.shields.io/badge/Vite-8-646cff.svg)
 ![No Backend](https://img.shields.io/badge/backend-none-green.svg)
 ![Obsidian plugin](https://img.shields.io/badge/Obsidian-plugin-7c3aed.svg)
 
@@ -164,7 +164,7 @@ Full list in [docs/features.md](docs/features.md).
 
 ## Tech
 
-- Vite 6 + React 18, plain JavaScript (no TypeScript, no PropTypes)
+- Vite 8 + React 19, plain JavaScript (no TypeScript, no PropTypes)
 - CSS with theme variables, dark + light mode via `data-theme` attribute
 - Lightweight i18n system (no external library, ~350 keys in `src/i18n.jsx`)
 - `localStorage` + File System Access API (no server)
