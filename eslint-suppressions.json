@@ -83,9 +83,6 @@
     "complexity": {
       "count": 2
     },
-    "max-lines": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     }
@@ -95,6 +92,37 @@
       "count": 1
     },
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/modals/node/EffortTab.jsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/components/modals/node/NodeHeader.jsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/components/modals/node/OverviewTab.jsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/modals/node/TimingTab.jsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/modals/node/WorkflowTab.jsx": {
+    "complexity": {
       "count": 1
     }
   },

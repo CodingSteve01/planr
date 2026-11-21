@@ -134,6 +134,13 @@ const TOOLTIP_TRANSLATED_FILES = [
   'components/modals/AssignModal.jsx',
   'components/modals/NewProjModal.jsx',
   'components/modals/NodeModal.jsx',
+  'components/modals/node/EffortTab.jsx',
+  'components/modals/node/NodeFooter.jsx',
+  'components/modals/node/NodeHeader.jsx',
+  'components/modals/node/NodeTabBar.jsx',
+  'components/modals/node/OverviewTab.jsx',
+  'components/modals/node/TimingTab.jsx',
+  'components/modals/node/WorkflowTab.jsx',
 ];
 
 // A literal string — not a t(...) call — sitting directly in one of the
