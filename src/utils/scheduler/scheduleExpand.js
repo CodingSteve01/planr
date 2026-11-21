@@ -103,3 +103,16 @@ export function expandSegments({ _autoCascade, mShort, members, res, wks }) {
   }
   return expanded;
 }
+
+// The person whose departure cut a task short. The scheduler appends an
+// "(unassigned)" ghost segment for the remainder, so the leaver is the last
+// segment that names a real person — taking segments[length - 2] blindly
+// produced `undefined` whenever there was no ghost to skip over, and that
+// `undefined` was printed verbatim in the risk list.
+export function lastRealSegment(segments) {
+  const segs = segments || [];
+  for (let i = segs.length - 1; i >= 0; i--) {
+    if (segs[i]?.personId && !segs[i].unscheduled) return segs[i];
+  }
+  return segs[segs.length - 1] || null;
+}

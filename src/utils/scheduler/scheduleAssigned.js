@@ -1,7 +1,7 @@
 import { addD, iso, addWorkDays, localDate } from '../date.js';
 import { deriveCap, memberAtDate } from '../capacity.js';
 import { inTeamPt } from './taskBasics.js';
-import { lastRealSegment } from './treeIndex.js';
+import { lastRealSegment } from './scheduleExpand.js';
 
 export function scheduleAssigned(S, T) {
   const {
