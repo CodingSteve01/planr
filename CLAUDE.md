@@ -10,6 +10,8 @@ changing a subsystem, instead of reconstructing it from the code.
 - Tests: `npx vitest run` — in a worktree (`.claude/worktrees/*`) use
   `npx vitest run -c vitest.worktree.config.js`, the default config's
   `fs.allow` rejects worktree paths. A single file: append its path.
+- Browser tests: `npm run e2e` builds, then drives `dist/` in Chromium (Playwright, no server);
+  `npm run e2e:only` skips the build. Screenshots land in `e2e/.output/shots/`. Not part of `npm run quality`.
 - Format: `npm run format` (Prettier) before committing; the pre-commit hook
   and CI check it.
 - Quality: `npm run quality` (format, lint with baseline, duplicates, dead code,

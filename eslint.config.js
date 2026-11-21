@@ -25,10 +25,10 @@ import reactHooks from 'eslint-plugin-react-hooks';
 export default [
   {
     // Other sessions' worktrees live under .claude and are not this checkout.
-    ignores: ['dist/**', 'dist-obsidian/**', '.claude/**', 'node_modules/**'],
+    ignores: ['dist/**', 'dist-obsidian/**', '.claude/**', 'node_modules/**', 'e2e/.output/**'],
   },
   {
-    files: ['src/**/*.{js,jsx}', 'obsidian/**/*.{js,jsx,mjs}', 'scripts/**/*.mjs'],
+    files: ['src/**/*.{js,jsx}', 'obsidian/**/*.{js,jsx,mjs}', 'scripts/**/*.mjs', 'e2e/**/*.js', 'playwright.config.js'],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: 'module',

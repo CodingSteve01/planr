@@ -7,10 +7,11 @@
     "scripts/*.mjs",
     "tools/*.mjs",
     "vitest.worktree.config.js",
+    "e2e/*.spec.js",
     "src/**/__tests__/**/*.{js,jsx}",
     "obsidian/__tests__/**/*.{js,jsx}"
   ],
-  "project": ["src/**/*.{js,jsx}", "obsidian/**/*.{js,jsx,mjs}", "scripts/**/*.mjs", "tools/**/*.mjs"],
+  "project": ["src/**/*.{js,jsx}", "e2e/**/*.js", "obsidian/**/*.{js,jsx,mjs}", "scripts/**/*.mjs", "tools/**/*.mjs"],
   "ignoreDependencies": ["buffer"],
   "ignoreBinaries": ["semgrep"]
 }

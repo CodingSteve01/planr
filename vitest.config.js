@@ -25,7 +25,7 @@ export default defineConfig({
     // nothing to do with the one in hand — and their failures arrived
     // indistinguishable from a regression here, right down to the file name.
     // A worktree has `vitest.worktree.config.js` for running its own suite.
-    exclude: ['**/node_modules/**', '**/dist/**', '.claude/worktrees/**'],
+    exclude: ['**/node_modules/**', '**/dist/**', '.claude/worktrees/**', 'e2e/**'],
     // A whole-App render is not a 5-second unit test.
     //
     // Most files here mount the real App, schedule a plan and wait for the

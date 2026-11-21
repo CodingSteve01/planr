@@ -114,6 +114,40 @@ and reported. `git commit --no-verify` skips them; CI does not.
   reach a workflow's shell as environment variables, never as text pasted
   into the script.
 
+## In a real browser
+
+The unit and App tests run in happy-dom, which cannot lay anything out, drag a
+bar or compute a colour. `e2e/` holds Playwright tests that drive the built app
+in Chromium, so a change is checked by a browser and not only by a person
+trying it.
+
+What they cover, each by what a user sees: every tab opens and shows its main
+surface; a status change in the item dialog reaches the tree row and the
+history, also when it counts from an earlier day; the side panel has the
+dialog's tabs in the same order; a scenario (cut a person's capacity, compare,
+leave) leaves the plan as it was; an earlier day shows the old name and today
+the new one; the schedule draws one bar per task, a drag pins a bar and undo
+takes the pin back; both themes keep text readable (contrast of at least 3 on
+the tree and the dialog's controls); at 700 px wide nothing scrolls sideways
+and the scenario and date switches work. Every test also fails on any
+`pageerror` or `console.error`.
+
+Run `npm run e2e` (it builds first) or `npm run e2e:only` against an existing
+`dist/`. Chromium once: `npx playwright install chromium`. After each test a
+full-page screenshot lands in `e2e/.output/shots/<name>.png`, and a failed test
+leaves a trace in `e2e/.output/`. The shots are evidence to look at, not
+images to compare. CI runs the same in the `e2e` job and uploads both.
+
+There is no server. `npm run build` writes `dist/` with base `/planr/`; the
+fixture answers requests for `http://planr.test/planr/**` from those files
+through `context.route`, so nothing listens on a port and nothing can collide
+with another run. The plan and the UI preferences are seeded into
+`localStorage` before the first load. The seed (`e2e/seed.js`) is invented; a
+real plan never belongs in a fixture or a screenshot. The File System Access
+API is not available there, so saving to a file is not tested here. This is
+not in `npm run quality` or the pre-push hook: it needs a browser and takes
+longer.
+
 ## Raising a limit, lowering the baseline
 
 Lowering the baseline is ordinary work: fix, prune, commit. Raising a limit or
