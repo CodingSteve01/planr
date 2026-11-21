@@ -11,11 +11,16 @@
 // project (colorIdx) and travels into the PDF as well. A colour tuned for one
 // ground goes muddy on the other, and nobody notices until they switch theme.
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { PALETTE } from '../roadmap/palette.js';
 
-const src = readFileSync(path.join(process.cwd(), 'src/utils/roadmap.js'), 'utf8');
-const PALETTE = JSON.parse(src.match(/const PALETTE = (\[[^\]]*\]);/)[1].replace(/'/g, '"'));
+// The renderer lives in several modules under src/utils/roadmap/; the last block reads them as one text.
+const roadmapDir = path.join(process.cwd(), 'src/utils/roadmap');
+const src = readdirSync(roadmapDir)
+  .filter(file => file.endsWith('.js'))
+  .map(file => readFileSync(path.join(roadmapDir, file), 'utf8'))
+  .join('\n');
 
 const luminance = hex => {
   const ch = i => {
