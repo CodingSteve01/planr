@@ -566,3 +566,12 @@ handlers. Pure code it calls from its memos is under `src/utils/tree/`: `layout.
 `scroll.js` (keeping a row in view under the sticky head), each with unit tests.
 `TreeView.jsx` still exports `stickyTops`, `layoutScale` and `isTypingTarget`,
 because other modules and tests import them from there.
+
+What the view renders is split the way the Gantt is. `src/components/views/tree/`
+holds the toolbar, the selection bar, the table head and the bulk bar as
+components, `renderTreeRow.jsx` (one row, a plain function so the view's row cache
+keeps working), `useTreeDrag.js` (the drag handlers), `useTreeCommands.js` (cursor
+moves, structure commands, delete), `useTreeEditing.js` (the inline editor's
+commits) and `treeKeys.js` (the key handlers for the grid, the name input and the
+field dropdowns). The module functions take the render's values as one object, so
+a handler reads the same values it read as a closure.
