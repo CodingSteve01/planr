@@ -1,8 +1,7 @@
 import { normalizeCompletedWindows } from '../completion.js';
 import { treeOrderRank } from '../displayOrder.js';
-import { toDate, parentId, depthOf } from './format.js';
+import { toDate, parentId } from './format.js';
 import { buildMeta } from './nodeMeta.js';
-import { makeAbbrev } from './abbrev.js';
 import { buildRawLines } from './rawLines.js';
 import { assignRoutes, spaceParallelRoutes } from './assignment.js';
 import { positionStations } from './stationPlacement.js';
@@ -31,29 +30,6 @@ export function computeRoadmapModel({ tree, scheduled, stats, now = new Date(), 
   // the map, the tree, the work order and the schedule all say the same thing
   // about what comes first.
   const planRank = treeOrderRank(tree);
-
-  const buildStation = (node, kind, fallbackDate) => {
-    const info = meta[node.id] || {};
-    const anchorDate =
-      info.earliestStart || toDate(node.pinnedStart) || toDate(node.decideBy) || toDate(node.date) || info.latestEnd || fallbackDate;
-    const endDate = info.latestEnd || toDate(node.date) || toDate(node.decideBy) || toDate(node.pinnedStart) || anchorDate;
-
-    return {
-      id: node.id,
-      name: node.name,
-      abbrev: makeAbbrev(node.name),
-      parentId: parentId(node.id),
-      kind,
-      anchorDate,
-      milestoneDate: endDate && endDate >= anchorDate ? endDate : anchorDate,
-      endDate: endDate && endDate >= anchorDate ? endDate : anchorDate,
-      prog: info.prog || 0,
-      done: info.done || 0,
-      total: info.total || 0,
-      allDone: !!info.allDone,
-      depth: depthOf(node.id),
-    };
-  };
 
   const rawLines = buildRawLines({ roots, meta, scheduled, childMap, completedWindows, today, tree, nodeMap, stats, now });
 

@@ -84,7 +84,6 @@ export function renderLegend(
   });
 
   out.push(`</div>`);
-  return out.join('');
 
   // Helper: render one project's legend block as an HTML string. Closes over
   // every piece of state the inline rendering needs (labels, sets, nodeMap).

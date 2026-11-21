@@ -154,5 +154,6 @@ export function renderRoadmapSvg(args) {
 
   out.push(`</svg>`);
 
-  return renderLegend(out, ctx);
+  renderLegend(out, ctx);
+  return out.join('');
 }

@@ -68,10 +68,6 @@ function addDays(date, days) {
   return next;
 }
 
-function monthIndex(date) {
-  return date.getFullYear() * 12 + date.getMonth();
-}
-
 function compareByTime(a, b) {
   const ad = a.anchorDate ? +a.anchorDate : Infinity;
   const bd = b.anchorDate ? +b.anchorDate : Infinity;

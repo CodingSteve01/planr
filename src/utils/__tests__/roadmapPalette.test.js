@@ -13,13 +13,14 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { PALETTE } from '../roadmap/palette.js';
 
-// The renderer lives in several modules under src/utils/roadmap/; read them as one text.
+// The renderer lives in several modules under src/utils/roadmap/; the last block reads them as one text.
 const roadmapDir = path.join(process.cwd(), 'src/utils/roadmap');
 const src = readdirSync(roadmapDir)
+  .filter(file => file.endsWith('.js'))
   .map(file => readFileSync(path.join(roadmapDir, file), 'utf8'))
   .join('\n');
-const PALETTE = JSON.parse(src.match(/const PALETTE = (\[[^\]]*\]);/)[1].replace(/'/g, '"'));
 
 const luminance = hex => {
   const ch = i => {

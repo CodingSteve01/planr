@@ -235,7 +235,7 @@ export function renderStations(
     });
 
     // There is no second kind of station any more. Stops became work packages
-    // (see "What a stop IS" above) and `minorStations` has been empty ever
+    // (see "What a stop IS" in rawLines.js) and `minorStations` has been empty ever
     // since; the branch that drew them at r=6.5/7 was the other half of the
     // two-sizes problem and is gone with it. The field stays as an empty
     // array because the label placer and the collision pass both take the two

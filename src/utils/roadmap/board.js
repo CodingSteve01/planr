@@ -20,7 +20,7 @@
 //
 // A plan with more than eight projects ran out: `nextFreeRoute` wrapped to
 // route 0 with the comment "two lines will share a route", and the spacing
-// pass below then found two routes sitting exactly on top of each other and
+// pass (now in assignment.js) then found two routes sitting exactly on top of each other and
 // shoved them apart — whole routes, horizontally as well as vertically, ten
 // passes of it. The result was the reported "looks odd": lines no longer
 // starting at a common left edge, a lane pushed off the top with its title

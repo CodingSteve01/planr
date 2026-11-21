@@ -615,19 +615,6 @@
       "count": 1
     }
   },
-  "src/utils/roadmap/format.js": {
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
-  "src/utils/roadmap/model.js": {
-    "complexity": {
-      "count": 1
-    },
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
   "src/utils/roadmap/nodeMeta.js": {
     "complexity": {
       "count": 2
