@@ -12,7 +12,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const css = readFileSync(path.join(root, 'src/App.css'), 'utf8');
-const html = readFileSync(path.join(root, 'index.html'), 'utf8');
+const entry = readFileSync(path.join(root, 'src/main.jsx'), 'utf8');
 const pluginCss = readFileSync(path.join(root, 'obsidian/src/obsidian.css'), 'utf8');
 
 const tokenOf = name => {
@@ -40,7 +40,8 @@ describe('the type stack', () => {
     const wanted = ['font', 'mono', 'font-display'].map(t => firstFamily(tokenOf(t))).filter(family => !PLATFORM.test(family));
     expect(wanted).toContain('Instrument Serif');
     for (const family of wanted) {
-      expect(html, `index.html never loads "${family}"`).toContain(family.replace(/ /g, '+'));
+      // The font ships with the app: a @fontsource import in the entry, not a link to a font host.
+      expect(entry, `src/main.jsx never imports "${family}"`).toContain(`@fontsource/${family.toLowerCase().replace(/ /g, '-')}/`);
     }
   });
 

@@ -22,6 +22,9 @@ test('every tab opens and shows its main surface', async ({ page }) => {
   const labels = (await page.getByRole('tab').allTextContents()).map(l => l.trim());
   // A new tab without a surface here must fail this test, not slip through.
   expect(labels).toEqual(Object.keys(SURFACES));
+  // Fonts load lazily, on first use; ask for it, then check that it arrived from the built files.
+  await page.evaluate(() => document.fonts.load("16px 'Instrument Serif'"));
+  expect(await page.evaluate(() => document.fonts.check("16px 'Instrument Serif'"))).toBe(true);
 
   for (const label of labels) {
     await openTab(page, label);
