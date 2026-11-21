@@ -215,7 +215,7 @@ describe('the palette has one source', () => {
 // falls back to the browser's: a white box with black text, in both themes.
 // The scenario menu shipped exactly that in the dark palette.
 describe('free-standing text fields carry the palette', () => {
-  const jsxFiles = ['src/components/shared/Scenario.jsx'];
+  const jsxFiles = ['src/components/shared/scenario/ScenarioSwitch.jsx', 'src/components/shared/scenario/ScenarioBar.jsx'];
   it.each(jsxFiles)('every <input> class in %s has a ground and an ink in App.css', file => {
     const source = readFileSync(path.join(process.cwd(), file), 'utf8');
     const classes = new Set();

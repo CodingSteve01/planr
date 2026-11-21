@@ -173,17 +173,6 @@
       "count": 1
     }
   },
-  "src/components/shared/Scenario.jsx": {
-    "complexity": {
-      "count": 5
-    },
-    "max-lines": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 2
-    }
-  },
   "src/components/shared/SearchBox.jsx": {
     "complexity": {
       "count": 1
@@ -224,6 +213,29 @@
       "count": 1
     },
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/shared/scenario/ScenarioCompare.jsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/components/shared/scenario/ScenarioSwitch.jsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/shared/scenario/useFieldText.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/components/shared/scenario/useScenarioReport.js": {
+    "complexity": {
       "count": 1
     }
   },
@@ -732,6 +744,11 @@
   },
   "src/utils/scenarioReport.js": {
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/utils/scenarioUi/format.js": {
+    "complexity": {
       "count": 1
     }
   },
