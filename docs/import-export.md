@@ -201,8 +201,13 @@ scenarios. People, teams and meeting plans are referred to by name
 (`@Anna Noor`, `#Backend`), because a Markdown plan has no ids for them that
 survive a reload. JSON plans store `scenarios` as it is in memory.
 
-The parser lives in `src/utils/markdownParse.js` (`parseMdToProject`), beside
-the writer in `src/utils/markdown.js`.
+The parser is `parseMdToProject`, exported from `src/utils/markdownParse.js` and
+implemented in `src/utils/markdown/` (`parseMd.js` is the entry), beside the writer
+in `src/utils/markdown.js`. It reads the file line by line, each line handled by the
+phase of its section, all phases sharing one state object (`parseState.js`); then the
+closing fix-ups run in a fixed order: teams, references, meta, history, roadmap, work
+order, and last the project with changes, scenarios and log. The result for a set of
+plans is held by `src/utils/__tests__/markdownParseShape.test.js` against JSON fixtures.
 
 ## Auto-save and file mount
 
