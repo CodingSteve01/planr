@@ -13,7 +13,6 @@ import { localDate } from '../../utils/date.js';
 import { StatusIcon } from '../shared/StatusIcon.jsx';
 import { SearchSelect } from '../shared/SearchSelect.jsx';
 import { SelectionActionBar } from '../shared/SelectionActionBar.jsx';
-import { AssignModal } from '../modals/AssignModal.jsx';
 import { hasChain, chainShorts, chainTooltip } from '../../utils/handoff.js';
 import { stateAsOf } from '../../utils/history.js';
 import { sortTree, filterCollapsedRows, fieldPatchForKey, parsePastedRows, scrollAdjustment } from '../../utils/treeEdit.js';
@@ -93,7 +92,6 @@ function TreeViewImpl({
   const prioLbl = { 1: t('tv.prioCrit'), 2: t('tv.prioHigh'), 3: t('tv.prioMed'), 4: t('tv.prioLow') };
   const [collapsed, setCollapsed] = useState(new Set());
   const [orderDrop, setOrderDrop] = useState(null);
-  const [showAssignModal, setShowAssignModal] = useState(false);
   const selRef = useRef(null);
   const firstMatchRef = useRef(null);
   // ── Keyboard cursor & inline editing (docs/principles.md, principle 5) ──
@@ -1946,34 +1944,6 @@ function TreeViewImpl({
           </button>
         ))}
       </SelectionActionBar>
-      {showAssignModal && (
-        <AssignModal
-          count={multiSel?.size || 0}
-          teams={teams}
-          members={members}
-          onClose={() => setShowAssignModal(false)}
-          onApply={({ team, persons }) => {
-            (tree || []).forEach(node => {
-              if (!multiSel?.has(node.id) || !onTaskUpdate) return;
-              const patch = { ...node };
-              let changed = false;
-              if (team !== null && team !== undefined && (node.team || '') !== (team || '')) {
-                patch.team = team || '';
-                changed = true;
-              }
-              if (Array.isArray(persons)) {
-                const cur = (node.assign || []).slice().sort().join(',');
-                const nxt = persons.slice().sort().join(',');
-                if (cur !== nxt) {
-                  patch.assign = persons.slice();
-                  changed = true;
-                }
-              }
-              if (changed) onTaskUpdate(patch);
-            });
-          }}
-        />
-      )}
     </div>
   );
 }
