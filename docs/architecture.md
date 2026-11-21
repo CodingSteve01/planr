@@ -78,7 +78,7 @@ src/
                              because two Planr panes can be open at once)
     tipText.js             — the tooltip dialect (**bold**, __muted__, newline, "- " detail);
                              replaced the HTML-in-a-string tooltips that needed innerHTML
-    exports.js             — all export functions (CSV, Sprint MD, Mermaid, SVG, PNG, PDF)
+    exports.js             — one import point for all export functions (CSV, Sprint MD, Mermaid, SVG, PNG, PDF); the code is in export/
     markdown.js            — Markdown writer (buildMarkdownText)
     markdownParse.js       — Markdown reader (parseMdToProject) — out of App.jsx so a plan can
                              be read without mounting one
@@ -403,7 +403,7 @@ Manual Dark / Light / Auto toggle in Settings. The selected theme is stored in `
 
 Export-related logic has been extracted from `App.jsx` into dedicated modules:
 
-- `src/utils/exports.js` — CSV, Sprint MD, Mermaid, SVG, PNG, PDF export functions
+- `src/utils/exports.js` — re-exports the CSV, Sprint MD, Mermaid, SVG, PNG, PDF export functions kept in `src/utils/export/` (`textExports.js`, `jiraCsv.js`, `networkExport.js`, `ganttExport.js`, `svgRaster.js`, `reportDocx.js`, `fileHelpers.js`)
 - `src/utils/markdown.js` — Markdown parsing (`parseMdToProject`) and writing (`buildMarkdownText`)
 - `src/utils/report.js` — HTML report generation (bilingual, opens in new tab, auto-triggers print)
 

@@ -531,18 +531,19 @@
       "count": 3
     }
   },
-  "src/utils/exports.js": {
+  "src/utils/export/ganttExport.js": {
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
+  "src/utils/export/jiraCsv.js": {
     "complexity": {
       "count": 1
-    },
-    "max-lines": {
-      "count": 1
-    },
+    }
+  },
+  "src/utils/export/reportDocx.js": {
     "max-lines-per-function": {
-      "count": 4
-    },
-    "no-unused-vars": {
-      "count": 1
+      "count": 2
     }
   },
   "src/utils/gantt/items.js": {

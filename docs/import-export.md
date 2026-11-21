@@ -590,7 +590,7 @@ writes `status` + `progress` on the affected leaves (`done` → 100, `open` → 
 done-window metadata are then derived by the same effects that handle a hand
 edit.
 
-### Word Report (`src/utils/exports.js` → `exportReportDocx`)
+### Word Report (`src/utils/export/reportDocx.js` → `exportReportDocx`)
 
 Runs the same `generateReport()` HTML through [`@turbodocx/html-to-docx`](https://github.com/TurboDocx/html-to-docx). Output is one-to-one with the Management Summary PDF: key figures, risks, planning confidence, roadmap (rasterized to a hi-res PNG and embedded as `<img>`), goals/deadlines, team capacity cards, critical path, detailed schedule per team.
 
