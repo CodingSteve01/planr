@@ -1,7 +1,7 @@
 {
   "name": "planr",
   "private": true,
-  "version": "1.7.26",
+  "version": "1.7.27",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -35,8 +35,8 @@
     "@turbodocx/html-to-docx": "^1.23.3",
     "buffer": "^6.0.3",
     "pdfmake": "^0.3.15",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

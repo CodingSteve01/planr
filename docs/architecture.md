@@ -6,7 +6,7 @@ Client-only SPA. No backend, no bundler lock-in beyond Vite, no TypeScript. The 
 
 | Aspect | Detail |
 |---|---|
-| Framework | Vite 6 + React 18 |
+| Framework | Vite 8 + React 19 |
 | Language | JavaScript (ES modules) — no TypeScript, no PropTypes |
 | Styling | CSS with theme variables (`--bg`, `--tx`, `--ac`, etc.); dark + light palettes; switched via `data-theme` on `<html>` |
 | i18n | Lightweight, ~350 keys in `src/i18n.jsx`; React context + `useT()` hook; Auto/EN/DE |

@@ -1,6 +1,6 @@
 # Planr
 
-Offline-first project planner (React 18 + Vite, plain JS/JSX, no TypeScript),
+Offline-first project planner (React 19 + Vite, plain JS/JSX, no TypeScript),
 also shipped as an Obsidian plugin (`obsidian/`). Architecture and the why
 behind decisions live in `docs/` — read the relevant file there before
 changing a subsystem, instead of reconstructing it from the code.
