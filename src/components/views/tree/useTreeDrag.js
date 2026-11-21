@@ -16,7 +16,7 @@ import { setDragBadge } from '../../../utils/dragBadge.js';
 // so the mark never promises something the drop then refuses.
 //
 // The handlers read the drag through a ref, not the render's closure: rows
-// are cached (see the row signature below), and a cached row keeps the
+// are cached (see the row signature in TreeView.jsx), and a cached row keeps the
 // handlers of the render it was built in — where no drag had started yet,
 // so dragover never saw one.
 export function useTreeDrag({ orderDrop, setOrderDrop, filt, tree, multiSel, onDropRows, setCollapsed, t }) {

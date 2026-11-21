@@ -3,7 +3,7 @@ import { pt } from '../../utils/scheduler.js';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { useT } from '../../i18n.jsx';
 import { stateAsOf } from '../../utils/history.js';
-import { sortTree, filterCollapsedRows, parsePastedRows, scrollAdjustment } from '../../utils/treeEdit.js';
+import { sortTree, filterCollapsedRows, parsePastedRows } from '../../utils/treeEdit.js';
 import { stickyTops, layoutScale, isTypingTarget } from '../../utils/tree/layout.js';
 import { diffBadgeFor, collectDiffKeepIds } from '../../utils/tree/diff.js';
 import { filterRows, collapseTargets } from '../../utils/tree/rows.js';
@@ -584,6 +584,12 @@ function TreeViewImpl({
               sizeCatalogue,
               tree,
               t,
+              // Read by the row in tree/renderTreeRow.jsx: the id column, the
+              // scenario's mark, the initials and the review window's badge.
+              showIds,
+              changedIds,
+              shortMap,
+              pastLeafState,
             ];
             const cached = rowCacheRef.current.get(r.id);
             if (cached && cached.sig.length === sig.length && cached.sig.every((v, i) => v === sig[i])) {

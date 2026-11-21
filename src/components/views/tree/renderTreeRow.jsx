@@ -356,7 +356,7 @@ export function renderTreeRow(r, idx, c) {
 
           {/* Name — a real <input> while this row is the keyboard editor's
                 active edit (see handleContainerKeyDown's Enter/⇧Enter and
-                the commit/cancel helpers above). */}
+                the commit/cancel helpers in useTreeEditing.js). */}
           {isEditingRow ? (
             <input
               ref={editInputRef}
