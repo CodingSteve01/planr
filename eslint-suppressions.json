@@ -561,15 +561,37 @@
       "count": 1
     }
   },
-  "src/utils/pdfExports.js": {
+  "src/utils/pdf/pdfCore.js": {
     "complexity": {
+      "count": 1
+    }
+  },
+  "src/utils/pdf/summaryCapacitySections.js": {
+    "max-lines-per-function": {
       "count": 3
-    },
-    "max-lines": {
+    }
+  },
+  "src/utils/pdf/summaryOverviewSections.js": {
+    "complexity": {
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 5
+      "count": 1
+    }
+  },
+  "src/utils/pdf/summaryRoadmapSections.js": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/utils/pdf/todoPdf.js": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/utils/pdf/whatWhenPdf.js": {
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "src/utils/planIntegrity.js": {
