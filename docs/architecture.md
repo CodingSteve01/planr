@@ -80,8 +80,14 @@ src/
                              replaced the HTML-in-a-string tooltips that needed innerHTML
     exports.js             — one import point for all export functions (CSV, Sprint MD, Mermaid, SVG, PNG, PDF); the code is in export/
     markdown.js            — Markdown writer (buildMarkdownText)
-    markdownParse.js       — Markdown reader (parseMdToProject) — out of App.jsx so a plan can
-                             be read without mounting one
+    markdownParse.js       — Markdown reader entry (re-exports parseMdToProject) — out of App.jsx so a
+                             plan can be read without mounting one
+    markdown/              — the reader's phases: parseMd.js (entry, line loop, closing fix-ups in
+                             order), parseState.js (the one state object all phases share),
+                             parseHeading / parseSections / parseResources / parseTree (one line
+                             of a section each), parseFencedBlocks (the planr-* blocks),
+                             resolveTeams / resolveReferences / closingBlocks / readPersonQueues /
+                             assembleProject (the closing fix-ups)
     scenario.js            — scenarios as patches: one import point for the modules in scenarioCore/
                              (patchDiff: diffPlan / applyPatch, scenarioList, describeChanges: the
                              list of changes, portablePatch: the name tokens that carry a patch

@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'vitest';
 import { GT, GT_MARKS } from '../../constants.js';
 import { buildMarkdownText } from '../markdown.js';
+import { parseMdToProject } from '../markdownParse.js';
 
 // Heavy round-trip: we import App.jsx only to reuse its parseMdToProject.
 // Since App.jsx is a React module, we duplicate the minimal parser contract
@@ -372,5 +373,46 @@ describe('root type markers', () => {
     expect(GT_MARKS.deadline).toContain('⏰');
     expect(GT_MARKS.painpoint).toContain('⚡');
     expect(GT_MARKS.goal).toContain('\u{1f3af}');
+  });
+});
+
+describe('decide-by survives a save and a load', () => {
+  test('reads the marker the writer writes, and keeps the team name clean', () => {
+    const members = [{ id: 'M1', name: 'Anna Noor', short: 'AN', team: 'Backend', cap: 1 }];
+    const tree = [
+      { id: 'P1', name: 'Rechnungen', status: 'open', team: 'Backend' },
+      {
+        id: 'P1.1',
+        name: 'PDF export',
+        status: 'open',
+        team: 'Backend',
+        assign: ['M1'],
+        best: 3,
+        decideBy: '2026-09-30',
+        pinnedStart: '2026-09-01',
+      },
+    ];
+    const md = buildMarkdownText({
+      tree,
+      members,
+      teams: [{ id: 'Backend', name: 'Backend' }],
+      vacations: [],
+      data: {},
+      meta: { name: 'Rechnungen' },
+    });
+    expect(md).toMatch(/⏰decide:2026-09-30/);
+    const back = parseMdToProject(md);
+    const item = back.tree.find(n => n.id === 'P1.1');
+    expect(item.decideBy).toBe('2026-09-30');
+    expect(item.pinnedStart).toBe('2026-09-01');
+    expect(back.teams.find(t => t.id === item.team)?.name).toBe('Backend');
+    expect(back.teams.map(t => t.name).filter(n => /decide/.test(n))).toEqual([]);
+  });
+
+  test('still reads the older spelling', () => {
+    const back = parseMdToProject(
+      '# Rechnungen\n\n## Work Tree\n\n- **P1** Rechnungen — Backend\n  - **P1.1** PDF export (M 3T) — Backend !decide:2026-09-30\n',
+    );
+    expect(back.tree.find(n => n.id === 'P1.1').decideBy).toBe('2026-09-30');
   });
 });

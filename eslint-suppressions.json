@@ -597,18 +597,43 @@
       "count": 1
     }
   },
-  "src/utils/markdownParse.js": {
+  "src/utils/markdown/assembleProject.js": {
     "complexity": {
-      "count": 4
+      "count": 1
+    }
+  },
+  "src/utils/markdown/parseHeading.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/utils/markdown/parseMd.js": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/utils/markdown/parseResources.js": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/utils/markdown/parseTree.js": {
+    "complexity": {
+      "count": 2
     },
     "max-depth": {
       "count": 1
     },
-    "max-lines": {
-      "count": 1
-    },
     "max-lines-per-function": {
-      "count": 3
+      "count": 2
+    }
+  },
+  "src/utils/markdown/readPersonQueues.js": {
+    "complexity": {
+      "count": 1
     }
   },
   "src/utils/net/edges.js": {

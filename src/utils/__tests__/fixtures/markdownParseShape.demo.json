@@ -1,0 +1,1065 @@
+{
+  "meta": {
+    "name": "Planr Demo Project",
+    "version": "2",
+    "planStart": "2026-04-16",
+    "planEnd": "2026-08-14"
+  },
+  "teams": [
+    {
+      "id": "T1",
+      "name": "Design & Frontend",
+      "color": "#3b82f6",
+      "meetingPlanIds": ["mp_17815248000000"]
+    },
+    {
+      "id": "T2",
+      "name": "Backend & Platform",
+      "color": "#10b981",
+      "meetingPlanIds": ["mp_17815248000000"]
+    }
+  ],
+  "members": [
+    {
+      "id": "m17815248000000",
+      "name": "Alex Noor",
+      "team": "T2",
+      "role": "",
+      "cap": 1,
+      "vac": 25,
+      "start": "",
+      "end": "",
+      "capChanges": [
+        {
+          "from": "2026-07-15",
+          "cap": 0.6
+        },
+        {
+          "from": "2026-08-09",
+          "cap": 1
+        }
+      ]
+    },
+    {
+      "id": "m17815248000001",
+      "name": "Sam Rivera",
+      "team": "T1",
+      "role": "",
+      "cap": 1,
+      "vac": 25,
+      "start": "",
+      "end": "",
+      "weeklyHours": 40,
+      "capMode": "derived",
+      "meetings": [
+        {
+          "id": "mt_0",
+          "name": "1:1 Reviews",
+          "hours": 0.5,
+          "frequency": "weekly"
+        }
+      ],
+      "meetingPlanIds": ["mp_17815248000001"]
+    },
+    {
+      "id": "m17815248000002",
+      "name": "Jordan Lee",
+      "team": "T2",
+      "role": "",
+      "cap": 0.5,
+      "vac": 25,
+      "start": "",
+      "end": ""
+    },
+    {
+      "id": "m17815248000003",
+      "name": "Riley Park",
+      "team": "T2",
+      "role": "",
+      "cap": 1,
+      "vac": 25,
+      "start": "2026-04-16",
+      "end": "2026-07-06"
+    },
+    {
+      "id": "m17815248000004",
+      "name": "Dakota Vo",
+      "team": "T1",
+      "role": "",
+      "cap": 1,
+      "vac": 25,
+      "start": "2026-04-16",
+      "end": "2026-07-27"
+    }
+  ],
+  "tree": [
+    {
+      "id": "P1",
+      "name": "Launch new product",
+      "status": "wip",
+      "team": "",
+      "best": 0,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": [],
+      "note": "",
+      "assign": ["goal"],
+      "description": "Bring the new product to market in Q3."
+    },
+    {
+      "id": "P1.1",
+      "name": "MVP ready",
+      "status": "wip",
+      "team": "",
+      "best": 0,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": [],
+      "note": "",
+      "assign": ["goal"]
+    },
+    {
+      "id": "P1.1.1",
+      "name": "Define requirements",
+      "status": "done",
+      "team": "T1",
+      "best": 5,
+      "factor": 1.3,
+      "prio": 2,
+      "deps": [],
+      "note": "",
+      "assign": ["m17815248000000"],
+      "completedAt": "2026-04-24",
+      "completedStart": "2026-04-18",
+      "customValues": {
+        "jira": "DEMO-1"
+      }
+    },
+    {
+      "id": "P1.1.2",
+      "name": "Design core UI",
+      "status": "done",
+      "team": "T1",
+      "best": 8,
+      "factor": 1.4,
+      "prio": 2,
+      "deps": ["P1.1.1"],
+      "note": "",
+      "assign": ["m17815248000001"],
+      "completedAt": "2026-05-04",
+      "completedStart": "2026-04-26",
+      "customValues": {
+        "jira": "DEMO-2"
+      }
+    },
+    {
+      "id": "P1.1.3",
+      "name": "Build frontend",
+      "status": "wip",
+      "team": "T1",
+      "best": 15,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": ["P1.1.2"],
+      "note": "",
+      "assign": ["m17815248000001"],
+      "progress": 60,
+      "customValues": {
+        "jira": "DEMO-3"
+      },
+      "phases": [
+        {
+          "id": "ph1781524800000shl1",
+          "name": "Requirements",
+          "status": "done",
+          "team": "",
+          "teams": [],
+          "assign": [],
+          "effortPct": 15
+        },
+        {
+          "id": "ph1781524800000kz63",
+          "name": "Refinement",
+          "status": "done",
+          "team": "",
+          "teams": [],
+          "assign": [],
+          "effortPct": 15
+        },
+        {
+          "id": "ph1781524800000dgr4",
+          "name": "Development",
+          "status": "wip",
+          "team": "",
+          "teams": [],
+          "assign": [],
+          "effortPct": 50
+        },
+        {
+          "id": "ph17815248000005yc6",
+          "name": "Testing",
+          "status": "open",
+          "team": "",
+          "teams": [],
+          "assign": [],
+          "effortPct": 20
+        }
+      ]
+    },
+    {
+      "id": "P1.1.4",
+      "name": "Build backend",
+      "status": "wip",
+      "team": "T2",
+      "best": 20,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": ["P1.1.1"],
+      "note": "",
+      "assign": ["m17815248000000"],
+      "progress": 40,
+      "customValues": {
+        "jira": "DEMO-4"
+      },
+      "phases": [
+        {
+          "id": "ph1781524800000yfx7",
+          "name": "Requirements",
+          "status": "done",
+          "team": "",
+          "teams": [],
+          "assign": [],
+          "effortPct": 15
+        },
+        {
+          "id": "ph1781524800000qxi9",
+          "name": "Refinement",
+          "status": "wip",
+          "team": "",
+          "teams": [],
+          "assign": [],
+          "effortPct": 15
+        },
+        {
+          "id": "ph1781524800000jf3a",
+          "name": "Development",
+          "status": "open",
+          "team": "",
+          "teams": [],
+          "assign": [],
+          "effortPct": 50
+        },
+        {
+          "id": "ph1781524800000bwoc",
+          "name": "Testing",
+          "status": "open",
+          "team": "",
+          "teams": [],
+          "assign": [],
+          "effortPct": 20
+        }
+      ]
+    },
+    {
+      "id": "P1.1.5",
+      "name": "Integration testing",
+      "status": "open",
+      "team": "T2",
+      "best": 7,
+      "factor": 1.4,
+      "prio": 2,
+      "deps": ["P1.1.3", "P1.1.4"],
+      "note": "",
+      "assign": ["m17815248000002"],
+      "customValues": {
+        "jira": "DEMO-5"
+      }
+    },
+    {
+      "id": "P1.2",
+      "name": "Go-to-market",
+      "status": "open",
+      "team": "",
+      "best": 0,
+      "factor": 1.5,
+      "prio": 3,
+      "deps": [],
+      "note": "",
+      "assign": []
+    },
+    {
+      "id": "P1.2.1",
+      "name": "Marketing site",
+      "status": "open",
+      "team": "T1",
+      "best": 5,
+      "factor": 1.4,
+      "prio": 3,
+      "deps": ["P1.1.2"],
+      "note": "",
+      "assign": []
+    },
+    {
+      "id": "P1.2.2",
+      "name": "Launch campaign",
+      "status": "open",
+      "team": "T1",
+      "best": 10,
+      "factor": 1.5,
+      "prio": 3,
+      "deps": ["P1.1.5", "P1.2.1"],
+      "note": "",
+      "assign": ["m17815248000002"]
+    },
+    {
+      "id": "P2",
+      "name": "Fix slow checkout",
+      "status": "wip",
+      "team": "",
+      "best": 0,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": [],
+      "note": "",
+      "assign": ["painpoint"],
+      "description": "Checkout page takes >4s to load, conversions down."
+    },
+    {
+      "id": "P2.1",
+      "name": "Profile the bottleneck",
+      "status": "done",
+      "team": "T2",
+      "best": 3,
+      "factor": 1.3,
+      "prio": 2,
+      "deps": [],
+      "note": "",
+      "assign": ["m17815248000000"],
+      "completedAt": "2026-05-11",
+      "completedStart": "2026-05-08"
+    },
+    {
+      "id": "P2.2",
+      "name": "Optimize DB queries",
+      "status": "wip",
+      "team": "T2",
+      "best": 6,
+      "factor": 1.4,
+      "prio": 2,
+      "deps": ["P2.1"],
+      "note": "",
+      "assign": ["m17815248000000"],
+      "progress": 75,
+      "pinnedStart": "2026-06-22"
+    },
+    {
+      "id": "P2.3",
+      "name": "Add CDN caching",
+      "status": "open",
+      "team": "T2",
+      "best": 4,
+      "factor": 1.3,
+      "prio": 2,
+      "deps": ["P2.1"],
+      "note": "",
+      "assign": []
+    },
+    {
+      "id": "P2.4",
+      "name": "Verify in production",
+      "status": "open",
+      "team": "T2",
+      "best": 2,
+      "factor": 1.3,
+      "prio": 2,
+      "deps": ["P2.2", "P2.3"],
+      "note": "",
+      "assign": ["m17815248000002"]
+    },
+    {
+      "id": "D1",
+      "name": "Compliance audit Q3",
+      "status": "open",
+      "team": "",
+      "best": 0,
+      "factor": 1.5,
+      "prio": 1,
+      "deps": [],
+      "note": "",
+      "assign": [],
+      "type": "deadline",
+      "severity": "critical",
+      "date": "2026-08-09",
+      "description": "External audit — must pass inside the visible demo horizon."
+    },
+    {
+      "id": "D1.1",
+      "name": "Document security policies",
+      "status": "wip",
+      "team": "T2",
+      "best": 5,
+      "factor": 1.4,
+      "prio": 1,
+      "deps": [],
+      "note": "",
+      "assign": ["m17815248000002"],
+      "progress": 30
+    },
+    {
+      "id": "D1.2",
+      "name": "Run penetration tests",
+      "status": "open",
+      "team": "T2",
+      "best": 8,
+      "factor": 1.5,
+      "prio": 1,
+      "deps": ["D1.1"],
+      "note": "",
+      "assign": ["m17815248000000"]
+    },
+    {
+      "id": "D1.3",
+      "name": "Fix findings (all-hands)",
+      "status": "open",
+      "team": "T2",
+      "best": 10,
+      "factor": 1.6,
+      "prio": 1,
+      "deps": ["D1.2"],
+      "note": "Critical fixes — the whole T2 team is locked onto this task until done.",
+      "assign": [],
+      "confidence": "exploratory",
+      "teamLock": true
+    },
+    {
+      "id": "D1.4",
+      "name": "Audit sign-off",
+      "status": "open",
+      "team": "T2",
+      "best": 2,
+      "factor": 1.3,
+      "prio": 1,
+      "deps": ["D1.3"],
+      "note": "",
+      "assign": ["m17815248000002"],
+      "decideBy": "2026-07-30"
+    },
+    {
+      "id": "H1",
+      "name": "Legacy migration epic",
+      "status": "wip",
+      "team": "",
+      "best": 0,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": [],
+      "note": "",
+      "assign": ["goal"],
+      "description": "Multi-quarter migration with known staff changes mid-way — showcases handoff cascade."
+    },
+    {
+      "id": "H1.1",
+      "name": "Data migration (auto-handoff)",
+      "status": "wip",
+      "team": "T2",
+      "best": 60,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": [],
+      "note": "",
+      "assign": ["m17815248000003"],
+      "progress": 10,
+      "customValues": {
+        "jira": "DEMO-H1"
+      }
+    },
+    {
+      "id": "H1.2",
+      "name": "API rewrite (planned handoff)",
+      "status": "open",
+      "team": "T2",
+      "best": 40,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": ["H1.1"],
+      "note": "",
+      "assign": ["m17815248000003"],
+      "customValues": {
+        "jira": "DEMO-H2"
+      },
+      "handoffPlan": [
+        {
+          "assign": ["m17815248000000"],
+          "team": "T2"
+        },
+        {
+          "team": "T1"
+        }
+      ]
+    },
+    {
+      "id": "H1.3",
+      "name": "Cutover & validation",
+      "status": "open",
+      "team": "T2",
+      "best": 8,
+      "factor": 1.4,
+      "prio": 2,
+      "deps": ["H1.2"],
+      "note": "",
+      "assign": ["m17815248000002"]
+    }
+  ],
+  "vacations": [
+    {
+      "person": "m17815248000000",
+      "from": "2026-07-05",
+      "to": "2026-07-19",
+      "note": "Summer vacation"
+    },
+    {
+      "person": "m17815248000001",
+      "from": "2026-08-02",
+      "to": "2026-08-09",
+      "note": ""
+    },
+    {
+      "person": "m17815248000002",
+      "from": "2026-07-20",
+      "to": "2026-07-27",
+      "note": ""
+    }
+  ],
+  "holidays": [
+    {
+      "date": "2025-01-01",
+      "name": "Neujahr",
+      "auto": true
+    },
+    {
+      "date": "2025-04-18",
+      "name": "Karfreitag",
+      "auto": true
+    },
+    {
+      "date": "2025-04-20",
+      "name": "Ostersonntag",
+      "auto": true
+    },
+    {
+      "date": "2025-04-21",
+      "name": "Ostermontag",
+      "auto": true
+    },
+    {
+      "date": "2025-05-01",
+      "name": "Tag der Arbeit",
+      "auto": true
+    },
+    {
+      "date": "2025-05-29",
+      "name": "Christi Himmelfahrt",
+      "auto": true
+    },
+    {
+      "date": "2025-06-08",
+      "name": "Pfingstsonntag",
+      "auto": true
+    },
+    {
+      "date": "2025-06-09",
+      "name": "Pfingstmontag",
+      "auto": true
+    },
+    {
+      "date": "2025-06-19",
+      "name": "Fronleichnam",
+      "auto": true
+    },
+    {
+      "date": "2025-10-03",
+      "name": "Tag der Deutschen Einheit",
+      "auto": true
+    },
+    {
+      "date": "2025-11-01",
+      "name": "Allerheiligen",
+      "auto": true
+    },
+    {
+      "date": "2025-12-25",
+      "name": "1. Weihnachtstag",
+      "auto": true
+    },
+    {
+      "date": "2025-12-26",
+      "name": "2. Weihnachtstag",
+      "auto": true
+    },
+    {
+      "date": "2026-01-01",
+      "name": "Neujahr",
+      "auto": true
+    },
+    {
+      "date": "2026-04-03",
+      "name": "Karfreitag",
+      "auto": true
+    },
+    {
+      "date": "2026-04-05",
+      "name": "Ostersonntag",
+      "auto": true
+    },
+    {
+      "date": "2026-04-06",
+      "name": "Ostermontag",
+      "auto": true
+    },
+    {
+      "date": "2026-05-01",
+      "name": "Tag der Arbeit",
+      "auto": true
+    },
+    {
+      "date": "2026-05-14",
+      "name": "Christi Himmelfahrt",
+      "auto": true
+    },
+    {
+      "date": "2026-05-24",
+      "name": "Pfingstsonntag",
+      "auto": true
+    },
+    {
+      "date": "2026-05-25",
+      "name": "Pfingstmontag",
+      "auto": true
+    },
+    {
+      "date": "2026-06-04",
+      "name": "Fronleichnam",
+      "auto": true
+    },
+    {
+      "date": "2026-10-03",
+      "name": "Tag der Deutschen Einheit",
+      "auto": true
+    },
+    {
+      "date": "2026-11-01",
+      "name": "Allerheiligen",
+      "auto": true
+    },
+    {
+      "date": "2026-12-25",
+      "name": "1. Weihnachtstag",
+      "auto": true
+    },
+    {
+      "date": "2026-12-26",
+      "name": "2. Weihnachtstag",
+      "auto": true
+    },
+    {
+      "date": "2027-01-01",
+      "name": "Neujahr",
+      "auto": true
+    },
+    {
+      "date": "2027-03-26",
+      "name": "Karfreitag",
+      "auto": true
+    },
+    {
+      "date": "2027-03-28",
+      "name": "Ostersonntag",
+      "auto": true
+    },
+    {
+      "date": "2027-03-29",
+      "name": "Ostermontag",
+      "auto": true
+    },
+    {
+      "date": "2027-05-01",
+      "name": "Tag der Arbeit",
+      "auto": true
+    },
+    {
+      "date": "2027-05-06",
+      "name": "Christi Himmelfahrt",
+      "auto": true
+    },
+    {
+      "date": "2027-05-16",
+      "name": "Pfingstsonntag",
+      "auto": true
+    },
+    {
+      "date": "2027-05-17",
+      "name": "Pfingstmontag",
+      "auto": true
+    },
+    {
+      "date": "2027-05-27",
+      "name": "Fronleichnam",
+      "auto": true
+    },
+    {
+      "date": "2027-10-03",
+      "name": "Tag der Deutschen Einheit",
+      "auto": true
+    },
+    {
+      "date": "2027-11-01",
+      "name": "Allerheiligen",
+      "auto": true
+    },
+    {
+      "date": "2027-12-25",
+      "name": "1. Weihnachtstag",
+      "auto": true
+    },
+    {
+      "date": "2027-12-26",
+      "name": "2. Weihnachtstag",
+      "auto": true
+    }
+  ],
+  "taskTemplates": [
+    {
+      "id": "tpl_17815248000000",
+      "name": "tpl.sw.tt.fullcycle",
+      "phases": [
+        {
+          "name": "tpl.sw.phase.re",
+          "team": "",
+          "teams": [],
+          "effortPct": 15
+        },
+        {
+          "name": "tpl.sw.phase.refinement",
+          "team": "",
+          "teams": [],
+          "effortPct": 15
+        },
+        {
+          "name": "tpl.sw.phase.dev",
+          "team": "",
+          "teams": [],
+          "effortPct": 50
+        },
+        {
+          "name": "tpl.sw.phase.qa",
+          "team": "",
+          "teams": [],
+          "effortPct": 20
+        }
+      ]
+    },
+    {
+      "id": "tpl_17815248000001",
+      "name": "tpl.sw.tt.bugfix",
+      "phases": [
+        {
+          "name": "tpl.sw.phase.analysis",
+          "team": "",
+          "teams": [],
+          "effortPct": 20
+        },
+        {
+          "name": "tpl.sw.phase.fix",
+          "team": "",
+          "teams": [],
+          "effortPct": 60
+        },
+        {
+          "name": "tpl.sw.phase.verify",
+          "team": "",
+          "teams": [],
+          "effortPct": 20
+        }
+      ]
+    }
+  ],
+  "customFields": [
+    {
+      "id": "jira",
+      "name": "Jira ID",
+      "type": "uri",
+      "uriTemplate": "https://yourcompany.atlassian.net/browse/{value}"
+    }
+  ],
+  "meetingPlans": [
+    {
+      "id": "mp_17815248000000",
+      "name": "Engineering Standard",
+      "meetings": [
+        {
+          "id": "mt_17815248000000",
+          "name": "Daily Standup",
+          "hours": 0.25,
+          "frequency": "daily"
+        },
+        {
+          "id": "mt_17815248000001",
+          "name": "Sprint Planning",
+          "hours": 2,
+          "frequency": "biweekly"
+        },
+        {
+          "id": "mt_17815248000002",
+          "name": "Retro",
+          "hours": 1,
+          "frequency": "biweekly"
+        }
+      ]
+    },
+    {
+      "id": "mp_17815248000001",
+      "name": "Leitungsrunden",
+      "meetings": [
+        {
+          "id": "mt_17815248000000",
+          "name": "Team-Leads Sync",
+          "hours": 1,
+          "frequency": "weekly"
+        },
+        {
+          "id": "mt_17815248000001",
+          "name": "All-Hands",
+          "hours": 1,
+          "frequency": "monthly"
+        }
+      ]
+    }
+  ],
+  "historyEvents": [
+    {
+      "ts": "2026-04-16 08:00",
+      "id": "D1.1",
+      "kind": "added",
+      "status": "open",
+      "progress": 0
+    },
+    {
+      "ts": "2026-04-16 08:00",
+      "id": "D1.2",
+      "kind": "added",
+      "status": "open",
+      "progress": 0
+    },
+    {
+      "ts": "2026-04-16 08:00",
+      "id": "D1.3",
+      "kind": "added",
+      "status": "open",
+      "progress": 0
+    },
+    {
+      "ts": "2026-04-16 08:00",
+      "id": "D1.4",
+      "kind": "added",
+      "status": "open",
+      "progress": 0
+    },
+    {
+      "ts": "2026-04-16 08:00",
+      "id": "H1.1",
+      "kind": "added",
+      "status": "open",
+      "progress": 0
+    },
+    {
+      "ts": "2026-04-16 08:00",
+      "id": "H1.2",
+      "kind": "added",
+      "status": "open",
+      "progress": 0
+    },
+    {
+      "ts": "2026-04-16 08:00",
+      "id": "H1.3",
+      "kind": "added",
+      "status": "open",
+      "progress": 0
+    },
+    {
+      "ts": "2026-04-16 08:00",
+      "id": "P1.1.1",
+      "kind": "added",
+      "status": "open",
+      "progress": 0
+    },
+    {
+      "ts": "2026-04-16 08:00",
+      "id": "P1.1.2",
+      "kind": "added",
+      "status": "open",
+      "progress": 0
+    },
+    {
+      "ts": "2026-04-16 08:00",
+      "id": "P1.1.3",
+      "kind": "added",
+      "status": "open",
+      "progress": 0
+    },
+    {
+      "ts": "2026-04-16 08:00",
+      "id": "P1.1.4",
+      "kind": "added",
+      "status": "open",
+      "progress": 0
+    },
+    {
+      "ts": "2026-04-16 08:00",
+      "id": "P1.1.5",
+      "kind": "added",
+      "status": "open",
+      "progress": 0
+    },
+    {
+      "ts": "2026-04-16 08:00",
+      "id": "P1.2.1",
+      "kind": "added",
+      "status": "open",
+      "progress": 0
+    },
+    {
+      "ts": "2026-04-16 08:00",
+      "id": "P1.2.2",
+      "kind": "added",
+      "status": "open",
+      "progress": 0
+    },
+    {
+      "ts": "2026-04-16 08:00",
+      "id": "P2.1",
+      "kind": "added",
+      "status": "open",
+      "progress": 0
+    },
+    {
+      "ts": "2026-04-16 08:00",
+      "id": "P2.2",
+      "kind": "added",
+      "status": "open",
+      "progress": 0
+    },
+    {
+      "ts": "2026-04-16 08:00",
+      "id": "P2.3",
+      "kind": "added",
+      "status": "open",
+      "progress": 0
+    },
+    {
+      "ts": "2026-04-16 08:00",
+      "id": "P2.4",
+      "kind": "added",
+      "status": "open",
+      "progress": 0
+    },
+    {
+      "ts": "2026-04-18 09:00",
+      "id": "P1.1.1",
+      "status": "wip",
+      "progress": 1
+    },
+    {
+      "ts": "2026-04-24 18:00",
+      "id": "P1.1.1",
+      "status": "done",
+      "progress": 100,
+      "completedAt": "2026-04-24"
+    },
+    {
+      "ts": "2026-04-26 09:00",
+      "id": "P1.1.2",
+      "status": "wip",
+      "progress": 1
+    },
+    {
+      "ts": "2026-05-04 18:00",
+      "id": "P1.1.2",
+      "status": "done",
+      "progress": 100,
+      "completedAt": "2026-05-04"
+    },
+    {
+      "ts": "2026-05-08 09:00",
+      "id": "P2.1",
+      "status": "wip",
+      "progress": 1
+    },
+    {
+      "ts": "2026-05-11 18:00",
+      "id": "P2.1",
+      "status": "done",
+      "progress": 100,
+      "completedAt": "2026-05-11"
+    },
+    {
+      "ts": "2026-05-18 09:00",
+      "id": "P1.1.3",
+      "status": "wip",
+      "progress": 20
+    },
+    {
+      "ts": "2026-05-22 09:00",
+      "id": "P1.1.4",
+      "status": "wip",
+      "progress": 15
+    },
+    {
+      "ts": "2026-05-26 09:00",
+      "id": "P2.2",
+      "status": "wip",
+      "progress": 25
+    },
+    {
+      "ts": "2026-05-28 12:00",
+      "id": "P1.1.3",
+      "progress": 45
+    },
+    {
+      "ts": "2026-06-03 09:00",
+      "id": "D1.1",
+      "status": "wip",
+      "progress": 10
+    },
+    {
+      "ts": "2026-06-06 09:00",
+      "id": "H1.1",
+      "status": "wip",
+      "progress": 5
+    },
+    {
+      "ts": "2026-06-07 12:00",
+      "id": "P1.1.4",
+      "progress": 40
+    },
+    {
+      "ts": "2026-06-08 12:00",
+      "id": "P1.1.3",
+      "progress": 60
+    },
+    {
+      "ts": "2026-06-10 12:00",
+      "id": "P2.2",
+      "progress": 75
+    },
+    {
+      "ts": "2026-06-12 12:00",
+      "id": "D1.1",
+      "progress": 30
+    },
+    {
+      "ts": "2026-06-13 12:00",
+      "id": "H1.1",
+      "progress": 10
+    }
+  ]
+}

@@ -1,0 +1,100 @@
+{
+  "meta": {
+    "name": "Kundenbereich",
+    "version": "2"
+  },
+  "teams": [
+    {
+      "id": "T1",
+      "name": "Frontend",
+      "color": "#3b82f6"
+    },
+    {
+      "id": "T2",
+      "name": "Backend",
+      "color": "#10b981"
+    }
+  ],
+  "members": [
+    {
+      "id": "m17815248000000",
+      "name": "Anna Noor",
+      "team": "T1",
+      "role": "Lead",
+      "cap": 1,
+      "vac": 25,
+      "start": "",
+      "end": "",
+      "weeklyHours": 40,
+      "capMode": "derived",
+      "meetings": []
+    }
+  ],
+  "tree": [
+    {
+      "id": "A",
+      "name": "Root",
+      "status": "open",
+      "team": "T1",
+      "best": 0,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": [],
+      "note": "",
+      "assign": []
+    },
+    {
+      "id": "A.1",
+      "name": "One",
+      "status": "open",
+      "team": "T1",
+      "best": 0,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": [],
+      "note": "",
+      "assign": []
+    },
+    {
+      "id": "A.2",
+      "name": "Two",
+      "status": "open",
+      "team": "T1",
+      "best": 0,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": [],
+      "note": "",
+      "assign": []
+    },
+    {
+      "id": "A.3",
+      "name": "Three",
+      "status": "open",
+      "team": "T2",
+      "best": 0,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": [],
+      "note": "",
+      "assign": []
+    },
+    {
+      "id": "P2",
+      "name": "ignored heading, its bullets still land in the tree",
+      "status": "open",
+      "team": "",
+      "best": 0,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": [],
+      "note": "",
+      "assign": []
+    }
+  ],
+  "vacations": [],
+  "holidays": [],
+  "personQueues": {
+    "team:T1": ["A.1", "A.2", "A.3"]
+  }
+}
