@@ -403,20 +403,20 @@ Reached by selecting a row in TreeView; fields commit instantly per-edit (no sep
 
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
-| Name/description block click | Jumps to Overview/Details | src/components/shared/TaskInsights.jsx:207-230 | Build | 1 | |
-| Status+progress header click | Jumps to Workflow/Details | src/components/shared/TaskInsights.jsx:233-252 | Build | 1 | |
-| Timing section click | Jumps to Timing | src/components/shared/TaskInsights.jsx:258 | Build | 1 | |
-| "Wartet auf" (blocked-by) link | Opens the blocking item — in the dialog it navigates the dialog, in the side panel it selects the item | src/components/shared/TaskInsights.jsx:351-373 | Build | 1 | the side panel passed no `onOpenItem` until Sept 2026, so there the link did nothing |
-| Effort section click | Jumps to Effort | src/components/shared/TaskInsights.jsx:379 | Build | 1 | |
-| People section click | Jumps to Overview/Details, assignee picker focused | src/components/shared/TaskInsights.jsx:432 | Build | 1 | |
-| "Split" button (handoff chain) | Materializes the handoff chain as sibling tasks | src/components/shared/TaskInsights.jsx:468-471 | Build | 1 | calls onSplitHandoff — a sanctioned tree write, reached only from inside the tree editor |
-| "Split" button (truncated by offboarding) | Splits at the consumed/remaining ratio | src/components/shared/TaskInsights.jsx:473-480 | Build | 1 | calls onSplitTaskAtProgress — same as above |
-| Phases section click | Jumps to Workflow | src/components/shared/TaskInsights.jsx:532 | Build | 1 | |
-| Phase dot inline toggle | Cycles a phase open→wip→done | src/components/shared/TaskInsights.jsx:541-547 | Build | 1 | writes node.phases directly — sanctioned (reached only from the tree editor) |
-| Dependencies section click | Jumps to Timing | src/components/shared/TaskInsights.jsx:561 | Build | 1 | |
-| Predecessor/successor/inherited-dep link click | Opens that item (dialog: navigates; side panel: selects) | src/components/shared/TaskInsights.jsx:566-605 | Build | 1 | |
-| Custom fields section click | Jumps to Overview | src/components/shared/TaskInsights.jsx:611 | Build | 1 | |
-| Custom-field URI link click | Opens the external link | src/components/shared/TaskInsights.jsx:618 | Build | 1 | navigation only, no mutation |
+| Name/description block click | Jumps to Overview/Details | src/components/shared/insights/InsightHeader.jsx:9-45 | Build | 1 | |
+| Status+progress header click | Jumps to Workflow/Details | src/components/shared/insights/InsightHeader.jsx:58-59 | Build | 1 | |
+| Timing section click | Jumps to Timing | src/components/shared/insights/TimingSection.jsx:26 | Build | 1 | |
+| "Wartet auf" (blocked-by) link | Opens the blocking item — in the dialog it navigates the dialog, in the side panel it selects the item | src/components/shared/insights/TimingSection.jsx:135-153 | Build | 1 | the side panel passed no `onOpenItem` until Sept 2026, so there the link did nothing |
+| Effort section click | Jumps to Effort | src/components/shared/insights/EffortSection.jsx:9 | Build | 1 | |
+| People section click | Jumps to Overview/Details, assignee picker focused | src/components/shared/insights/PeopleSection.jsx:10 | Build | 1 | |
+| "Split" button (handoff chain) | Materializes the handoff chain as sibling tasks | src/components/shared/insights/HandoffSection.jsx:20-28 | Build | 1 | calls onSplitHandoff — a sanctioned tree write, reached only from inside the tree editor |
+| "Split" button (truncated by offboarding) | Splits at the consumed/remaining ratio | src/components/shared/insights/HandoffSection.jsx:34-44 | Build | 1 | calls onSplitTaskAtProgress — same as above |
+| Phases section click | Jumps to Workflow | src/components/shared/insights/PhasesSection.jsx:15 | Build | 1 | |
+| Phase dot inline toggle | Cycles a phase open→wip→done | src/components/shared/insights/PhasesSection.jsx:28-56 | Build | 1 | writes node.phases directly — sanctioned (reached only from the tree editor) |
+| Dependencies section click | Jumps to Timing | src/components/shared/insights/DepsSection.jsx:9 | Build | 1 | |
+| Predecessor/successor/inherited-dep link click | Opens that item (dialog: navigates; side panel: selects) | src/components/shared/insights/DepsSection.jsx:10-72 | Build | 1 | |
+| Custom fields section click | Jumps to Overview | src/components/shared/insights/CustomFieldsSection.jsx:10 | Build | 1 | |
+| Custom-field URI link click | Opens the external link | src/components/shared/insights/CustomFieldsSection.jsx:14-26 | Build | 1 | navigation only, no mutation |
 
 ## Phases (shared: PhaseList + PhaseEditPopout, used in QuickEdit, NodeModal, SettingsModal templates, and the bulk-edit modal)
 
@@ -698,7 +698,7 @@ Every place that mutates plan/task data (the explicit P2 audit). "Sanctioned" me
 - Every field commit in QuickEdit.jsx (name, notes, status, progress, phases, team, assign, effort, dates, dependencies — see the QuickEdit table above), all via `patchNode`/`commitNode` → `onUpdate` (App.jsx `updateNode`, App.jsx:1833).
 - TreeView.jsx row drag-reorder → `onReorder` (App.jsx `reorderSibling`, App.jsx:2159).
 - TreeView.jsx per-row quick-add, contextual delete, SelectionActionBar bulk status → `onQuickAdd`/`onDelete`/`onTaskUpdate` (App.jsx `addNode`:2056, `deleteNode`:1907, `updateNode`:1833).
-- TaskInsights.jsx "Split" buttons → `onSplitHandoff` (App.jsx:1915) / `onSplitTaskAtProgress` (App.jsx:1997), reached only from inside QuickEdit/NodeModal.
+- insights/HandoffSection.jsx (part of TaskInsights.jsx) "Split" buttons → `onSplitHandoff` (App.jsx:1915) / `onSplitTaskAtProgress` (App.jsx:1997), reached only from inside QuickEdit/NodeModal.
 
 **Outside the tree (⚠, the actual P2 audit):**
 - **GanttView.jsx** — by far the largest source: drag-to-reschedule (pinnedStart), drag-to-resize (fixedDurationDays / completedEnd / completedStart), drag-to-reorder (seq/prio), drag-to-link (deps), the pin-badge clear, the × dependency badge, and the entire multi-select toolbar (Link, reorder arrows, priority up/down, remove links) — all call `onSeqUpdate`/`onTaskUpdate`/`onAddDep`/`onRemoveDep`/`onReorderSibling` directly from the Gantt (see GanttView.jsx:1102-2129, 2817-3141 in the table above).

@@ -190,12 +190,6 @@
     "complexity": {
       "count": 1
     },
-    "max-lines": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 1
-    },
     "no-unused-vars": {
       "count": 2
     }
@@ -213,6 +207,11 @@
       "count": 1
     },
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/shared/insights/TimingSection.jsx": {
+    "complexity": {
       "count": 1
     }
   },
