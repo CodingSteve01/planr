@@ -31,4 +31,5 @@ test('at 700 px the save status text is hidden and the save dot stays', async ({
   await expect(treeRow(page, NAMES.invoices)).toBeVisible();
   // The text would be cut mid-word in the 160 px file block; the dot carries the state.
   await expect(page.locator('.topbar-status')).toBeHidden();
+  await expect(page.locator('.topbar-file .save-dot')).toBeVisible();
 });
