@@ -3,7 +3,7 @@ import { Frozen } from '../shared/Frozen.jsx';
 import { ResView } from '../views/ResView.jsx';
 
 export function ResourcesPane({ plan, view, handlers }) {
-  const { effContext, scheduled, tree, vacations, weeks } = plan;
+  const { effContext, scheduled, tree, vacations } = plan;
   const { personFilter, resLens, tab, teamFilter } = view;
   const {
     onResMeetingPlansUpd,
@@ -27,7 +27,6 @@ export function ResourcesPane({ plan, view, handlers }) {
             meetingPlans={resLens.meetingPlans}
             tree={tree}
             scheduled={scheduled}
-            weeks={weeks}
             teamFilter={teamFilter}
             personFilter={personFilter}
             onMeetingPlansUpd={onResMeetingPlansUpd}

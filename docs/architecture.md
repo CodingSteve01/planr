@@ -86,7 +86,8 @@ src/
                              and the name tokens that carry a patch through a Markdown file
     scenarioCompare.js     — plan against scenario: schedules both, reports what moves
     report.js              — HTML report generation (bilingual, auto-print) + buildReportModel()
-    pdfExports.js          — pdfmake exports (Management Summary, Gantt, TODO, What-comes-when)
+    pdfExports.js          — re-exports the pdfmake exports; the code is in utils/pdf/
+    pdf/                   — pdfmake exports (Management Summary, Gantt, TODO, What-comes-when), one module per document plus pdfCore.js and pdfSvg.js
     progress.js            — single source of truth for aggregate progress % / PT + formatting
                              (aggregateProgressPct is THE percentage for any multi-task scope;
                               scheduler.treeStats imports it back — a deliberate call-time cycle)

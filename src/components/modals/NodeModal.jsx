@@ -1,29 +1,22 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
-import { Icon } from '../shared/Icon.jsx';
-import { SBadge } from '../shared/Badges.jsx';
-import { SL, GT_ICON, CONF_COLOR } from '../../constants.js';
-import { SearchSelect } from '../shared/SearchSelect.jsx';
-import { PhaseList } from '../shared/Phases.jsx';
-import { AutoAssignHint } from '../shared/AutoAssignHint.jsx';
-import { CustomFieldInput } from '../shared/CustomFieldInput.jsx';
-import { ItemHistoryTimeline } from '../shared/ItemHistoryTimeline.jsx';
 import { insightTarget } from '../../utils/insightTargets.js';
 import { TaskInsights } from '../shared/TaskInsights.jsx';
-import { CriticalPathBadge } from '../shared/CriticalPathBadge.jsx';
-import { hasChildren, isLeafNode, leafNodes, leafProgress, re, derivePhaseStatus, parentId } from '../../utils/scheduler.js';
+import { isLeafNode, leafNodes, leafProgress, derivePhaseStatus, parentId } from '../../utils/scheduler.js';
 import { iso } from '../../utils/date.js';
 import { normalizePhases } from '../../utils/phases.js';
 import { deadlineRootIdForNode, isDeadlineRelevantForRoot } from '../../utils/deadlines.js';
 import { summarizeNodeTimeline } from '../../utils/timeline.js';
 import { useT } from '../../i18n.jsx';
-import { ALT, formatKey, withKey } from '../../utils/shortcuts.js';
 import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { DEFAULT_CUSTOM_FIELDS } from '../../utils/customFields.js';
-import { memberTeamNames, teamForAssignment } from '../../utils/memberTeams.js';
-
-// REASON_TIP and the confidence label are built inside the component using
-// t() — see reasonTip below (the label reuses the global conf.* keys).
-const CONF_DOT = { committed: '●', estimated: '◐', exploratory: '○' };
+import { memberTeamNames } from '../../utils/memberTeams.js';
+import { NodeHeader } from './node/NodeHeader.jsx';
+import { NodeTabBar } from './node/NodeTabBar.jsx';
+import { OverviewTab } from './node/OverviewTab.jsx';
+import { WorkflowTab } from './node/WorkflowTab.jsx';
+import { EffortTab } from './node/EffortTab.jsx';
+import { TimingTab } from './node/TimingTab.jsx';
+import { NodeFooter } from './node/NodeFooter.jsx';
 
 // The dialog for one item. Nothing to show without one; the check sits out
 // here so that the component below calls its hooks on every render.
@@ -61,6 +54,8 @@ function NodeModalBody({
   onDockSide,
 }) {
   const { t, lang } = useT();
+  // REASON_TIP and the confidence label are built inside the component using
+  // t() — see reasonTip below (the label reuses the global conf.* keys).
   const REASON_TIP = {
     'manual': t('g.reasonManual'),
     'done': t('g.reasonDone'),
@@ -437,175 +432,33 @@ function NodeModalBody({
         aria-label={`${node.id} ${node.name || ''}`.trim()}
       >
         {/* ── HEADER ── */}
-        {ancestors.length > 0 && (
-          <div
-            style={{
-              fontSize: 11,
-              color: 'var(--tx3)',
-              marginBottom: 6,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {ancestors.map((a, i) => (
-              <span key={a.id}>
-                {i > 0 && <span style={{ color: 'var(--b3)' }}> › </span>}
-                <button
-                  type="button"
-                  onClick={() => handleNavigate(a.id)}
-                  data-htip={`${a.id} — ${a.name}`}
-                  style={{
-                    appearance: 'none',
-                    background: 'transparent',
-                    border: 'none',
-                    padding: 0,
-                    color: 'inherit',
-                    cursor: onNavigate ? 'pointer' : 'default',
-                    font: 'inherit',
-                  }}
-                >
-                  <span style={{ fontFamily: 'var(--mono)', fontSize: 10 }}>{a.id}</span>{' '}
-                  {a.name?.length > 25 ? a.name.slice(0, 23) + '…' : a.name}
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: 'var(--mono)', color: 'var(--tx2)', fontSize: 13, fontWeight: 600 }}>{node.id}</span>
-          {/* The item says what it is on every tab, not only on the one that
-            happens to hold the name field. */}
-          <span
-            data-testid="nm-title"
-            style={{
-              fontSize: 14,
-              fontWeight: 600,
-              color: 'var(--tx)',
-              minWidth: 0,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              flex: '0 1 auto',
-              maxWidth: '100%',
-            }}
-          >
-            {f.name || node.name}
-          </span>
-          {isLeaf && <SBadge s={node.status} />}
-          {!isLeaf && (
-            <span className={`badge b${(f.status || 'open')[0]}`} style={{ fontSize: 11 }}>
-              {SL[f.status] || f.status}
-            </span>
-          )}
-          {isCp && <CriticalPathBadge id={node.id} labels={cpLabels} />}
-          {/* When it lands, on every tab: the commonest thing looked up. */}
-          {timeline?.period && (
-            <span data-testid="nm-lands" style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', whiteSpace: 'nowrap' }}>
-              {timeline.period.start.toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB')} →{' '}
-              {timeline.period.end.toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB')}
-            </span>
-          )}
-          {f.pinnedStart && (
-            <span
-              className="badge bo"
-              style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-              onClick={() => s('pinnedStart', '')}
-              data-htip={t('p.clear')}
-            >
-              <Icon name="pin" size={10} />
-              {f.pinnedStart}
-              <Icon name="x" size={10} />
-            </span>
-          )}
-          {/* The panel's dock button sends the editor here; without this the way back is
-            a trip through Settings, which is a one-way door with extra steps. */}
-          {onDockSide && (
-            <button
-              className="btn btn-ghost btn-icon sm"
-              style={{ marginLeft: 'auto' }}
-              data-htip={t('set.dockSideTip')}
-              data-testid="editor-dock-side"
-              aria-label={t('set.dockSideTip')}
-              onClick={() => {
-                if (isDirty && !confirm(t('nm.unsavedDiscard'))) return;
-                onDockSide();
-              }}
-            >
-              <Icon name="panelRight" size={13} />
-            </button>
-          )}
-        </div>
-
-        {/* Opened from a handoff bar: the bar was one stage of this task, and
-          what the dialog edits is the whole task. Above the tabs, because it
-          is true on every one of them — it used to sit on Workflow, where the
-          click never sent anybody, and pointed at a handoff section that is
-          switched off. */}
-        {isLeaf && focusRequest?.section === 'handoff' && (
-          <div
-            data-testid="nm-handoff-hint"
-            style={{
-              margin: '0 0 10px',
-              padding: '4px 8px',
-              background: 'rgba(168,85,247,.10)',
-              borderLeft: '2px solid rgba(168,85,247,.6)',
-              fontSize: 11,
-              color: 'var(--tx2)',
-              lineHeight: 1.4,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <Icon name="swap" size={11} />
-            {t('nm.handoffHint', (focusRequest.handoffStage ?? 0) + 1)}
-          </div>
-        )}
+        <NodeHeader
+          t={t}
+          lang={lang}
+          f={f}
+          s={s}
+          node={node}
+          ancestors={ancestors}
+          cpLabels={cpLabels}
+          focusRequest={focusRequest}
+          handleNavigate={handleNavigate}
+          isCp={isCp}
+          isDirty={isDirty}
+          isLeaf={isLeaf}
+          onDockSide={onDockSide}
+          onNavigate={onNavigate}
+          timeline={timeline}
+        />
 
         {/* ── TAB BAR ── */}
-        <div
-          ref={tabBarRef}
-          className="qe-tabs"
-          role="tablist"
-          style={{ margin: '0 -22px 14px', padding: '0 22px' }}
-          onKeyDown={e => {
-            const at = nmTabs.findIndex(x => x.id === activeNmTab);
-            const to =
-              e.key === 'ArrowRight'
-                ? (at + 1) % nmTabs.length
-                : e.key === 'ArrowLeft'
-                  ? (at - 1 + nmTabs.length) % nmTabs.length
-                  : e.key === 'Home'
-                    ? 0
-                    : e.key === 'End'
-                      ? nmTabs.length - 1
-                      : -1;
-            if (to < 0) return;
-            e.preventDefault();
-            setNmTab(nmTabs[to].id);
-            focusActiveTab();
-          }}
-        >
-          {nmTabs.map((x, i) => (
-            <button
-              key={x.id}
-              role="tab"
-              // One tab stop for the whole bar; the arrows move within it.
-              tabIndex={activeNmTab === x.id ? 0 : -1}
-              data-htip={i < 9 ? `${x.label} · ${formatKey(`${ALT}${i + 1}`)}` : undefined}
-              aria-selected={activeNmTab === x.id}
-              className={`qe-tab${activeNmTab === x.id ? ' active' : ''}`}
-              data-testid={`nm-tab-${x.id}`}
-              onMouseDown={e => activateTab(e, () => setNmTab(x.id))}
-              onClick={e => {
-                if (e.detail === 0) setNmTab(x.id);
-              }}
-            >
-              {x.label}
-            </button>
-          ))}
-        </div>
+        <NodeTabBar
+          nmTabs={nmTabs}
+          activeNmTab={activeNmTab}
+          setNmTab={setNmTab}
+          activateTab={activateTab}
+          focusActiveTab={focusActiveTab}
+          tabBarRef={tabBarRef}
+        />
 
         {/* ══════ INSIGHTS TAB ══════ */}
         {activeNmTab === 'insights' && (
@@ -634,914 +487,122 @@ function NodeModalBody({
 
         {/* ══════ OVERVIEW TAB ══════ */}
         {activeNmTab === 'overview' && (
-          <>
-            <div className="field">
-              <label>{t('qe.name')}</label>
-              <input ref={focusRefs.name} value={f.name || ''} onChange={e => s('name', e.target.value)} autoFocus />
-            </div>
-            {/* Who this belongs to. It used to sit on the Status tab, which had
-            become a catch-all: status, progress, dropping, phases, team,
-            assignment and the schedule's suggestion, all under a label that
-            named exactly one of them. Team and assignee are attributes of the
-            ITEM, like its name and its notes, so they live with them — and
-            what is left on Status is the question its name asks. */}
-            <div className="field">
-              <label>{t('qe.team')}</label>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <div style={{ flex: '0 0 180px' }}>
-                  <SearchSelect
-                    value={f.team || ''}
-                    options={teams.map(tm => ({ id: tm.id, label: tm.name || tm.id }))}
-                    onSelect={v => s('team', v)}
-                    allowEmpty
-                  />
-                </div>
-                <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
-                  {(f.assign || []).map(a => {
-                    const m = members.find(x => x.id === a);
-                    return (
-                      <span key={a} className="tag">
-                        {m?.name || a}
-                        <span
-                          className="tag-x"
-                          onClick={() =>
-                            s(
-                              'assign',
-                              (f.assign || []).filter(x => x !== a),
-                            )
-                          }
-                        >
-                          <Icon name="x" size={9} />
-                        </span>
-                      </span>
-                    );
-                  })}
-                  <div ref={focusRefs.assign} style={{ minWidth: 160, flex: 1 }}>
-                    <SearchSelect
-                      options={members.filter(m => !(f.assign || []).includes(m.id)).map(m => ({ id: m.id, label: memberLabel(m) }))}
-                      onSelect={id => {
-                        const m = members.find(x => x.id === id);
-                        setF(x => ({ ...x, assign: [...new Set([...(x.assign || []), id])], team: teamForAssignment(m, x.team) }));
-                      }}
-                      placeholder={t('qe.assignPerson')}
-                    />
-                  </div>
-                </div>
-                {/* Team-lock toggle sits inline on the right edge of the team
-                row so it lives in the same baseline as the picker — keeps
-                the layout aligned instead of stacking a stray slider below. */}
-                {isLeaf && f.team && (
-                  <div
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      marginLeft: 8,
-                      padding: '2px 8px',
-                      borderRadius: 4,
-                      border: `1px solid ${f.teamLock ? 'var(--am)' : 'var(--b)'}`,
-                      background: f.teamLock ? 'rgba(245,158,11,.08)' : 'transparent',
-                      fontSize: 12,
-                      color: 'var(--tx2)',
-                      whiteSpace: 'nowrap',
-                    }}
-                    data-htip={t('qe.teamLockTip')}
-                  >
-                    <span>{t('qe.teamLock')}</span>
-                    <label className="toggle" style={{ margin: 0 }}>
-                      <input type="checkbox" checked={!!f.teamLock} onChange={e => s('teamLock', e.target.checked)} />
-                      <span className="slider" />
-                    </label>
-                  </div>
-                )}
-                {isLeaf && (
-                  <div
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      marginLeft: 8,
-                      padding: '2px 8px',
-                      borderRadius: 4,
-                      border: `1px solid ${f.parallel ? 'var(--ac)' : 'var(--b)'}`,
-                      background: f.parallel ? 'rgba(59,130,246,.08)' : 'transparent',
-                      fontSize: 12,
-                      color: 'var(--tx2)',
-                      whiteSpace: 'nowrap',
-                    }}
-                    data-htip={t('qe.parallelTip')}
-                  >
-                    <span>{t('qe.parallel') || 'Parallel'}</span>
-                    <label className="toggle" style={{ margin: 0 }}>
-                      <input type="checkbox" checked={!!f.parallel} onChange={e => s('parallel', e.target.checked || undefined)} />
-                      <span className="slider" />
-                    </label>
-                  </div>
-                )}
-              </div>
-            </div>
-            {isLeaf && (
-              <AutoAssignHint
-                node={f}
-                scheduled={scheduled}
-                members={members}
-                onAccept={({ assign, team }) => setF(x => ({ ...x, assign, team }))}
-              />
-            )}
-            <div className="field" style={{ maxWidth: 220 }}>
-              <label>{t('qe.priority')}</label>
-              <SearchSelect
-                value={String(f.prio || 2)}
-                options={[
-                  { id: '1', label: `▲▲ 1 ${t('critical')}` },
-                  { id: '2', label: `▲ 2 ${t('high')}` },
-                  { id: '3', label: `▬ 3 ${t('medium')}` },
-                  { id: '4', label: `▼ 4 ${t('low')}` },
-                ]}
-                onSelect={v => s('prio', +v)}
-              />
-            </div>
-            <div className="field">
-              <label>{t('qe.notes')}</label>
-              <textarea value={f.note || ''} onChange={e => s('note', e.target.value)} rows={2} />
-            </div>
-            {isRoot && (
-              <>
-                <div className="frow">
-                  <div className="field">
-                    <label>{t('nm.focusType')}</label>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                      {['', 'goal', 'painpoint', 'deadline'].map(ft => (
-                        <button key={ft} className={`goal-type-btn${(f.type || '') === ft ? ' active' : ''}`} onClick={() => s('type', ft)}>
-                          {ft ? (
-                            <>
-                              <Icon name={GT_ICON[ft]} size={12} />
-                              {t(ft)}
-                            </>
-                          ) : (
-                            t('none')
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {f.type && (
-                    <div className="field" style={{ flex: '0 0 110px' }}>
-                      <label>{t('nm.severity')}</label>
-                      <SearchSelect
-                        value={f.severity || 'high'}
-                        options={[
-                          { id: 'critical', label: t('critical') },
-                          { id: 'high', label: t('high') },
-                          { id: 'medium', label: t('medium') },
-                        ]}
-                        onSelect={v => s('severity', v)}
-                      />
-                    </div>
-                  )}
-                  {f.type === 'deadline' && (
-                    <div className="field" style={{ flex: '0 0 140px' }}>
-                      <label>{t('qe.date')}</label>
-                      <input type="date" value={f.date || ''} onChange={e => s('date', e.target.value)} />
-                    </div>
-                  )}
-                </div>
-                {f.type && (
-                  <div className="field">
-                    <label>{t('qe.description')}</label>
-                    <input
-                      value={f.description || ''}
-                      onChange={e => s('description', e.target.value)}
-                      placeholder={t('qe.descPlaceholder')}
-                    />
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* ── Custom fields ── */}
-            {customFields.length > 0 && (
-              <div ref={focusRefs.customFields} style={{ marginTop: 4 }}>
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: 'var(--tx3)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '.07em',
-                    marginBottom: 6,
-                  }}
-                >
-                  {t('cf.fieldValues')}
-                </div>
-                <div className="frow" style={{ flexWrap: 'wrap' }}>
-                  {customFields.map(cf => (
-                    <div key={cf.id} className="field" style={{ flex: '1 1 200px' }}>
-                      <label>{cf.name}</label>
-                      <CustomFieldInput
-                        field={cf}
-                        value={(f.customValues || {})[cf.id] ?? ''}
-                        onChange={val => setCustomValue(cf.id, val)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {onMove && (
-              <div className="field">
-                <label>{t('nm.parent')}</label>
-                <SearchSelect
-                  value={currentParentId}
-                  options={parentOptions}
-                  onSelect={newPid => {
-                    if (newPid === currentParentId) return;
-                    if (isDirty) {
-                      alert(t('nm.saveFirst'));
-                      return;
-                    }
-                    const sub = tree.filter(r => r.id === node.id || r.id.startsWith(node.id + '.')).length;
-                    if (!confirm(t('nm.confirmMove', node.name, sub - 1, newPid || t('nm.topLevel')))) return;
-                    onMove(node.id, newPid);
-                  }}
-                  placeholder={t('nm.topLevel')}
-                  showIds
-                />
-              </div>
-            )}
-          </>
+          <OverviewTab
+            t={t}
+            f={f}
+            s={s}
+            setF={setF}
+            node={node}
+            tree={tree}
+            teams={teams}
+            members={members}
+            scheduled={scheduled}
+            isDirty={isDirty}
+            isLeaf={isLeaf}
+            isRoot={isRoot}
+            focusRefs={focusRefs}
+            currentParentId={currentParentId}
+            parentOptions={parentOptions}
+            memberLabel={memberLabel}
+            customFields={customFields}
+            setCustomValue={setCustomValue}
+            onMove={onMove}
+          />
         )}
 
         {/* ══════ WORKFLOW TAB ══════ */}
         {activeNmTab === 'workflow' && (
-          <>
-            {/* A package has no status of its own to set — it derives one from
-            what is under it, which is why this tab is nearly empty for one.
-            Saying so beats leaving a tab with a single button on it and no
-            explanation for the space. */}
-            {!isLeaf && (
-              <div className="field" style={{ maxWidth: 520 }}>
-                <label>{t('qe.status')}</label>
-                <span style={{ fontSize: 12, color: 'var(--tx2)', lineHeight: 1.5 }}>
-                  {t('nm.derivedStatus', doneUnder, leafNodes(tree).filter(c => c.id.startsWith(node.id + '.')).length)}
-                </span>
-              </div>
-            )}
-            {/* What a package's status is made of. */}
-            {!isLeaf && phases.length === 0 && stat && (
-              <div
-                style={{
-                  background: 'var(--bg3)',
-                  borderRadius: 'var(--r)',
-                  padding: '10px 12px',
-                  marginBottom: 12,
-                  fontSize: 12,
-                  fontFamily: 'var(--mono)',
-                }}
-              >
-                <div style={{ color: 'var(--tx2)', marginBottom: 6 }}>
-                  {doneUnder}/{leafCountUnder} {t('qe.leafItems')} {t('done')} · {progPct}%
-                </div>
-                <div className="prog-wrap" style={{ marginBottom: 6 }}>
-                  <div className="prog-fill" style={{ width: `${progPct}%`, background: progPct >= 100 ? 'var(--gr)' : 'var(--am)' }} />
-                </div>
-                <div style={{ color: 'var(--tx3)' }}>
-                  {stat._r > 0 && (
-                    <span style={{ color: 'var(--am)' }}>
-                      {stat._r.toFixed(0)}d {t('qe.realisticSuffix')} ·{' '}
-                    </span>
-                  )}
-                  {stat._b > 0 && <span>{stat._b.toFixed(0)}d best</span>}
-                  {timeline?.period && (
-                    <span>
-                      {' '}
-                      · {timeline.period.start.toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB')} →{' '}
-                      {timeline.period.end.toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB')}
-                    </span>
-                  )}
-                  {timeline?.deadline && (
-                    <span>
-                      {' '}
-                      · {t('qe.affectsDeadline')}: {timeline.deadline.start.toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB')} →{' '}
-                      {timeline.deadline.end.toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB')}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Manual status + progress (leaf without phases only) */}
-            {/* Top-aligned, not bottom. A select is 34px tall and a range input
-            about 20, so aligning their BOTTOMS put the two labels above them
-            at different heights — a ragged row for no reason. */}
-            {isLeaf && phases.length === 0 && (
-              <div ref={focusRefs.status} className="frow" style={{ alignItems: 'flex-start' }}>
-                <div className="field" style={{ flex: '0 0 130px' }}>
-                  <label>{t('qe.status')}</label>
-                  <SearchSelect
-                    value={f.status || 'open'}
-                    options={[
-                      { id: 'open', label: t('open') },
-                      { id: 'wip', label: t('wip') },
-                      { id: 'done', label: t('done') },
-                    ]}
-                    onSelect={v => {
-                      if (v === 'done')
-                        setF(x => {
-                          return { ...x, ...donePatch(x) };
-                        });
-                      else if (v === 'open') setF(x => ({ ...x, status: 'open', progress: 0 }));
-                      else if (v === 'wip')
-                        setF(x => ({
-                          ...x,
-                          status: 'wip',
-                          progress: x.progress && x.progress > 0 && x.progress < 100 ? x.progress : 50,
-                          completedStart: wipStartSeed(x),
-                        }));
-                    }}
-                  />
-                </div>
-                <div className="field" style={{ flex: 1 }}>
-                  <label>
-                    {t('qe.progress')} {progPct}%
-                  </label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="5"
-                    value={progPct}
-                    onChange={e => {
-                      const v = +e.target.value;
-                      setF(x => {
-                        const next = { ...x, progress: v };
-                        if (v >= 100 && x.status !== 'done') {
-                          Object.assign(next, donePatch(x));
-                        } else if (v > 0 && v < 100 && x.status !== 'wip') {
-                          next.status = 'wip';
-                          next.completedStart = wipStartSeed(x);
-                        } else if (v === 0 && x.status !== 'open') next.status = 'open';
-                        return next;
-                      });
-                    }}
-                    style={{ width: '100%', accentColor: 'var(--ac)', marginTop: 4 }}
-                  />
-                </div>
-              </div>
-            )}
-            {/* Only once there is a change to date: before that the field would
-            read as a property of the task, and it is one of the save. */}
-            {isLeaf && stateChanged && !viewDay && asOfField}
-
-            {isLeaf && (
-              <div ref={focusRefs.phases}>
-                <PhaseList
-                  phases={f.phases}
-                  templates={taskTemplates}
-                  teams={teams}
-                  members={members}
-                  templateId={f.templateId}
-                  onChange={handlePhaseChange}
-                />
-              </div>
-            )}
-
-            {/* HandoffPlanEditor disabled (see QuickEdit comment) */}
-
-            {/* The history sits under the fields that write it. It used to be a
-            tab of its own, two clicks away from the status it records. */}
-            <div style={{ marginTop: 14 }}>
-              <ItemHistoryTimeline item={f} events={historyEvents} onEventsChange={onHistoryChange} viewDay={viewDay} />
-            </div>
-
-            {/* Dropping is a decision about work at any level, so it is offered for
-            a package too. Last on the tab: it is the rarest thing done here,
-            and it must not be the first button a click lands on. */}
-            <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button
-                type="button"
-                data-testid="drop-toggle"
-                className={`btn btn-sm ${f.dropped ? 'btn-pri' : 'btn-sec'}`}
-                data-htip={t('nm.dropHint')}
-                onClick={() => setF(x => ({ ...x, dropped: x.dropped ? undefined : true }))}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 7, flexShrink: 0 }}
-              >
-                <Icon name={f.dropped ? 'undo' : 'x'} size={13} />
-                {f.dropped ? t('nm.dropUndo') : t('nm.dropDo')}
-              </button>
-              <kbd
-                style={{
-                  fontFamily: 'var(--mono)',
-                  fontSize: 11,
-                  color: 'var(--tx3)',
-                  border: '1px solid var(--b2)',
-                  borderRadius: 3,
-                  padding: '1px 5px',
-                  flexShrink: 0,
-                }}
-              >
-                0
-              </kbd>
-            </div>
-          </>
+          <WorkflowTab
+            t={t}
+            lang={lang}
+            f={f}
+            setF={setF}
+            node={node}
+            tree={tree}
+            teams={teams}
+            members={members}
+            taskTemplates={taskTemplates}
+            historyEvents={historyEvents}
+            viewDay={viewDay}
+            isLeaf={isLeaf}
+            focusRefs={focusRefs}
+            timeline={timeline}
+            phases={phases}
+            stat={stat}
+            progPct={progPct}
+            leafCountUnder={leafCountUnder}
+            doneUnder={doneUnder}
+            stateChanged={stateChanged}
+            asOfField={asOfField}
+            donePatch={donePatch}
+            wipStartSeed={wipStartSeed}
+            handlePhaseChange={handlePhaseChange}
+            onHistoryChange={onHistoryChange}
+          />
         )}
 
         {/* ══════ EFFORT TAB ══════ */}
         {activeNmTab === 'effort' && isLeaf && (
-          <>
-            <div className="field">
-              <label>{t('qe.quickEstimate')}</label>
-              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center', marginBottom: 4 }}>
-                {SIZES.map(([sz, d, fc, desc]) => {
-                  const exact = f.best === d;
-                  const nearest = !exact && nearestSize?.[0] === sz && f.best > 0;
-                  return (
-                    <button
-                      key={sz}
-                      className={`btn ${exact ? 'btn-pri' : 'btn-sec'} btn-sm`}
-                      style={nearest ? { borderColor: 'var(--ac)', opacity: 0.8 } : undefined}
-                      data-htip={desc || undefined}
-                      onClick={() => {
-                        s('best', d);
-                        s('factor', fc);
-                      }}
-                    >
-                      {sz}
-                      <span style={{ fontSize: 10, opacity: 0.6, marginLeft: 2 }}>{d}d</span>
-                    </button>
-                  );
-                })}
-              </div>
-              {onEstimate && (
-                <button
-                  className={`btn btn-pri${!f.best ? ' btn-cta' : ''}`}
-                  style={{ marginTop: 4 }}
-                  onClick={() => {
-                    if (isDirty && !confirm(t('nm.unsavedDiscard'))) return;
-                    onClose();
-                    onEstimate(node);
-                  }}
-                >
-                  {t('qe.estimateNow')}
-                </button>
-              )}
-            </div>
-            <div className="frow">
-              <div className="field">
-                <label>{t('qe.bestDays')}</label>
-                <input
-                  ref={focusRefs.bestDays}
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={f.best || 0}
-                  onChange={e => s('best', +e.target.value)}
-                  style={{ fontFamily: 'var(--mono)' }}
-                />
-              </div>
-              <div className="field">
-                <label>{t('qe.factor')}</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  min="1"
-                  max="5"
-                  value={f.factor || 1.5}
-                  onChange={e => s('factor', +e.target.value)}
-                  style={{ fontFamily: 'var(--mono)' }}
-                />
-              </div>
-            </div>
-            <div className="field">
-              <label>{t('qe.fixedDuration')}</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <label className="toggle" style={{ margin: 0 }}>
-                  <input
-                    type="checkbox"
-                    checked={(f.fixedDurationDays || 0) > 0}
-                    onChange={e =>
-                      s('fixedDurationDays', e.target.checked ? f.fixedDurationDays || Math.max(1, Math.ceil(f.best || 1)) : 0)
-                    }
-                  />
-                  <span className="slider" />
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  disabled={!(f.fixedDurationDays > 0)}
-                  value={f.fixedDurationDays || ''}
-                  onChange={e => s('fixedDurationDays', Math.max(1, Math.ceil(+e.target.value || 1)))}
-                  style={{ maxWidth: 110, fontFamily: 'var(--mono)' }}
-                />
-                <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{t('qe.fixedDurationDays')}</span>
-              </div>
-              <div className="helper">{t('qe.fixedDurationHint')}</div>
-            </div>
-            <div className="field">
-              <label>{t('qe.confidence')}</label>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <div style={{ flex: 1 }}>
-                  <SearchSelect value={f.confidence || ''} options={CONF_OPTS} onSelect={v => s('confidence', v)} />
-                </div>
-                {(() => {
-                  const eff = confidence[node.id] || 'committed';
-                  const reason = confReasons[node.id];
-                  const isAuto = !f.confidence;
-                  return (
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        padding: '4px 8px',
-                        borderRadius: 'var(--r)',
-                        border: `1px solid ${CONF_COLOR[eff]}`,
-                        fontSize: 11,
-                        color: CONF_COLOR[eff],
-                        cursor: 'help',
-                        whiteSpace: 'nowrap',
-                      }}
-                      data-htip={`${t(`conf.${eff}`)} — ${REASON_TIP[reason] || '?'}`}
-                    >
-                      {CONF_DOT[eff]} {isAuto ? 'auto' : ''} {t(`conf.${eff}`)}
-                    </span>
-                  );
-                })()}
-              </div>
-            </div>
-            {sc && (
-              <div style={{ fontSize: 12, color: 'var(--tx2)', marginBottom: 12, lineHeight: 1.6 }}>
-                {f.fixedDurationDays > 0 ? (
-                  <>
-                    <span style={{ color: 'var(--tx3)' }}>{t('qe.fixedDuration')}: </span>
-                    <b style={{ color: 'var(--am)' }}>{f.fixedDurationDays}d</b>
-                  </>
-                ) : (
-                  <>
-                    <span style={{ color: 'var(--tx3)' }}>
-                      {f.best}d best × {f.factor || 1.5} ={' '}
-                    </span>
-                    <b style={{ color: 'var(--am)' }}>{re(f.best || 0, f.factor || 1.5).toFixed(1)}d</b>
-                    <span style={{ color: 'var(--tx3)' }}> {t('qe.realisticSuffix')}</span>
-                  </>
-                )}
-                <br />
-                <span style={{ color: 'var(--tx3)' }}>
-                  {iso(sc.startD)} → {iso(sc.endD)} · {sc.weeks}w ·{' '}
-                  {(f.assign || []).length > 1 ? f.assign.map(id => members.find(m => m.id === id)?.name || id).join(', ') : sc.person} (
-                  {sc.capPct}% cap)
-                </span>
-              </div>
-            )}
-            {!sc && (f.best > 0 || f.fixedDurationDays > 0) && (
-              <div style={{ fontSize: 12, color: 'var(--tx3)', marginBottom: 12 }}>
-                {f.fixedDurationDays > 0
-                  ? `${t('qe.fixedDuration')}: ${f.fixedDurationDays}d`
-                  : `${f.best}d best × ${f.factor || 1.5} = ${re(f.best || 0, f.factor || 1.5).toFixed(1)}d ${t('qe.realisticSuffix')}`}{' '}
-                · {t('qe.notScheduled')}
-              </div>
-            )}
-          </>
+          <EffortTab
+            t={t}
+            f={f}
+            s={s}
+            node={node}
+            sc={sc}
+            members={members}
+            confidence={confidence}
+            confReasons={confReasons}
+            isDirty={isDirty}
+            focusRefs={focusRefs}
+            onClose={onClose}
+            onEstimate={onEstimate}
+            SIZES={SIZES}
+            nearestSize={nearestSize}
+            CONF_OPTS={CONF_OPTS}
+            REASON_TIP={REASON_TIP}
+          />
         )}
 
         {/* ══════ TIMING TAB ══════ */}
         {activeNmTab === 'timing' && (
-          <>
-            {isLeaf && (
-              <>
-                <div className="frow">
-                  <div className="field">
-                    <label>{t('qe.decideBy')}</label>
-                    <input type="date" value={f.decideBy || ''} onChange={e => s('decideBy', e.target.value)} />
-                  </div>
-                  <div className="field">
-                    <label>
-                      {t('qe.due')} {f.due && <span style={{ fontSize: 11, color: 'var(--re)' }}>~</span>}
-                    </label>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <input type="date" value={f.due || ''} onChange={e => s('due', e.target.value)} style={{ flex: 1 }} />
-                      {f.due && (
-                        <button className="btn btn-ghost btn-xs" onClick={() => s('due', '')} aria-label={t('p.clear')}>
-                          <Icon name="x" size={11} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="field">
-                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                      {t('qe.pinnedStart')}
-                      {f.pinnedStart && <Icon name="pin" size={10} style={{ color: 'var(--am)' }} />}
-                    </label>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <input
-                        ref={focusRefs.pinnedStart}
-                        type="date"
-                        value={f.pinnedStart || ''}
-                        onChange={e => s('pinnedStart', e.target.value)}
-                        style={{ flex: 1 }}
-                      />
-                      <button className="btn btn-sec btn-xs" onClick={() => s('pinnedStart', iso(new Date()))}>
-                        {t('nm.pinToday')}
-                      </button>
-                      {f.pinnedStart && (
-                        <button className="btn btn-ghost btn-xs" onClick={() => s('pinnedStart', '')} aria-label={t('p.clear')}>
-                          <Icon name="x" size={11} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="frow">
-                  <div className="field">
-                    <label>{t('qe.completedStart')}</label>
-                    <input
-                      type="date"
-                      value={f.completedStart || ''}
-                      disabled={f.status === 'open'}
-                      onChange={e => setCompletion({ completedStart: e.target.value })}
-                    />
-                  </div>
-                  <div className="field">
-                    <label>{t('qe.completedEnd')}</label>
-                    <input
-                      type="date"
-                      value={f.completedEnd || ''}
-                      disabled={f.status !== 'done'}
-                      onChange={e => setCompletion({ completedEnd: e.target.value })}
-                    />
-                  </div>
-                  <div className="field">
-                    <label>{t('qe.completedAt')}</label>
-                    <input
-                      type="date"
-                      value={f.completedAt || ''}
-                      disabled={f.status !== 'done'}
-                      onChange={e => setCompletion({ completedAt: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div className="helper" style={{ marginTop: -8, marginBottom: 10 }}>
-                  {t('qe.completedHint')}
-                </div>
-                <p className="helper" style={{ marginBottom: 12 }}>
-                  {t('qe.horizonHint')}
-                </p>
-              </>
-            )}
-            {showDeadlineRelevant && (
-              <div className="field">
-                <label>{t('qe.affectsDeadline')}</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <label className="toggle">
-                    <input
-                      type="checkbox"
-                      checked={f.deadlineRelevant !== false}
-                      disabled={deadlineParentExcluded}
-                      onChange={e => s('deadlineRelevant', e.target.checked ? undefined : false)}
-                    />
-                    <span className="slider" />
-                  </label>
-                  <span
-                    style={{
-                      fontSize: 12,
-                      color: deadlineParentExcluded ? 'var(--tx3)' : f.deadlineRelevant === false ? 'var(--am)' : 'var(--tx2)',
-                    }}
-                  >
-                    {f.deadlineRelevant === false ? t('no') : t('yes')}
-                  </span>
-                </div>
-                <div className="helper">
-                  {deadlineParentExcluded
-                    ? t('qe.affectsDeadlineInheritedOff')
-                    : t('qe.affectsDeadlineHint', deadlineRoot?.name || deadlineRootId)}
-                </div>
-              </div>
-            )}
-
-            <div className="field">
-              <label>
-                {t('qe.predecessors')} {!isLeaf && <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{t('nm.appliesToAllLeaves')}</span>}
-              </label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
-                {[...new Set([...(f.deps || []), ...(f.softDeps || [])])].map(d => {
-                  const dn = findById(d);
-                  const isHighlighted = highlightedDepId === d;
-                  return (
-                    <div
-                      key={'d_' + d}
-                      className="dep-row"
-                      ref={el => {
-                        if (el) depRowRefs.current[d] = el;
-                        else delete depRowRefs.current[d];
-                      }}
-                      style={
-                        isHighlighted
-                          ? {
-                              background: 'rgba(59,130,246,.10)',
-                              borderColor: 'rgba(59,130,246,.35)',
-                              boxShadow: '0 0 0 1px rgba(59,130,246,.25)',
-                            }
-                          : undefined
-                      }
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                        <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>
-                          {d}
-                        </span>
-                        {dn?.name && (
-                          <span
-                            style={{
-                              fontSize: 12,
-                              color: 'var(--tx2)',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                              minWidth: 0,
-                            }}
-                          >
-                            {dn.name}
-                          </span>
-                        )}
-                      </div>
-                      <span
-                        className="tag-x"
-                        style={{ cursor: 'pointer', fontSize: 12, color: 'var(--tx3)' }}
-                        onClick={() =>
-                          setF(x => {
-                            const nd = (x.deps || []).filter(y => y !== d);
-                            const ns = (x.softDeps || []).filter(y => y !== d);
-                            const nl = { ...(x._depLabels || {}) };
-                            delete nl[d];
-                            return { ...x, deps: nd, softDeps: ns, _depLabels: nl };
-                          })
-                        }
-                      >
-                        <Icon name="x" size={9} />
-                      </span>
-                    </div>
-                  );
-                })}
-                {inheritedDeps.map(({ dep, from }) => {
-                  const dn = findById(dep);
-                  return (
-                    <div key={`inh_${dep}_${from}`} className="dep-row" style={{ opacity: 0.6 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                        <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', flexShrink: 0, fontWeight: 600 }}>
-                          {dep}
-                        </span>
-                        {dn?.name && (
-                          <span
-                            style={{
-                              fontSize: 12,
-                              color: 'var(--tx3)',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                              minWidth: 0,
-                            }}
-                          >
-                            {dn.name}
-                          </span>
-                        )}
-                      </div>
-                      <span style={{ fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>{t('ph.via', from)}</span>
-                    </div>
-                  );
-                })}
-              </div>
-              <div ref={focusRefs.deps} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <SearchSelect
-                  options={allIds
-                    .filter(i => !(f.deps || []).includes(i) && !(f.softDeps || []).includes(i))
-                    .map(i => ({ id: i, label: findById(i)?.name || '' }))}
-                  onSelect={id => s('deps', [...new Set([...(f.deps || []), id])])}
-                  placeholder={`+ ${t('qe.predecessors')}`}
-                  showIds
-                />
-              </div>
-            </div>
-
-            {(() => {
-              const succs = (tree || []).filter(
-                r => r.id !== node.id && ((r.deps || []).includes(node.id) || (r.softDeps || []).includes(node.id)),
-              );
-              if (!succs.length) return null;
-              return (
-                <div className="field">
-                  <label>{t('qe.successors')}</label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    {succs.map(r => {
-                      return (
-                        <div key={'succ_' + r.id} className="dep-row">
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                            <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ac)', flexShrink: 0, fontWeight: 600 }}>
-                              {r.id}
-                            </span>
-                            {r.name && (
-                              <span
-                                style={{
-                                  fontSize: 12,
-                                  color: 'var(--tx2)',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                  minWidth: 0,
-                                }}
-                              >
-                                {r.name}
-                              </span>
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                            {onNavigate && (
-                              <button
-                                type="button"
-                                className="btn btn-ghost btn-xs"
-                                aria-label={t('nm.fullEditTip')}
-                                data-htip={t('nm.fullEditTip')}
-                                style={{ padding: '0 3px', color: 'var(--ac)' }}
-                                onClick={() => handleNavigate(r.id)}
-                              >
-                                <Icon name="link" size={11} />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
-          </>
+          <TimingTab
+            t={t}
+            f={f}
+            s={s}
+            setF={setF}
+            node={node}
+            tree={tree}
+            isLeaf={isLeaf}
+            focusRefs={focusRefs}
+            depRowRefs={depRowRefs}
+            highlightedDepId={highlightedDepId}
+            handleNavigate={handleNavigate}
+            onNavigate={onNavigate}
+            allIds={allIds}
+            findById={findById}
+            inheritedDeps={inheritedDeps}
+            setCompletion={setCompletion}
+            deadlineRoot={deadlineRoot}
+            deadlineRootId={deadlineRootId}
+            deadlineParentExcluded={deadlineParentExcluded}
+            showDeadlineRelevant={showDeadlineRelevant}
+          />
         )}
 
         {/* ── ACTIONS ── */}
-        <div className="modal-footer">
-          {onDelete && (
-            <button
-              className="btn btn-danger"
-              onClick={() => {
-                onDelete(node.id);
-                onClose();
-              }}
-            >
-              {t('delete')}
-            </button>
-          )}
-          {onDuplicate && (
-            <button
-              className="btn btn-sec"
-              onClick={() => {
-                if (isDirty && !confirm(t('nm.unsavedDiscard'))) return;
-                onDuplicate(node.id);
-              }}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-            >
-              <Icon name="copy" size={12} />
-              {t('qe.duplicate')}
-            </button>
-          )}
-          {onSplitTaskAtProgress && f.status === 'wip' && f.progress > 0 && f.progress < 100 && !hasChildren(tree, node.id) && (
-            <button
-              className="btn btn-sec"
-              data-htip={t('split.task.tip')}
-              onClick={() => {
-                if (isDirty && !confirm(t('nm.unsavedDiscard'))) return;
-                const raw = prompt(t('split.task.prompt', f.progress), String(f.progress));
-                if (raw == null) return;
-                const p = parseInt(raw, 10);
-                if (!Number.isFinite(p) || p <= 0 || p >= 100) {
-                  alert(t('split.task.invalid'));
-                  return;
-                }
-                onSplitTaskAtProgress(node.id, p);
-                onClose();
-              }}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-            >
-              <Icon name="subtask" size={12} />
-              {t('split.btn')}
-            </button>
-          )}
-          <div style={{ flex: 1 }} />
-          <button className="btn btn-sec" onClick={safeClose}>
-            {t('cancel')}
-          </button>
-          <button
-            className="btn btn-pri"
-            data-testid="nm-save"
-            data-htip={withKey(t('save'), 'dialogSave')}
-            onClick={() => {
-              save();
-              onClose();
-            }}
-            disabled={!isDirty}
-          >
-            {isDirty ? t('save') : t('nm.noChanges')}
-          </button>
-        </div>
+        <NodeFooter
+          t={t}
+          f={f}
+          node={node}
+          tree={tree}
+          isDirty={isDirty}
+          safeClose={safeClose}
+          save={save}
+          onClose={onClose}
+          onDelete={onDelete}
+          onDuplicate={onDuplicate}
+          onSplitTaskAtProgress={onSplitTaskAtProgress}
+        />
       </div>
     </div>
   );

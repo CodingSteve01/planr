@@ -83,9 +83,6 @@
     "complexity": {
       "count": 2
     },
-    "max-lines": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     }
@@ -95,6 +92,37 @@
       "count": 1
     },
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/modals/node/EffortTab.jsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/components/modals/node/NodeHeader.jsx": {
+    "complexity": {
+      "count": 1
+    }
+  },
+  "src/components/modals/node/OverviewTab.jsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/modals/node/TimingTab.jsx": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/modals/node/WorkflowTab.jsx": {
+    "complexity": {
       "count": 1
     }
   },
@@ -272,15 +300,9 @@
   },
   "src/components/views/ResView.jsx": {
     "complexity": {
-      "count": 2
-    },
-    "max-lines": {
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 1
-    },
-    "no-unused-vars": {
       "count": 1
     }
   },
@@ -395,6 +417,11 @@
       "count": 1
     },
     "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/components/views/res/ReadRows.jsx": {
+    "complexity": {
       "count": 1
     }
   },
@@ -561,15 +588,37 @@
       "count": 1
     }
   },
-  "src/utils/pdfExports.js": {
+  "src/utils/pdf/pdfCore.js": {
     "complexity": {
+      "count": 1
+    }
+  },
+  "src/utils/pdf/summaryCapacitySections.js": {
+    "max-lines-per-function": {
       "count": 3
-    },
-    "max-lines": {
+    }
+  },
+  "src/utils/pdf/summaryOverviewSections.js": {
+    "complexity": {
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 5
+      "count": 1
+    }
+  },
+  "src/utils/pdf/summaryRoadmapSections.js": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/utils/pdf/todoPdf.js": {
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
+  "src/utils/pdf/whatWhenPdf.js": {
+    "max-lines-per-function": {
+      "count": 1
     }
   },
   "src/utils/planIntegrity.js": {

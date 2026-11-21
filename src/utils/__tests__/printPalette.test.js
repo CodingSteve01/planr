@@ -12,7 +12,7 @@
 // the values are written out once in printPalette.js. This is what stops the
 // copy drifting from the original.
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { PRINT } from '../printPalette.js';
 
@@ -63,7 +63,14 @@ describe('the printed palette', () => {
 describe('the printed surfaces', () => {
   // Every colour they draw comes from the palette above, so a change to the
   // theme reaches the paper too.
-  const FILES = ['src/utils/pdfExports.js', 'src/utils/report.js'];
+  const PDF_DIR = 'src/utils/pdf';
+  const FILES = [
+    'src/utils/pdfExports.js',
+    ...readdirSync(path.join(process.cwd(), PDF_DIR))
+      .filter(f => f.endsWith('.js'))
+      .map(f => `${PDF_DIR}/${f}`),
+    'src/utils/report.js',
+  ];
   const KNOWN = new Set(Object.values(PRINT).map(v => String(v).toLowerCase()));
 
   it.each(FILES)('writes no colour of its own in %s', file => {

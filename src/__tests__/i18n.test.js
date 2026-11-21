@@ -99,6 +99,19 @@ const TOOLTIP_TRANSLATED_FILES = [
   'components/views/GanttView.jsx',
   'components/views/QuickEdit.jsx',
   'components/views/ResView.jsx',
+  'components/views/res/CapacityFields.jsx',
+  'components/views/res/DatedHint.jsx',
+  'components/views/res/MeetingPlanModal.jsx',
+  'components/views/res/MemberEditModal.jsx',
+  'components/views/res/PlanPicker.jsx',
+  'components/views/res/ReadRows.jsx',
+  'components/views/res/ResMembersSection.jsx',
+  'components/views/res/ResPlansSection.jsx',
+  'components/views/res/ResSectionBar.jsx',
+  'components/views/res/ResTeamsSection.jsx',
+  'components/views/res/ResVacationsSection.jsx',
+  'components/views/res/TeamEditModal.jsx',
+  'components/views/res/VacationEditModal.jsx',
   'components/views/TreeView.jsx',
   'components/views/tree/TreeToolbar.jsx',
   'components/views/tree/TreeSelectionBar.jsx',
@@ -121,6 +134,13 @@ const TOOLTIP_TRANSLATED_FILES = [
   'components/modals/AssignModal.jsx',
   'components/modals/NewProjModal.jsx',
   'components/modals/NodeModal.jsx',
+  'components/modals/node/EffortTab.jsx',
+  'components/modals/node/NodeFooter.jsx',
+  'components/modals/node/NodeHeader.jsx',
+  'components/modals/node/NodeTabBar.jsx',
+  'components/modals/node/OverviewTab.jsx',
+  'components/modals/node/TimingTab.jsx',
+  'components/modals/node/WorkflowTab.jsx',
 ];
 
 // A literal string — not a t(...) call — sitting directly in one of the
@@ -189,7 +209,9 @@ describe('every key the code asks for is in the dictionary', () => {
       // The report/export layer has its own `t(english, german)` helper that
       // takes two literal sentences, not a dictionary key. Same name, other
       // job — checking those against the dictionary would be nonsense.
-      if (text.includes('buildReportModel')) continue;
+      // The summary sections in utils/pdf/ are part of that layer but never
+      // call buildReportModel themselves: they receive that `t` as an argument.
+      if (text.includes('buildReportModel') || /[\\/]utils[\\/]pdf[\\/]summary(Model|\w*Sections)\.js$/.test(file)) continue;
       // Only literal single-argument keys — a computed key (`t('s.' + x)`)
       // cannot be checked from here and is skipped by the pattern.
       for (const m of text.matchAll(/\bt\(\s*'([a-zA-Z][\w.]*)'\s*[,)]/g)) {
