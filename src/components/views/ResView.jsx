@@ -25,7 +25,6 @@ function ResViewImpl({
   personFilter = '',
   tree = [],
   scheduled = [],
-  weeks = [],
   onMeetingPlansUpd,
   onUpd,
   onAdd,
@@ -246,7 +245,6 @@ function ResViewImpl({
           shortMap={shortMap}
           meetingPlans={meetingPlans}
           scheduled={scheduled}
-          weeks={weeks}
           onAdd={onAdd}
           setEditingMemberId={setEditingMemberId}
         />

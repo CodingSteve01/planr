@@ -367,7 +367,7 @@ Three things that layout depends on, all of them learned the hard way:
 - Embedded SVG is drawn by svg-to-pdfkit against pdfmake's bundled **Roboto**,
   not the Plex faces the document body uses. Roboto has no arrows, so `→` —
   the character `PDF_GLYPH_MAP` maps *towards* — prints as an empty box in
-  there. `SVG_ONLY_SWAPS` in `pdfExports.js` is the second pass that fixes it.
+  there. `SVG_ONLY_SWAPS` in `src/utils/pdf/pdfSvg.js` is the second pass that fixes it.
 
 Confidence is counted on **remaining** effort. Counting the whole of a
 half-finished item made the three buckets sum past the open total, and two

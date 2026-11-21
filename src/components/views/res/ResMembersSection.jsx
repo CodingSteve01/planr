@@ -10,7 +10,6 @@ export function ResMembersSection({
   shortMap,
   meetingPlans,
   scheduled,
-  weeks,
   onAdd,
   setEditingMemberId,
 }) {
@@ -80,7 +79,6 @@ export function ResMembersSection({
                     shortMap={shortMap}
                     meetingPlans={meetingPlans}
                     scheduled={scheduled}
-                    weeks={weeks}
                     onClick={() => setEditingMemberId(m.id)}
                     t={t}
                   />

@@ -209,9 +209,9 @@ describe('every key the code asks for is in the dictionary', () => {
       // The report/export layer has its own `t(english, german)` helper that
       // takes two literal sentences, not a dictionary key. Same name, other
       // job — checking those against the dictionary would be nonsense.
-      // utils/pdf/ holds the parts of that layer that never call
-      // buildReportModel themselves (the summary sections receive `t`).
-      if (text.includes('buildReportModel') || file.startsWith(join(SRC, 'utils', 'pdf'))) continue;
+      // The summary sections in utils/pdf/ are part of that layer but never
+      // call buildReportModel themselves: they receive that `t` as an argument.
+      if (text.includes('buildReportModel') || /[\\/]utils[\\/]pdf[\\/]summary(Model|\w*Sections)\.js$/.test(file)) continue;
       // Only literal single-argument keys — a computed key (`t('s.' + x)`)
       // cannot be checked from here and is skipped by the pattern.
       for (const m of text.matchAll(/\bt\(\s*'([a-zA-Z][\w.]*)'\s*[,)]/g)) {

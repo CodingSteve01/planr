@@ -61,7 +61,7 @@ function Avatar({ member, teams }) {
   );
 }
 
-function MemberReadRow({ member, teams, shortMap, meetingPlans = [], scheduled = [], weeks = [], onClick, t }) {
+function MemberReadRow({ member, teams, shortMap, meetingPlans = [], scheduled = [], onClick, t }) {
   const rowTeams = memberTeams(member)
     .map(tid => teams.find(t => t.id === tid))
     .filter(Boolean);
