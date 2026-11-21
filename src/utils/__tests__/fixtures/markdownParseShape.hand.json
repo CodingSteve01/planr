@@ -1,0 +1,487 @@
+{
+  "meta": {
+    "name": "Rechnungen",
+    "version": "2",
+    "planStart": "2026-01-05",
+    "planEnd": "2026-12-31",
+    "viewStart": "2025-12-01",
+    "workDays": [1, 2, 3, 4, 5]
+  },
+  "teams": [
+    {
+      "id": "T1",
+      "name": "Frontend",
+      "color": "#3b82f6",
+      "meetingPlanIds": ["mp_17815176000000"]
+    },
+    {
+      "id": "T2",
+      "name": "Backend",
+      "color": "#10b981"
+    },
+    {
+      "id": "T3",
+      "name": "Ops",
+      "color": "#f59e0b"
+    },
+    {
+      "id": "T4",
+      "name": "Frontend, Backend",
+      "color": "#ef4444"
+    }
+  ],
+  "members": [
+    {
+      "id": "m17815176000000",
+      "name": "Anna Noor",
+      "team": "T1",
+      "role": "Backend, Lead",
+      "cap": 0.8,
+      "vac": 25,
+      "start": "2026-01-05",
+      "end": "2026-11-30",
+      "weeklyHours": 32,
+      "capMode": "derived",
+      "meetings": [
+        {
+          "id": "mt_0",
+          "name": "Standup",
+          "hours": 0.25,
+          "frequency": "daily"
+        },
+        {
+          "id": "mt_1",
+          "name": "Retro",
+          "hours": 0.5,
+          "frequency": "biweekly"
+        },
+        {
+          "id": "mt_2",
+          "name": "Odd thing",
+          "hours": 0,
+          "frequency": "weekly"
+        }
+      ],
+      "capChanges": [
+        {
+          "from": "2026-09-01",
+          "cap": 0.5
+        },
+        {
+          "from": "2027-01-01",
+          "cap": 1,
+          "weeklyHours": 30
+        }
+      ],
+      "meetingChanges": [
+        {
+          "from": "2026-06-01",
+          "meetings": [
+            {
+              "id": "mc_1",
+              "name": "Standup",
+              "hours": 0.5,
+              "frequency": "daily"
+            },
+            {
+              "id": "mc_2",
+              "name": "Odd",
+              "hours": 0,
+              "frequency": "weekly"
+            }
+          ],
+          "meetingPlanIds": ["mp_17815176000000"]
+        },
+        {
+          "from": "2027-01-01",
+          "meetings": [
+            {
+              "id": "mc_0",
+              "name": "Retro",
+              "hours": 1,
+              "frequency": "monthly"
+            }
+          ]
+        }
+      ],
+      "meetingPlanIds": ["mp_17815176000000"]
+    },
+    {
+      "id": "m17815176000001",
+      "name": "Ben Ortiz",
+      "team": "T2",
+      "role": "Developer",
+      "cap": 1,
+      "vac": 28,
+      "start": "",
+      "end": "",
+      "weeklyHours": 40,
+      "capMode": "derived",
+      "meetings": [],
+      "capChanges": [
+        {
+          "from": "2026-05-01",
+          "cap": 0.6
+        }
+      ],
+      "meetingChanges": [
+        {
+          "from": "2026-07-01",
+          "meetings": [
+            {
+              "id": "mc_0",
+              "name": "Sync",
+              "hours": 1,
+              "frequency": "weekly"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "tree": [
+    {
+      "id": "P1",
+      "name": "Rechnungen",
+      "status": "done",
+      "team": "T1",
+      "best": 0,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": [],
+      "note": "Invoices from the first form to the PDF",
+      "assign": [],
+      "type": "goal",
+      "severity": "high",
+      "date": "2026-12-01"
+    },
+    {
+      "id": "P1.1",
+      "name": "Form   {prio:1, seq:2, done:2026-02-10, done-start:2026-02-03, done-end:2026-02-10, conf:committed} [AN]",
+      "status": "done",
+      "team": "T1",
+      "best": 5,
+      "factor": 2,
+      "prio": 2,
+      "deps": ["P1.2"],
+      "note": "",
+      "assign": [],
+      "progress": 100
+    },
+    {
+      "id": "P1.2",
+      "name": "PDF export   {plan-start:2026-03-02, plan-end:2026-03-13, due:2026-03-20, team-lock:true, fixed:3.2, ord:4, cv.jira:INV-1, cv.area:Billing} [BO, AN]",
+      "status": "wip",
+      "team": "T2",
+      "best": 8,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": ["P1.1", "P1.3"],
+      "note": "a free note line an italic note",
+      "assign": [],
+      "progress": 40,
+      "decideBy": "2026-02-27",
+      "pinnedStart": "2026-03-02",
+      "parallel": true,
+      "_depLabels": {
+        "P1.3": "Review"
+      },
+      "phases": [
+        {
+          "id": "ph1781517600000shl1",
+          "name": "RE",
+          "status": "done",
+          "team": "",
+          "teams": [],
+          "assign": []
+        },
+        {
+          "id": "ph1781517600000kz63",
+          "name": "Development",
+          "status": "wip",
+          "team": "T1",
+          "teams": ["T1"],
+          "assign": []
+        },
+        {
+          "id": "ph1781517600000dgr4",
+          "name": "Test",
+          "status": "open",
+          "team": "T2",
+          "teams": ["T2"],
+          "assign": []
+        }
+      ],
+      "handoffPlan": [
+        {
+          "assign": ["m17815176000000", "m17815176000001"],
+          "team": "T1"
+        },
+        {
+          "assign": ["m17815176000001"]
+        }
+      ]
+    },
+    {
+      "id": "P1.3",
+      "name": "Review {parallel:true, dropped:true, deadline:false, critical}",
+      "status": "open",
+      "team": "",
+      "best": 0,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": [],
+      "note": "",
+      "assign": ["m17815176000001"]
+    },
+    {
+      "id": "P1.4",
+      "name": "Legacy marker ⚑",
+      "status": "open",
+      "team": "",
+      "best": 0,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": [],
+      "note": "",
+      "assign": []
+    },
+    {
+      "id": "P2",
+      "name": "Kundenbereich 🔥",
+      "status": "open",
+      "team": "",
+      "best": 0,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": [],
+      "note": "",
+      "assign": [],
+      "description": "Description for a root"
+    },
+    {
+      "id": "P2.1",
+      "name": "Login  {high}",
+      "status": "open",
+      "team": "T2",
+      "best": 2,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": [],
+      "note": "",
+      "assign": []
+    },
+    {
+      "id": "P2.1.1",
+      "name": "Reset mail",
+      "status": "open",
+      "team": "",
+      "best": 0,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": [],
+      "note": "",
+      "assign": [],
+      "displayOrder": 1
+    },
+    {
+      "id": "P3",
+      "name": "🏁 Release",
+      "status": "open",
+      "team": "",
+      "best": 0,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": [],
+      "note": "",
+      "assign": [],
+      "date": "2026-12-15"
+    },
+    {
+      "id": "P4",
+      "name": "Star bullet",
+      "status": "open",
+      "team": "T3",
+      "best": 0,
+      "factor": 1.5,
+      "prio": 2,
+      "deps": [],
+      "note": "",
+      "assign": []
+    }
+  ],
+  "vacations": [
+    {
+      "person": "m17815176000000",
+      "from": "2026-08-03",
+      "to": "2026-08-14",
+      "note": "Summer"
+    },
+    {
+      "person": "m17815176000001",
+      "from": "2026-09-07",
+      "to": "2026-09-11",
+      "note": ""
+    }
+  ],
+  "holidays": [
+    {
+      "date": "2026-05-01",
+      "name": "Labour Day",
+      "auto": true
+    },
+    {
+      "date": "2026-06-15",
+      "name": "Company day",
+      "auto": false
+    }
+  ],
+  "taskTemplates": [
+    {
+      "id": "tpl_17815176000000",
+      "name": "Standard",
+      "phases": [
+        {
+          "name": "Analysis",
+          "team": "T1",
+          "teams": ["T1"]
+        },
+        {
+          "name": "Build",
+          "team": "T2",
+          "teams": ["T2"]
+        },
+        {
+          "name": "Test",
+          "team": "T4",
+          "teams": ["T4"]
+        }
+      ]
+    }
+  ],
+  "customFields": [
+    {
+      "id": "jira",
+      "name": "Ticket",
+      "type": "uri",
+      "uriTemplate": "https://example.invalid/browse/{value}"
+    },
+    {
+      "id": "area",
+      "name": "Area",
+      "type": "select",
+      "options": ["Billing", "Portal"]
+    },
+    {
+      "id": "note",
+      "name": "Note",
+      "type": "text"
+    }
+  ],
+  "meetingPlans": [
+    {
+      "id": "mp_17815176000000",
+      "name": "Engineering",
+      "meetings": [
+        {
+          "id": "mt_17815176000000",
+          "name": "Standup",
+          "hours": 0.25,
+          "frequency": "daily"
+        },
+        {
+          "id": "mt_17815176000001",
+          "name": "Retro",
+          "hours": 0.5,
+          "frequency": "biweekly"
+        },
+        {
+          "id": "mt_17815176000002",
+          "name": "Allhands",
+          "hours": 1,
+          "frequency": "monthly"
+        },
+        {
+          "id": "mt_17815176000003",
+          "name": "Sync",
+          "hours": 1.5,
+          "frequency": "weekly"
+        }
+      ]
+    }
+  ],
+  "historyEvents": [
+    {
+      "ts": "2026-02-10T09:00:00.000Z",
+      "id": "e1",
+      "kind": "status",
+      "status": "done",
+      "progress": 100,
+      "completedAt": "2026-02-10"
+    },
+    {
+      "ts": "2026-02-11T09:00:00.000Z",
+      "id": "e2",
+      "kind": "note"
+    }
+  ],
+  "roadmapAssignment": {
+    "P1": {
+      "routeIdx": 2,
+      "colorIdx": 0
+    },
+    "P2": {
+      "routeIdx": 3,
+      "colorIdx": 1
+    }
+  },
+  "personQueues": {
+    "m17815176000000": ["P1.1", "P1.2"],
+    "team:T2": ["P1.2", "P2.1"]
+  },
+  "changes": [
+    {
+      "from": "2026-03-02",
+      "patch": {
+        "members": {
+          "set": {
+            "m17815176000000": {
+              "cap": 0.5
+            }
+          }
+        }
+      }
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "s1",
+      "name": "Faster",
+      "note": "fewer days",
+      "createdAt": "2026-01-01",
+      "patch": {
+        "tree": {
+          "set": {
+            "P1.2": {
+              "best": 4
+            }
+          }
+        }
+      }
+    }
+  ],
+  "dayLog": [
+    {
+      "day": "2026-02-10",
+      "back": {
+        "tree": {
+          "set": {
+            "P1.1": {
+              "best": 9
+            }
+          }
+        }
+      }
+    }
+  ]
+}
