@@ -601,7 +601,6 @@ describe('view smoke', () => {
           teams={teams}
           confidence={{}}
           cpSet={new Set()}
-          stats={stats}
           onOpenItem={noop}
           onUpdate={noop}
         />,

@@ -278,14 +278,8 @@
     "complexity": {
       "count": 2
     },
-    "max-lines": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
-    },
-    "no-unused-vars": {
-      "count": 2
     }
   },
   "src/components/views/PlanRoadmap.jsx": {

@@ -17,7 +17,6 @@ export function PlanPane({ plan, view, handlers }) {
     vacations,
     viewCpSet,
     viewScheduled,
-    viewStats,
     visibleTreeForViews,
     weeks,
   } = plan;
@@ -39,7 +38,6 @@ export function PlanPane({ plan, view, handlers }) {
           cpSet={viewCpSet}
           cpLabels={cpLabels}
           cpPaths={cpData.rootPaths}
-          stats={viewStats}
           rootFilter={rootFilter}
           teamFilter={teamFilter}
           personFilter={personFilter}

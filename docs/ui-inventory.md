@@ -161,15 +161,15 @@ Reachable from the tree's multi-selection ("⤢ Modal" button, Gantt's "Bulk edi
 | Element | What it does | File:Line | Mode | Tier | Note |
 |---|---|---|---|---|---|
 | Section tabs (Decide/Phases/Team capacity/Load/Blocked/Warnings/Critical paths) | Switches the visible section | src/components/views/PlanReview.jsx:181-182 | Review | 1 | pure view switch, no data write |
-| Row click in "Decide" | Opens the item editor (onOpenItem → NodeModal) | src/components/views/PlanReview.jsx:203-204 | Review | 1 | (also: Plan); ↔ duplicates the tree's own "⊞ Full edit" entry point |
-| "Adopt auto-assignment" button (only when a scheduler suggestion exists) | Adopts the scheduler's suggestion as a fixed assignment | src/components/views/PlanReview.jsx:216-218 (logic 119-124) | Plan | 1 | ⚠ writes data outside the tree — writes node.assign and node.team directly via onUpdate |
-| Phase filter tabs "Current phases" / "All open" | Shows only current or all open phases | src/components/views/PlanReview.jsx:230-231 | Review | 1 | pure filter switch |
-| Task header click (phases section) | Opens the item editor | src/components/views/PlanReview.jsx:246 | Review | 1 | ↔ duplicates the tree editor entry point |
-| Phase status icon click (○/◐) | Cycles this phase open→wip→done | src/components/views/PlanReview.jsx:255-256 (logic 98-102) | Run | 1 | (also: Plan); ⚠ writes data outside the tree — writes node.phases and possibly derived status/progress via onUpdate |
-| Row click in "Blocked" | Opens the item editor; shows the blocker as a tooltip | src/components/views/PlanReview.jsx:320-322 | Review | 1 | |
-| Row click "date overdue" | Opens the item editor | src/components/views/PlanReview.jsx:353-354 | Review | 1 | |
-| Row click "truncated by offboarding" | Opens the item editor | src/components/views/PlanReview.jsx:374-375 | Review | 1 | |
-| Critical-path chain button (per node) | Opens the item editor | src/components/views/PlanReview.jsx:414-432 | Review | 1 | |
+| Row click in "Decide" | Opens the item editor (onOpenItem → NodeModal) | src/components/views/review/DecideSection.jsx | Review | 1 | (also: Plan); ↔ duplicates the tree's own "⊞ Full edit" entry point |
+| "Adopt auto-assignment" button (only when a scheduler suggestion exists) | Adopts the scheduler's suggestion as a fixed assignment | src/components/views/review/DecideSection.jsx (logic `acceptAuto` in src/components/views/PlanReview.jsx) | Plan | 1 | ⚠ writes data outside the tree — writes node.assign and node.team directly via onUpdate |
+| Phase filter tabs "Current phases" / "All open" | Shows only current or all open phases | src/components/views/review/PhasesSection.jsx | Review | 1 | pure filter switch |
+| Task header click (phases section) | Opens the item editor | src/components/views/review/PhasesSection.jsx | Review | 1 | ↔ duplicates the tree editor entry point |
+| Phase status icon click (○/◐) | Cycles this phase open→wip→done | src/components/views/review/PhasesSection.jsx (logic `advancePhase` in src/components/views/PlanReview.jsx) | Run | 1 | (also: Plan); ⚠ writes data outside the tree — writes node.phases and possibly derived status/progress via onUpdate |
+| Row click in "Blocked" | Opens the item editor; shows the blocker as a tooltip | src/components/views/review/BlockedSection.jsx | Review | 1 | |
+| Row click "date overdue" | Opens the item editor | src/components/views/review/WarningsSection.jsx | Review | 1 | |
+| Row click "truncated by offboarding" | Opens the item editor | src/components/views/review/WarningsSection.jsx | Review | 1 | |
+| Critical-path chain button (per node) | Opens the item editor | src/components/views/review/CriticalSection.jsx | Review | 1 | |
 | ResourceLoadMatrix (Load tab) | Shows resource load across weeks | src/components/views/PlanReview.jsx:297-305 | Plan | 1 | unsure — embedded component outside the read scope, may carry its own controls |
 | Unused `SearchSelect` import | — | src/components/views/PlanReview.jsx:5 | remove | — | dead import, never used in render — no actual control on the surface |
 
@@ -703,8 +703,8 @@ Every place that mutates plan/task data (the explicit P2 audit). "Sanctioned" me
 **Outside the tree (⚠, the actual P2 audit):**
 - **GanttView.jsx** — by far the largest source: drag-to-reschedule (pinnedStart), drag-to-resize (fixedDurationDays / completedEnd / completedStart), drag-to-reorder (seq/prio), drag-to-link (deps), the pin-badge clear, the × dependency badge, and the entire multi-select toolbar (Link, reorder arrows, priority up/down, remove links) — all call `onSeqUpdate`/`onTaskUpdate`/`onAddDep`/`onRemoveDep`/`onReorderSibling` directly from the Gantt (see GanttView.jsx:1102-2129, 2817-3141 in the table above).
 - **NetGraph.jsx:701** — context-menu "Delete" calls `onDeleteNode` directly, guarded only by `confirm()`.
-- **PlanReview.jsx:119-124** (`acceptAuto`, triggered 216-218) — writes `node.assign`/`node.team` via `onUpdate`.
-- **PlanReview.jsx:98-102** (`advancePhase`, triggered 255-256) — writes `node.phases` and derived status/progress via `onUpdate`.
+- **PlanReview.jsx** (`acceptAuto`, triggered in review/DecideSection.jsx) — writes `node.assign`/`node.team` via `onUpdate`.
+- **PlanReview.jsx** (`advancePhase`, triggered in review/PhasesSection.jsx) — writes `node.phases` and derived status/progress via `onUpdate`.
 - **NodeModal.jsx** — its entire field set (see its table above), whenever opened from Gantt (`onBarClick`), NetGraph (`onNodeClick`), PlanReview (`onOpenItem`), or JiraSyncModal (`openItem`) instead of from the tree's own "⊞ Full edit" button.
 - **JiraSyncModal.jsx:271-274 → App.jsx:1858-1863** (`onJiraApplyStatus`) — applies accepted Jira status patches via `setData` directly on the whole tree, bypassing `updateNode` entirely. The single largest batch-write path outside the tree editor.
 - **SnapshotModal.jsx:78-80** — "↶ Restore" replaces the entire project with a snapshot via `setData`, bypassing the tree editor (a whole-project operation, not a field edit, but still outside the sanctioned surface).
