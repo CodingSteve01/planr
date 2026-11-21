@@ -12,7 +12,7 @@
       "id": "T1",
       "name": "Frontend",
       "color": "#3b82f6",
-      "meetingPlanIds": ["mp_17815176000000"]
+      "meetingPlanIds": ["mp_17815248000000"]
     },
     {
       "id": "T2",
@@ -32,7 +32,7 @@
   ],
   "members": [
     {
-      "id": "m17815176000000",
+      "id": "m17815248000000",
       "name": "Anna Noor",
       "team": "T1",
       "role": "Backend, Lead",
@@ -90,7 +90,7 @@
               "frequency": "weekly"
             }
           ],
-          "meetingPlanIds": ["mp_17815176000000"]
+          "meetingPlanIds": ["mp_17815248000000"]
         },
         {
           "from": "2027-01-01",
@@ -104,10 +104,10 @@
           ]
         }
       ],
-      "meetingPlanIds": ["mp_17815176000000"]
+      "meetingPlanIds": ["mp_17815248000000"]
     },
     {
-      "id": "m17815176000001",
+      "id": "m17815248000001",
       "name": "Ben Ortiz",
       "team": "T2",
       "role": "Developer",
@@ -157,20 +157,25 @@
     },
     {
       "id": "P1.1",
-      "name": "Form   {prio:1, seq:2, done:2026-02-10, done-start:2026-02-03, done-end:2026-02-10, conf:committed} [AN]",
+      "name": "Form",
       "status": "done",
       "team": "T1",
       "best": 5,
       "factor": 2,
-      "prio": 2,
+      "prio": 1,
       "deps": ["P1.2"],
       "note": "",
-      "assign": [],
-      "progress": 100
+      "assign": ["m17815248000000"],
+      "seq": 2,
+      "progress": 100,
+      "confidence": "committed",
+      "completedAt": "2026-02-10",
+      "completedStart": "2026-02-03",
+      "completedEnd": "2026-02-10"
     },
     {
       "id": "P1.2",
-      "name": "PDF export   {plan-start:2026-03-02, plan-end:2026-03-13, due:2026-03-20, team-lock:true, fixed:3.2, ord:4, cv.jira:INV-1, cv.area:Billing} [BO, AN]",
+      "name": "PDF export",
       "status": "wip",
       "team": "T2",
       "best": 8,
@@ -178,17 +183,27 @@
       "prio": 2,
       "deps": ["P1.1", "P1.3"],
       "note": "a free note line an italic note",
-      "assign": [],
+      "assign": ["m17815248000001", "m17815248000000"],
       "progress": 40,
       "decideBy": "2026-02-27",
       "pinnedStart": "2026-03-02",
+      "plannedStart": "2026-03-02",
+      "plannedEnd": "2026-03-13",
+      "due": "2026-03-20",
+      "teamLock": true,
       "parallel": true,
+      "fixedDurationDays": 4,
+      "displayOrder": 4,
+      "customValues": {
+        "jira": "INV-1",
+        "area": "Billing"
+      },
       "_depLabels": {
         "P1.3": "Review"
       },
       "phases": [
         {
-          "id": "ph1781517600000shl1",
+          "id": "ph1781524800000shl1",
           "name": "RE",
           "status": "done",
           "team": "",
@@ -196,7 +211,7 @@
           "assign": []
         },
         {
-          "id": "ph1781517600000kz63",
+          "id": "ph1781524800000kz63",
           "name": "Development",
           "status": "wip",
           "team": "T1",
@@ -204,7 +219,7 @@
           "assign": []
         },
         {
-          "id": "ph1781517600000dgr4",
+          "id": "ph1781524800000dgr4",
           "name": "Test",
           "status": "open",
           "team": "T2",
@@ -214,17 +229,17 @@
       ],
       "handoffPlan": [
         {
-          "assign": ["m17815176000000", "m17815176000001"],
+          "assign": ["m17815248000000", "m17815248000001"],
           "team": "T1"
         },
         {
-          "assign": ["m17815176000001"]
+          "assign": ["m17815248000001"]
         }
       ]
     },
     {
       "id": "P1.3",
-      "name": "Review {parallel:true, dropped:true, deadline:false, critical}",
+      "name": "Review",
       "status": "open",
       "team": "",
       "best": 0,
@@ -232,7 +247,10 @@
       "prio": 2,
       "deps": [],
       "note": "",
-      "assign": ["m17815176000001"]
+      "assign": ["m17815248000001"],
+      "deadlineRelevant": false,
+      "parallel": true,
+      "dropped": true
     },
     {
       "id": "P1.4",
@@ -312,13 +330,13 @@
   ],
   "vacations": [
     {
-      "person": "m17815176000000",
+      "person": "m17815248000000",
       "from": "2026-08-03",
       "to": "2026-08-14",
       "note": "Summer"
     },
     {
-      "person": "m17815176000001",
+      "person": "m17815248000001",
       "from": "2026-09-07",
       "to": "2026-09-11",
       "note": ""
@@ -338,7 +356,7 @@
   ],
   "taskTemplates": [
     {
-      "id": "tpl_17815176000000",
+      "id": "tpl_17815248000000",
       "name": "Standard",
       "phases": [
         {
@@ -380,29 +398,29 @@
   ],
   "meetingPlans": [
     {
-      "id": "mp_17815176000000",
+      "id": "mp_17815248000000",
       "name": "Engineering",
       "meetings": [
         {
-          "id": "mt_17815176000000",
+          "id": "mt_17815248000000",
           "name": "Standup",
           "hours": 0.25,
           "frequency": "daily"
         },
         {
-          "id": "mt_17815176000001",
+          "id": "mt_17815248000001",
           "name": "Retro",
           "hours": 0.5,
           "frequency": "biweekly"
         },
         {
-          "id": "mt_17815176000002",
+          "id": "mt_17815248000002",
           "name": "Allhands",
           "hours": 1,
           "frequency": "monthly"
         },
         {
-          "id": "mt_17815176000003",
+          "id": "mt_17815248000003",
           "name": "Sync",
           "hours": 1.5,
           "frequency": "weekly"
@@ -436,7 +454,7 @@
     }
   },
   "personQueues": {
-    "m17815176000000": ["P1.1", "P1.2"],
+    "m17815248000000": ["P1.1", "P1.2"],
     "team:T2": ["P1.2", "P2.1"]
   },
   "changes": [
@@ -445,7 +463,7 @@
       "patch": {
         "members": {
           "set": {
-            "m17815176000000": {
+            "m17815248000000": {
               "cap": 0.5
             }
           }

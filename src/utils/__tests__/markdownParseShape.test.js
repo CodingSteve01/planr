@@ -8,6 +8,11 @@ import { parseMdToProject } from '../markdownParse.js';
 // split into modules. A plan file is somebody's data, so these must stay green
 // and unchanged. `WRITE_SHAPE_FIXTURES=1` rewrites them — only for a change of
 // the file format that is meant.
+//
+// The fixtures record what the parser DOES, which is not everywhere what it
+// should do: where a result looks wrong (a tag block that is not last on its
+// line stays in the name), that is frozen behaviour, not a specification. Fix
+// it on purpose, with its own test, and rewrite the fixture in the same change.
 
 const FIX = name => new URL(`./fixtures/${name}.json`, import.meta.url);
 const plain = v => JSON.parse(JSON.stringify(v));
@@ -89,15 +94,15 @@ const HAND_WRITTEN = `# Rechnungen
 
 - ✅ **P1** Rechnungen 🎯 (2026-12-01) — Frontend
   *Invoices from the first form to the PDF*
-  - ✅ **P1.1** Form (M 5T ×2) 100% {prio:1, seq:2, done:2026-02-10, done-start:2026-02-03, done-end:2026-02-10, conf:committed} [AN] — Frontend
+  - ✅ **P1.1** Form (M 5T ×2) 100% — Frontend [AN] {prio:1, seq:2, done:2026-02-10, done-start:2026-02-03, done-end:2026-02-10, conf:committed}
     *Requires: P1.2*
-  - 🟡 **P1.2** PDF export (L 8T) 40% {plan-start:2026-03-02, plan-end:2026-03-13, due:2026-03-20, team-lock:true, fixed:3.2, ord:4, cv.jira:INV-1, cv.area:Billing} [BO, AN] — Backend ≡ !decide:2026-02-27 📌2026-03-02
+  - 🟡 **P1.2** PDF export (L 8T) 40% — Backend [BO, AN] {plan-start:2026-03-02, plan-end:2026-03-13, due:2026-03-20, team-lock:true, fixed:3.2, ord:4, cv.jira:INV-1, cv.area:Billing} !decide:2026-02-27 📌2026-03-02 ≡
     *Requires: P1.1, ~P1.3 (Review)*
     *Phases: ✅RE, 🟡Development(Frontend), ○Test(Backend)*
     *Handoff: → AN, BO (Frontend); → BO*
     a free note line
     *an italic note*
-  - **P1.3** Review {parallel:true, dropped:true, deadline:false, critical} [BO]
+  - **P1.3** Review [BO] {parallel:true, dropped:true, deadline:false, critical}
   - **P1.4** Legacy marker ⚑
 - **P2** Kundenbereich 🔥
   Description for a root
@@ -186,7 +191,10 @@ describe('markdownParse: shape of the parsed result', () => {
   beforeAll(() => {
     // Ids carry Date.now() and Math.random(); the demo plan is relative to today.
     vi.useFakeTimers({ toFake: ['Date'] });
-    vi.setSystemTime(new Date('2026-06-15T12:00:00'));
+    // With a zone, and at midday UTC: the ids in the fixtures carry this instant, and
+    // the demo plan's dates hang on the local calendar day, which is the same day
+    // from UTC-11 to UTC+11 at this hour.
+    vi.setSystemTime(new Date('2026-06-15T12:00:00Z'));
   });
   beforeEach(() => {
     let n = 0;
@@ -208,6 +216,16 @@ describe('markdownParse: shape of the parsed result', () => {
 
   test('the demo project, serialised and parsed', async () => {
     const { buildDemoProject } = await import('../demoProject.js');
-    expectShape('markdownParseShape.demo', parseMdToProject(write(buildDemoProject())));
+    // The demo's history is stamped at a local hour, so its `ts` are compared as
+    // local wall-clock time; everything else is the same in every zone.
+    const pad = n => String(n).padStart(2, '0');
+    const wall = iso => {
+      const d = new Date(iso);
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+    const parsed = JSON.parse(JSON.stringify(parseMdToProject(write(buildDemoProject()))), (k, v) =>
+      k === 'ts' && typeof v === 'string' ? wall(v) : v,
+    );
+    expectShape('markdownParseShape.demo', parsed);
   });
 });

@@ -112,7 +112,8 @@ export function parseTreeLine(state, line) {
     raw = raw.replace(pinM[0], '').trim();
   }
   let decideBy = '';
-  const decideByM = raw.match(/!decide:(\d{4}-\d{2}-\d{2})/);
+  // The writer marks it with a clock; files from before that used `!`.
+  const decideByM = raw.match(/[⏰!]decide:(\d{4}-\d{2}-\d{2})/);
   if (decideByM) {
     decideBy = decideByM[1];
     raw = raw.replace(decideByM[0], '').trim();

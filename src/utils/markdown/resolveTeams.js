@@ -9,7 +9,7 @@ export function resolveTeams(state) {
   const sanitizeTeam = t => {
     if (!t) return t;
     let v = t;
-    v = v.replace(/!decide:\d{4}-\d{2}-\d{2}/g, '');
+    v = v.replace(/[⏰!]decide:\d{4}-\d{2}-\d{2}/g, '');
     v = v.replace(/📌\d{4}-\d{2}-\d{2}/g, '');
     v = v.replace(/\[[^\]]*\]/g, ''); // strip any [assignees] residue
     v = v.replace(/\{[^}]*\}/g, ''); // strip any {tags} residue
@@ -21,7 +21,7 @@ export function resolveTeams(state) {
       const cleaned = sanitizeTeam(r.team);
       if (cleaned !== r.team) {
         // If the original team string contained a decideBy/pinned, recover them
-        const decM = r.team.match(/!decide:(\d{4}-\d{2}-\d{2})/);
+        const decM = r.team.match(/[⏰!]decide:(\d{4}-\d{2}-\d{2})/);
         if (decM && !r.decideBy) r.decideBy = decM[1];
         const pinM2 = r.team.match(/📌(\d{4}-\d{2}-\d{2})/);
         if (pinM2 && !r.pinnedStart) r.pinnedStart = pinM2[1];

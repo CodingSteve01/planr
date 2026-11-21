@@ -10,23 +10,18 @@
       "id": "T1",
       "name": "Design & Frontend",
       "color": "#3b82f6",
-      "meetingPlanIds": ["mp_17815176000000"]
+      "meetingPlanIds": ["mp_17815248000000"]
     },
     {
       "id": "T2",
       "name": "Backend & Platform",
       "color": "#10b981",
-      "meetingPlanIds": ["mp_17815176000000"]
-    },
-    {
-      "id": "T3",
-      "name": "Backend & Platform   ⏰decide:2026-07-30",
-      "color": "#f59e0b"
+      "meetingPlanIds": ["mp_17815248000000"]
     }
   ],
   "members": [
     {
-      "id": "m17815176000000",
+      "id": "m17815248000000",
       "name": "Alex Noor",
       "team": "T2",
       "role": "",
@@ -46,7 +41,7 @@
       ]
     },
     {
-      "id": "m17815176000001",
+      "id": "m17815248000001",
       "name": "Sam Rivera",
       "team": "T1",
       "role": "",
@@ -64,10 +59,10 @@
           "frequency": "weekly"
         }
       ],
-      "meetingPlanIds": ["mp_17815176000001"]
+      "meetingPlanIds": ["mp_17815248000001"]
     },
     {
-      "id": "m17815176000002",
+      "id": "m17815248000002",
       "name": "Jordan Lee",
       "team": "T2",
       "role": "",
@@ -77,7 +72,7 @@
       "end": ""
     },
     {
-      "id": "m17815176000003",
+      "id": "m17815248000003",
       "name": "Riley Park",
       "team": "T2",
       "role": "",
@@ -87,7 +82,7 @@
       "end": "2026-07-06"
     },
     {
-      "id": "m17815176000004",
+      "id": "m17815248000004",
       "name": "Dakota Vo",
       "team": "T1",
       "role": "",
@@ -133,7 +128,7 @@
       "prio": 2,
       "deps": [],
       "note": "",
-      "assign": ["m17815176000000"],
+      "assign": ["m17815248000000"],
       "completedAt": "2026-04-24",
       "completedStart": "2026-04-18",
       "customValues": {
@@ -150,7 +145,7 @@
       "prio": 2,
       "deps": ["P1.1.1"],
       "note": "",
-      "assign": ["m17815176000001"],
+      "assign": ["m17815248000001"],
       "completedAt": "2026-05-04",
       "completedStart": "2026-04-26",
       "customValues": {
@@ -167,14 +162,14 @@
       "prio": 2,
       "deps": ["P1.1.2"],
       "note": "",
-      "assign": ["m17815176000001"],
+      "assign": ["m17815248000001"],
       "progress": 60,
       "customValues": {
         "jira": "DEMO-3"
       },
       "phases": [
         {
-          "id": "ph1781517600000shl1",
+          "id": "ph1781524800000shl1",
           "name": "Requirements",
           "status": "done",
           "team": "",
@@ -183,7 +178,7 @@
           "effortPct": 15
         },
         {
-          "id": "ph1781517600000kz63",
+          "id": "ph1781524800000kz63",
           "name": "Refinement",
           "status": "done",
           "team": "",
@@ -192,7 +187,7 @@
           "effortPct": 15
         },
         {
-          "id": "ph1781517600000dgr4",
+          "id": "ph1781524800000dgr4",
           "name": "Development",
           "status": "wip",
           "team": "",
@@ -201,7 +196,7 @@
           "effortPct": 50
         },
         {
-          "id": "ph17815176000005yc6",
+          "id": "ph17815248000005yc6",
           "name": "Testing",
           "status": "open",
           "team": "",
@@ -221,14 +216,14 @@
       "prio": 2,
       "deps": ["P1.1.1"],
       "note": "",
-      "assign": ["m17815176000000"],
+      "assign": ["m17815248000000"],
       "progress": 40,
       "customValues": {
         "jira": "DEMO-4"
       },
       "phases": [
         {
-          "id": "ph1781517600000yfx7",
+          "id": "ph1781524800000yfx7",
           "name": "Requirements",
           "status": "done",
           "team": "",
@@ -237,7 +232,7 @@
           "effortPct": 15
         },
         {
-          "id": "ph1781517600000qxi9",
+          "id": "ph1781524800000qxi9",
           "name": "Refinement",
           "status": "wip",
           "team": "",
@@ -246,7 +241,7 @@
           "effortPct": 15
         },
         {
-          "id": "ph1781517600000jf3a",
+          "id": "ph1781524800000jf3a",
           "name": "Development",
           "status": "open",
           "team": "",
@@ -255,7 +250,7 @@
           "effortPct": 50
         },
         {
-          "id": "ph1781517600000bwoc",
+          "id": "ph1781524800000bwoc",
           "name": "Testing",
           "status": "open",
           "team": "",
@@ -275,7 +270,7 @@
       "prio": 2,
       "deps": ["P1.1.3", "P1.1.4"],
       "note": "",
-      "assign": ["m17815176000002"],
+      "assign": ["m17815248000002"],
       "customValues": {
         "jira": "DEMO-5"
       }
@@ -314,7 +309,7 @@
       "prio": 3,
       "deps": ["P1.1.5", "P1.2.1"],
       "note": "",
-      "assign": ["m17815176000002"]
+      "assign": ["m17815248000002"]
     },
     {
       "id": "P2",
@@ -339,7 +334,7 @@
       "prio": 2,
       "deps": [],
       "note": "",
-      "assign": ["m17815176000000"],
+      "assign": ["m17815248000000"],
       "completedAt": "2026-05-11",
       "completedStart": "2026-05-08"
     },
@@ -353,7 +348,7 @@
       "prio": 2,
       "deps": ["P2.1"],
       "note": "",
-      "assign": ["m17815176000000"],
+      "assign": ["m17815248000000"],
       "progress": 75,
       "pinnedStart": "2026-06-22"
     },
@@ -379,7 +374,7 @@
       "prio": 2,
       "deps": ["P2.2", "P2.3"],
       "note": "",
-      "assign": ["m17815176000002"]
+      "assign": ["m17815248000002"]
     },
     {
       "id": "D1",
@@ -407,7 +402,7 @@
       "prio": 1,
       "deps": [],
       "note": "",
-      "assign": ["m17815176000002"],
+      "assign": ["m17815248000002"],
       "progress": 30
     },
     {
@@ -420,7 +415,7 @@
       "prio": 1,
       "deps": ["D1.1"],
       "note": "",
-      "assign": ["m17815176000000"]
+      "assign": ["m17815248000000"]
     },
     {
       "id": "D1.3",
@@ -440,13 +435,14 @@
       "id": "D1.4",
       "name": "Audit sign-off",
       "status": "open",
-      "team": "T3",
+      "team": "T2",
       "best": 2,
       "factor": 1.3,
-      "prio": 2,
+      "prio": 1,
       "deps": ["D1.3"],
       "note": "",
-      "assign": []
+      "assign": ["m17815248000002"],
+      "decideBy": "2026-07-30"
     },
     {
       "id": "H1",
@@ -471,7 +467,7 @@
       "prio": 2,
       "deps": [],
       "note": "",
-      "assign": ["m17815176000003"],
+      "assign": ["m17815248000003"],
       "progress": 10,
       "customValues": {
         "jira": "DEMO-H1"
@@ -487,13 +483,13 @@
       "prio": 2,
       "deps": ["H1.1"],
       "note": "",
-      "assign": ["m17815176000003"],
+      "assign": ["m17815248000003"],
       "customValues": {
         "jira": "DEMO-H2"
       },
       "handoffPlan": [
         {
-          "assign": ["m17815176000000"],
+          "assign": ["m17815248000000"],
           "team": "T2"
         },
         {
@@ -511,24 +507,24 @@
       "prio": 2,
       "deps": ["H1.2"],
       "note": "",
-      "assign": ["m17815176000002"]
+      "assign": ["m17815248000002"]
     }
   ],
   "vacations": [
     {
-      "person": "m17815176000000",
+      "person": "m17815248000000",
       "from": "2026-07-05",
       "to": "2026-07-19",
       "note": "Summer vacation"
     },
     {
-      "person": "m17815176000001",
+      "person": "m17815248000001",
       "from": "2026-08-02",
       "to": "2026-08-09",
       "note": ""
     },
     {
-      "person": "m17815176000002",
+      "person": "m17815248000002",
       "from": "2026-07-20",
       "to": "2026-07-27",
       "note": ""
@@ -733,7 +729,7 @@
   ],
   "taskTemplates": [
     {
-      "id": "tpl_17815176000000",
+      "id": "tpl_17815248000000",
       "name": "tpl.sw.tt.fullcycle",
       "phases": [
         {
@@ -763,7 +759,7 @@
       ]
     },
     {
-      "id": "tpl_17815176000001",
+      "id": "tpl_17815248000001",
       "name": "tpl.sw.tt.bugfix",
       "phases": [
         {
@@ -797,23 +793,23 @@
   ],
   "meetingPlans": [
     {
-      "id": "mp_17815176000000",
+      "id": "mp_17815248000000",
       "name": "Engineering Standard",
       "meetings": [
         {
-          "id": "mt_17815176000000",
+          "id": "mt_17815248000000",
           "name": "Daily Standup",
           "hours": 0.25,
           "frequency": "daily"
         },
         {
-          "id": "mt_17815176000001",
+          "id": "mt_17815248000001",
           "name": "Sprint Planning",
           "hours": 2,
           "frequency": "biweekly"
         },
         {
-          "id": "mt_17815176000002",
+          "id": "mt_17815248000002",
           "name": "Retro",
           "hours": 1,
           "frequency": "biweekly"
@@ -821,17 +817,17 @@
       ]
     },
     {
-      "id": "mp_17815176000001",
+      "id": "mp_17815248000001",
       "name": "Leitungsrunden",
       "meetings": [
         {
-          "id": "mt_17815176000000",
+          "id": "mt_17815248000000",
           "name": "Team-Leads Sync",
           "hours": 1,
           "frequency": "weekly"
         },
         {
-          "id": "mt_17815176000001",
+          "id": "mt_17815248000001",
           "name": "All-Hands",
           "hours": 1,
           "frequency": "monthly"
@@ -841,227 +837,227 @@
   ],
   "historyEvents": [
     {
-      "ts": "2026-04-16T06:00:00.000Z",
+      "ts": "2026-04-16 08:00",
       "id": "D1.1",
       "kind": "added",
       "status": "open",
       "progress": 0
     },
     {
-      "ts": "2026-04-16T06:00:00.000Z",
+      "ts": "2026-04-16 08:00",
       "id": "D1.2",
       "kind": "added",
       "status": "open",
       "progress": 0
     },
     {
-      "ts": "2026-04-16T06:00:00.000Z",
+      "ts": "2026-04-16 08:00",
       "id": "D1.3",
       "kind": "added",
       "status": "open",
       "progress": 0
     },
     {
-      "ts": "2026-04-16T06:00:00.000Z",
+      "ts": "2026-04-16 08:00",
       "id": "D1.4",
       "kind": "added",
       "status": "open",
       "progress": 0
     },
     {
-      "ts": "2026-04-16T06:00:00.000Z",
+      "ts": "2026-04-16 08:00",
       "id": "H1.1",
       "kind": "added",
       "status": "open",
       "progress": 0
     },
     {
-      "ts": "2026-04-16T06:00:00.000Z",
+      "ts": "2026-04-16 08:00",
       "id": "H1.2",
       "kind": "added",
       "status": "open",
       "progress": 0
     },
     {
-      "ts": "2026-04-16T06:00:00.000Z",
+      "ts": "2026-04-16 08:00",
       "id": "H1.3",
       "kind": "added",
       "status": "open",
       "progress": 0
     },
     {
-      "ts": "2026-04-16T06:00:00.000Z",
+      "ts": "2026-04-16 08:00",
       "id": "P1.1.1",
       "kind": "added",
       "status": "open",
       "progress": 0
     },
     {
-      "ts": "2026-04-16T06:00:00.000Z",
+      "ts": "2026-04-16 08:00",
       "id": "P1.1.2",
       "kind": "added",
       "status": "open",
       "progress": 0
     },
     {
-      "ts": "2026-04-16T06:00:00.000Z",
+      "ts": "2026-04-16 08:00",
       "id": "P1.1.3",
       "kind": "added",
       "status": "open",
       "progress": 0
     },
     {
-      "ts": "2026-04-16T06:00:00.000Z",
+      "ts": "2026-04-16 08:00",
       "id": "P1.1.4",
       "kind": "added",
       "status": "open",
       "progress": 0
     },
     {
-      "ts": "2026-04-16T06:00:00.000Z",
+      "ts": "2026-04-16 08:00",
       "id": "P1.1.5",
       "kind": "added",
       "status": "open",
       "progress": 0
     },
     {
-      "ts": "2026-04-16T06:00:00.000Z",
+      "ts": "2026-04-16 08:00",
       "id": "P1.2.1",
       "kind": "added",
       "status": "open",
       "progress": 0
     },
     {
-      "ts": "2026-04-16T06:00:00.000Z",
+      "ts": "2026-04-16 08:00",
       "id": "P1.2.2",
       "kind": "added",
       "status": "open",
       "progress": 0
     },
     {
-      "ts": "2026-04-16T06:00:00.000Z",
+      "ts": "2026-04-16 08:00",
       "id": "P2.1",
       "kind": "added",
       "status": "open",
       "progress": 0
     },
     {
-      "ts": "2026-04-16T06:00:00.000Z",
+      "ts": "2026-04-16 08:00",
       "id": "P2.2",
       "kind": "added",
       "status": "open",
       "progress": 0
     },
     {
-      "ts": "2026-04-16T06:00:00.000Z",
+      "ts": "2026-04-16 08:00",
       "id": "P2.3",
       "kind": "added",
       "status": "open",
       "progress": 0
     },
     {
-      "ts": "2026-04-16T06:00:00.000Z",
+      "ts": "2026-04-16 08:00",
       "id": "P2.4",
       "kind": "added",
       "status": "open",
       "progress": 0
     },
     {
-      "ts": "2026-04-18T07:00:00.000Z",
+      "ts": "2026-04-18 09:00",
       "id": "P1.1.1",
       "status": "wip",
       "progress": 1
     },
     {
-      "ts": "2026-04-24T16:00:00.000Z",
+      "ts": "2026-04-24 18:00",
       "id": "P1.1.1",
       "status": "done",
       "progress": 100,
       "completedAt": "2026-04-24"
     },
     {
-      "ts": "2026-04-26T07:00:00.000Z",
+      "ts": "2026-04-26 09:00",
       "id": "P1.1.2",
       "status": "wip",
       "progress": 1
     },
     {
-      "ts": "2026-05-04T16:00:00.000Z",
+      "ts": "2026-05-04 18:00",
       "id": "P1.1.2",
       "status": "done",
       "progress": 100,
       "completedAt": "2026-05-04"
     },
     {
-      "ts": "2026-05-08T07:00:00.000Z",
+      "ts": "2026-05-08 09:00",
       "id": "P2.1",
       "status": "wip",
       "progress": 1
     },
     {
-      "ts": "2026-05-11T16:00:00.000Z",
+      "ts": "2026-05-11 18:00",
       "id": "P2.1",
       "status": "done",
       "progress": 100,
       "completedAt": "2026-05-11"
     },
     {
-      "ts": "2026-05-18T07:00:00.000Z",
+      "ts": "2026-05-18 09:00",
       "id": "P1.1.3",
       "status": "wip",
       "progress": 20
     },
     {
-      "ts": "2026-05-22T07:00:00.000Z",
+      "ts": "2026-05-22 09:00",
       "id": "P1.1.4",
       "status": "wip",
       "progress": 15
     },
     {
-      "ts": "2026-05-26T07:00:00.000Z",
+      "ts": "2026-05-26 09:00",
       "id": "P2.2",
       "status": "wip",
       "progress": 25
     },
     {
-      "ts": "2026-05-28T10:00:00.000Z",
+      "ts": "2026-05-28 12:00",
       "id": "P1.1.3",
       "progress": 45
     },
     {
-      "ts": "2026-06-03T07:00:00.000Z",
+      "ts": "2026-06-03 09:00",
       "id": "D1.1",
       "status": "wip",
       "progress": 10
     },
     {
-      "ts": "2026-06-06T07:00:00.000Z",
+      "ts": "2026-06-06 09:00",
       "id": "H1.1",
       "status": "wip",
       "progress": 5
     },
     {
-      "ts": "2026-06-07T10:00:00.000Z",
+      "ts": "2026-06-07 12:00",
       "id": "P1.1.4",
       "progress": 40
     },
     {
-      "ts": "2026-06-08T10:00:00.000Z",
+      "ts": "2026-06-08 12:00",
       "id": "P1.1.3",
       "progress": 60
     },
     {
-      "ts": "2026-06-10T10:00:00.000Z",
+      "ts": "2026-06-10 12:00",
       "id": "P2.2",
       "progress": 75
     },
     {
-      "ts": "2026-06-12T10:00:00.000Z",
+      "ts": "2026-06-12 12:00",
       "id": "D1.1",
       "progress": 30
     },
     {
-      "ts": "2026-06-13T10:00:00.000Z",
+      "ts": "2026-06-13 12:00",
       "id": "H1.1",
       "progress": 10
     }
