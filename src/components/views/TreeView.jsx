@@ -4,10 +4,9 @@ import { DEFAULT_SIZES } from '../../utils/sizes.js';
 import { useT } from '../../i18n.jsx';
 import { stateAsOf } from '../../utils/history.js';
 import { sortTree, filterCollapsedRows, fieldPatchForKey, parsePastedRows, scrollAdjustment } from '../../utils/treeEdit.js';
-import { canTreeCommand, canTreeCommandMany, remapIds } from '../../utils/treeMove.js';
 import { depth, stickyTops, layoutScale, isTypingTarget } from '../../utils/tree/layout.js';
 import { diffBadgeFor, collectDiffKeepIds } from '../../utils/tree/diff.js';
-import { filterRows, collapseTargets, rowAfterDeleting } from '../../utils/tree/rows.js';
+import { filterRows, collapseTargets } from '../../utils/tree/rows.js';
 import { shortInitials, scheduleRanges, siblingPosition } from '../../utils/tree/derive.js';
 import { keepRowInView } from '../../utils/tree/scroll.js';
 import { TreeToolbar } from './tree/TreeToolbar.jsx';
@@ -16,6 +15,7 @@ import { TreeHead } from './tree/TreeHead.jsx';
 import { TreeBulkBar } from './tree/TreeBulkBar.jsx';
 import { renderTreeRow } from './tree/renderTreeRow.jsx';
 import { useTreeDrag } from './tree/useTreeDrag.js';
+import { useTreeCommands } from './tree/useTreeCommands.js';
 
 // Other modules and tests import these from here.
 export { stickyTops, layoutScale, isTypingTarget };
@@ -296,43 +296,23 @@ function TreeViewImpl({
   // the same resolution `resolveSize` does for the S/M/L/X shortcuts, so
   // the dropdown can never offer a size the key would refuse.
   const sizeCatalogue = useMemo(() => (sizes?.length ? sizes : DEFAULT_SIZES), [sizes]);
-  // Tracks the row the cursor last moved to during a Shift+↑/↓ run. Needed
-  // because onSelect's shift-extend (shared with mouse shift-click) keeps
-  // `selected` pinned at the ANCHOR the whole time — without this, a second
-  // Shift+↓ would compute "one past the anchor" again instead of extending
-  // one row further. Not new user-visible state, just where the next arrow
-  // press should count from; `selected` stays the one cursor the user sees.
-  const shiftCursorRef = useRef(null);
-
-  function moveCursor(dir, extend) {
-    if (!visibleIds.length) return;
-    const fromId = extend ? shiftCursorRef.current || selected?.id : selected?.id;
-    const curIdx = fromId ? visibleIds.indexOf(fromId) : -1;
-    let nextIdx;
-    if (curIdx < 0) nextIdx = dir === 'down' ? 0 : visibleIds.length - 1;
-    else nextIdx = Math.max(0, Math.min(visibleIds.length - 1, curIdx + (dir === 'down' ? 1 : -1)));
-    const nextRow = filt[nextIdx];
-    if (!nextRow) return;
-    shiftCursorRef.current = extend ? nextRow.id : null;
-    onSelect(nextRow, { shiftKey: !!extend }, visibleIds);
-  }
-
-  // Applies a field patch to the active row, or to the whole multi-selection
-  // when there is one — same "loop onTaskUpdate" path the selection bar's
-  // own status buttons already use below. App.jsx's mutate() coalesces
-  // same-tick pushes (see utils/undo.js), so N calls here still cost the
-  // user exactly one ⌘Z.
-  // `opts` reaches fieldPatchForKey — today only { back }, for ⇧Space.
-  function applyToTargets(patchOf) {
-    if (!onTaskUpdate) return;
-    const ids = hasSelection ? multiSel : selected?.id ? new Set([selected.id]) : null;
-    if (!ids || !ids.size) return;
-    tree.forEach(node => {
-      if (!ids.has(node.id)) return;
-      const patch = patchOf(node);
-      if (patch) onTaskUpdate({ ...node, ...patch });
-    });
-  }
+  const { multiMove, moveCursor, applyToTargets, canRun, runCommand, doDelete } = useTreeCommands({
+    tree,
+    selected,
+    multiSel,
+    hasSelection,
+    visibleIds,
+    filt,
+    onSelect,
+    onTaskUpdate,
+    onCommand,
+    onCommandMany,
+    onDelete,
+    onBulkDelete,
+    setCollapsed,
+    revealRef,
+    containerRef,
+  });
 
   // The row being named is always the row the cursor is on. Clicking another
   // row therefore ends edit mode and keeps what was typed. This is a rule,
@@ -358,38 +338,6 @@ function TreeViewImpl({
   // straight to the inline editor, so creating an item is one click and then
   // typing — never a placeholder name to go back and fix. Same callbacks the
   // keyboard uses; no second write path (principle 2).
-  // ── Structure: move up / down, indent, outdent ─────────────────────────
-  // Four explicit commands (utils/treeMove.js), decided against the rows on
-  // screen. Toolbar and keyboard both call `runCommand`, and the toolbar's
-  // disabled state is `canRun` — the same check the command itself makes,
-  // so a button is never enabled for a press that does nothing.
-  //
-  // Up/down used to carry on past the end of a sibling run by stepping out
-  // a level. That made the arrow a re-parent in disguise; it is a reorder
-  // and nothing else now, and changing the level is indent / outdent.
-  // With several rows selected the commands take all of them, as a block
-  // (utils/treeMove.js, applyTreeCommandMany) — they used to take only the
-  // row clicked last.
-  const multiMove = !!onCommandMany && multiSel && multiSel.size > 1;
-  const canRun = (id, command) =>
-    multiMove
-      ? canTreeCommandMany(tree, visibleIds, [...multiSel], command)
-      : !!onCommand && !!id && canTreeCommand(visibleIds, id, command);
-
-  function runCommand(command, id = selected?.id) {
-    if (!canRun(id, command)) return;
-    const res = multiMove ? onCommandMany([...multiSel], command, visibleIds) : onCommand(id, command, visibleIds);
-    if (!res) return;
-    // A re-parent renumbers the row and its subtree. The cursor follows in
-    // App; the fold state of the moved branch has to follow here.
-    if (res.idMap && Object.keys(res.idMap).length) setCollapsed(c => remapIds(c, res.idMap));
-    revealRef.current = res.id || res.ids?.[0];
-    // Keep the keyboard on the tree. After a toolbar click focus sits on the
-    // button, which may just have become disabled — and a disabled button
-    // drops focus to the page, where the next ⌘⇧↑ goes nowhere.
-    if (containerRef.current && document.activeElement !== containerRef.current) containerRef.current.focus();
-  }
-
   function startNewSibling(afterIdVal) {
     if (!onInsertAfter) return;
     const newId = onInsertAfter(afterIdVal);
@@ -723,23 +671,6 @@ function TreeViewImpl({
     // leaving the editor. It is not.
     if (typeof document !== 'undefined' && document.querySelector('[data-searchselect-popup]')) return;
     handleEditBlur();
-  }
-
-  function doDelete() {
-    const ids = hasSelection ? [...multiSel] : selected?.id ? [selected.id] : [];
-    if (!ids.length) return;
-    // Descendants disappear with their parent, so they count as gone too.
-    const alsoGone = tree.filter(r => ids.some(id => r.id.startsWith(id + '.'))).map(r => r.id);
-    const next = rowAfterDeleting(visibleIds, filt, [...ids, ...alsoGone]);
-    if (hasSelection) onBulkDelete?.(ids);
-    else onDelete?.(ids[0]);
-    // After App's own setSel(null) — so this wins, and the cursor stays put.
-    if (next)
-      onSelect(
-        next,
-        {},
-        visibleIds.filter(id => !ids.includes(id)),
-      );
   }
 
   function handleContainerKeyDown(e) {
