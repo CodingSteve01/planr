@@ -8,7 +8,7 @@ export function HandoffSection({ node, sc, onSplitHandoff, onSplitTaskAtProgress
   const { t } = useT();
   return (
     <Section
-      label={sc.segments.length > 1 ? 'Handoff-Kette' : t('ins.offboardWarn')}
+      label={sc.segments.length > 1 ? t('ins.handoffChain') : t('ins.offboardWarn')}
       extra={
         // Cascade chain present → splitHandoff. Cascade-free truncation →
         // splitTaskAtProgress at the consumed/total ratio so the split
@@ -61,7 +61,7 @@ export function HandoffSection({ node, sc, onSplitHandoff, onSplitTaskAtProgress
               <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)' }}>
                 {fmt(seg.startD)} → {fmt(seg.endD)}
               </span>
-              {seg.offboarded && <span style={{ fontSize: 11, color: 'var(--am)' }}>offboarded</span>}
+              {seg.offboarded && <span style={{ fontSize: 11, color: 'var(--am)' }}>{t('ins.offboardedTag')}</span>}
             </span>
           </KVRow>
         );
@@ -69,7 +69,7 @@ export function HandoffSection({ node, sc, onSplitHandoff, onSplitTaskAtProgress
       {sc.truncatedByOffboard && (
         <KVRow label="">
           <span style={{ fontSize: 12, color: 'var(--re)', fontWeight: 600 }}>
-            ! {sc.truncatedByOffboard.remainingEffort.toFixed(1)} PT ohne Nachbesetzung nach {sc.truncatedByOffboard.offboardDate}
+            ! {t('ins.noReplacement', sc.truncatedByOffboard.remainingEffort.toFixed(1), sc.truncatedByOffboard.offboardDate)}
           </span>
         </KVRow>
       )}

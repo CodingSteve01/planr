@@ -1,7 +1,9 @@
+import { useT } from '../../../i18n.jsx';
 import { Icon } from '../../shared/Icon.jsx';
 
 // What the graph shows when there is nothing to draw.
 export function NetEmptyState({ isFiltered, onAddNode }) {
+  const { t } = useT();
   return (
     <div className="pane" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
       <div style={{ textAlign: 'center', color: 'var(--tx3)' }}>
@@ -9,14 +11,14 @@ export function NetEmptyState({ isFiltered, onAddNode }) {
           <Icon name="network" size={32} strokeWidth={1.4} />
         </div>
         <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--tx2)', marginBottom: 8 }}>
-          {isFiltered ? 'No items match this filter' : 'No items yet'}
+          {isFiltered ? t('ng.noMatch') : t('g.noItems')}
         </div>
         {isFiltered ? (
-          <div style={{ fontSize: 12, color: 'var(--tx3)' }}>Adjust the root or team filter to widen the graph.</div>
+          <div style={{ fontSize: 12, color: 'var(--tx3)' }}>{t('ng.widenFilter')}</div>
         ) : (
           onAddNode && (
             <button className="btn btn-pri" onClick={onAddNode}>
-              + Add first item
+              {t('ng.addFirst')}
             </button>
           )
         )}

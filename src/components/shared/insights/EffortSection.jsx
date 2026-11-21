@@ -59,7 +59,7 @@ export function SubtasksSection({ doneUnder, wipUnder, openUnder, leafCount, eff
           <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--am)' }}>{effort?.toFixed(0)}d</span>
           {effortBest > 0 && (
             <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--tx3)', marginLeft: 4 }}>
-              ({effortBest?.toFixed(0)}d best)
+              {t('ins.bestDays', effortBest?.toFixed(0))}
             </span>
           )}
         </KVRow>
