@@ -333,7 +333,7 @@ export function scheduleTeamSlot(S, T) {
       // reported window reflects when it ACTUALLY ran.
       const firstCascadeSeg = cascade.segments[0];
       let actualStartD = firstWorkDay || firstCascadeSeg?.startD || wks[bs]?.mon || wks[0].mon;
-      const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
+      let actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
       // WIP-progress: extend the bar's visible start backward by the days
       // already consumed at this person's daily capacity. Done portion sits
       // in the past where it actually happened; remaining portion stays on
@@ -343,6 +343,9 @@ export function scheduleTeamSlot(S, T) {
         actualStartD = addWorkDays(actualStartD, -consumedDays, wdSet);
       }
       if (depNextDate && actualStartD < depNextDate) actualStartD = depNextDate;
+      // No working day fitted before the horizon: the fallback end (last
+      // week's Friday) can lie before a start pushed past a dependency.
+      if (actualEndD < actualStartD) actualEndD = actualStartD;
       const ws0 = computeWindowStats(actualStartD, actualEndD, hasFixedDuration ? [] : [bp.id]);
       let pinOverridden0 = false;
       if (r.pinnedStart && actualStartD) {

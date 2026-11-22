@@ -319,13 +319,16 @@ export function scheduleAssigned(S, T) {
   if (r.pinnedStart) reservePinnedDays(asgn, workedDays);
   const firstCascadeSegExplicit = cascade.segments[0];
   let actualStartD = firstWorkDay || firstCascadeSegExplicit?.startD || wks[bs].mon;
-  const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
+  let actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
   // Same WIP-progress backward shift as in scheduleTeamSlot.js (see the comment there).
   if (!hasFixedDuration && consumedEff > 0 && dailyBaseCap > 0) {
     const consumedDays = Math.max(1, Math.round(consumedEff / dailyBaseCap));
     actualStartD = addWorkDays(actualStartD, -consumedDays, wdSet);
   }
   if (depNextDate && actualStartD < depNextDate) actualStartD = depNextDate;
+  // No working day fitted before the horizon: the fallback end (last week's
+  // Friday) can lie before a start pushed past a dependency.
+  if (actualEndD < actualStartD) actualEndD = actualStartD;
   // Dep violation diagnostic: warn if this task starts before any of its deps finish.
   allD.forEach(depId => {
     const dEnd = tEW[depId];
