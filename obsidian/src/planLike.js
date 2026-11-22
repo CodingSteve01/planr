@@ -15,7 +15,10 @@ const MD_HEADING_RE = /^#{1,6}[ \t]+(.+?)[ \t#\r]*$/gm;
 // Above this size a JSON file is not parsed, only scanned for the two keys.
 const JSON_PARSE_CAP = 8 * 1024 * 1024;
 const JSON_META_NEAR = 8192;
-const JSON_KEY_RE = key => new RegExp(`^ {0,4}"${key}"[ \\t]*:`, 'm');
+// A top-level key of what the writer emits, `JSON.stringify(plan, null, 2)`:
+// exactly two spaces. Deeper keys have four or more, so a nested `tree` never
+// matches. Compact one-line JSON has no such line and is decided by a parse.
+const JSON_KEY_RE = key => new RegExp(`^ {2}"${key}"[ \\t]*:`, 'm');
 const JSON_META_RE = JSON_KEY_RE('meta');
 const JSON_TREE_RE = JSON_KEY_RE('tree');
 
@@ -35,16 +38,27 @@ function textHasWorkTree(text) {
 
 const isObject = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 
-/** Does this JSON text have top-level `meta` and `tree`? */
-export function jsonIsPlan(text) {
-  const s = String(text);
-  if (s.length > JSON_PARSE_CAP) return JSON_META_RE.test(s.slice(0, JSON_META_NEAR)) && JSON_TREE_RE.test(s);
+function parsedIsPlan(s) {
   try {
     const data = JSON.parse(s);
     return isObject(data) && isObject(data.meta) && 'tree' in data;
   } catch {
     return false;
   }
+}
+
+/**
+ * Does this JSON text have top-level `meta` and `tree`? The writer puts `meta`
+ * first, so a head without the word is no plan and costs no parse (every
+ * autosave of any JSON asks). Otherwise the file is parsed; above the cap it is
+ * scanned for the two top-level keys, or parsed when it is one compact line.
+ */
+export function jsonIsPlan(text) {
+  const s = String(text);
+  const head = s.slice(0, JSON_META_NEAR);
+  if (!head.includes('"meta"')) return false;
+  if (s.length <= JSON_PARSE_CAP || !head.includes('\n')) return parsedIsPlan(s);
+  return JSON_META_RE.test(head) && JSON_TREE_RE.test(s);
 }
 
 function hasMarker(extension, probe) {
@@ -93,19 +107,31 @@ export function probeCacheOf(app) {
 
 function createProbeCache(app) {
   const known = new Map(); // path -> is a plan
-  const pending = new Map(); // path -> read in flight
+  const pending = new Map(); // path -> the newest read in flight
+  const newest = new Map(); // path -> generation of the read allowed to write
   const waiting = [];
   let active = 0;
+  let sequence = 0;
 
+  // A waiter is handed the slot as it is: `active` stays raised until nobody waits.
   const slot = async () => {
-    if (active >= READ_LIMIT) await new Promise(resolve => waiting.push(resolve));
-    active++;
+    if (active < READ_LIMIT) {
+      active++;
+      return;
+    }
+    await new Promise(resolve => waiting.push(resolve));
   };
   const release = () => {
-    active--;
-    waiting.shift()?.();
+    const next = waiting.shift();
+    if (next) next();
+    else active--;
   };
-  const read = async file => {
+  // Whatever read is running for `path` now loses the right to write.
+  const supersede = path => {
+    newest.set(path, ++sequence);
+    return sequence;
+  };
+  const read = async (file, generation) => {
     await slot();
     let text = '';
     try {
@@ -114,16 +140,26 @@ function createProbeCache(app) {
       // Unreadable counts as "not a plan".
     }
     release();
+    if (newest.get(file.path) !== generation) return;
     known.set(file.path, file.extension === 'md' ? textHasWorkTree(text) : jsonIsPlan(text));
+  };
+  // Every read goes through here, so `pending` always holds the newest one.
+  const start = file => {
+    const { path } = file;
+    const run = read(file, supersede(path)).finally(() => {
+      if (pending.get(path) === run) pending.delete(path);
+    });
+    pending.set(path, run);
+    return run;
   };
   const ensure = file => {
     if (known.has(file.path)) return Promise.resolve();
-    if (!pending.has(file.path))
-      pending.set(
-        file.path,
-        read(file).finally(() => pending.delete(file.path)),
-      );
-    return pending.get(file.path);
+    return pending.get(file.path) ?? start(file);
+  };
+  const forget = path => {
+    supersede(path);
+    pending.delete(path);
+    return known.delete(path);
   };
 
   const ensureAll = files => Promise.all(files.map(ensure));
@@ -138,10 +174,10 @@ function createProbeCache(app) {
     ensureAll,
     /** A changed file: JSON is judged again, Markdown is forgotten until asked for. */
     refresh: async file => {
-      if (file?.extension === 'json') await read(file);
-      else if (file?.path) known.delete(file.path);
+      if (file?.extension === 'json') await start(file);
+      else if (file?.path) forget(file.path);
     },
-    forget: path => known.delete(path),
+    forget,
     warm: () => ensureAll(app.vault.getFiles().filter(f => f.extension === 'json' && !isPlanLike(f))),
   };
 }

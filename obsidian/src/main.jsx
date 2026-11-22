@@ -266,9 +266,9 @@ export default class PlanrPlugin extends Plugin {
       this.registerEvent(vault.on('modify', f => cache.refresh(f)));
       this.registerEvent(vault.on('delete', f => cache.forget(f.path)));
       this.registerEvent(
-        vault.on('rename', (f, from) => {
+        vault.on('rename', async (f, from) => {
           cache.forget(from);
-          cache.refresh(f);
+          await cache.refresh(f);
         }),
       );
     });
