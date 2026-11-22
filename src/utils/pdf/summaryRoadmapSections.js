@@ -100,7 +100,7 @@ export async function pushTimetableSection(content, { t, ctx, rmModelArgs, inclu
           const k = s.treeId || s.id;
           (segsByTree[k] ||= []).push(s);
         });
-        const kwTag = d => `KW${isoWeek(d)}/${String(isoWeekYear(d)).slice(-2)}`;
+        const kwTag = d => `${t('CW', 'KW')}${isoWeek(d)}/${String(isoWeekYear(d)).slice(-2)}`;
 
         // 2-col layout: split the lines down the middle per page.
         const buildLineBlock = line => {
@@ -140,7 +140,7 @@ export async function pushTimetableSection(content, { t, ctx, rmModelArgs, inclu
               },
               dated.length
                 ? headerTable(
-                    [t('Stn', 'Stn'), t('Start', 'Start'), t('Dauer', 'Dauer'), ''],
+                    [t('Stn', 'Stn'), t('Start', 'Start'), t('Duration', 'Dauer'), ''],
                     dated.map(r => [
                       { text: r.abbrev, color: line.color, bold: true, fontSize: 9 },
                       { text: `${kwTag(r.startD)} ${iso(r.startD).slice(5)}`, fontSize: 8 },

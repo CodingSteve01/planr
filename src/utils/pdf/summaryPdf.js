@@ -11,11 +11,11 @@ import { pushRoadmapSection, pushProjectRoadmapsSection, pushTimetableSection } 
 import { pushCapacitySection, pushCriticalPathSection } from './summaryCapacitySections.js';
 
 // ── Summary (Management) PDF ────────────────────────────────────────────────
-export async function exportSummaryPDF(ctx, options = {}) {
+// The document definition; async because the roadmap sections are.
+export async function buildSummaryDocDefinition(ctx, options = {}) {
   ctx = projectScopedCtx(ctx, 'exportSummaryPDF');
   const { includeTimetable = true, includeProjectRoadmaps = true } = options;
   const m = buildReportModel(ctx);
-  const pdfMake = await loadPdfMake();
   const roadmapSvg = buildRoadmapSvgForPdf(ctx);
   const { meta, t, dateStr, totalPt, progLabel, roots, rootData, ccPt, teamCap, cpItems, risks, deadlineStates, scheduled, teams } = m;
   const teamName = id => teams.find(x => x.id === id)?.name || id || '—';
@@ -102,5 +102,11 @@ export async function exportSummaryPDF(ctx, options = {}) {
     footer: footerBuilder({ meta, t, kind: t('Management Summary', 'Management-Summary'), dateStr }),
     content,
   };
-  pdfMake.createPdf(sanitizePdfDoc(dd)).download(slug(meta.name) + '-summary-' + iso(new Date()) + '.pdf');
+  return { dd: sanitizePdfDoc(dd), fileName: slug(meta.name) + '-summary-' + iso(new Date()) + '.pdf' };
+}
+
+export async function exportSummaryPDF(ctx, options = {}) {
+  const pdfMake = await loadPdfMake();
+  const { dd, fileName } = await buildSummaryDocDefinition(ctx, options);
+  pdfMake.createPdf(dd).download(fileName);
 }

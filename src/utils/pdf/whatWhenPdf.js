@@ -11,15 +11,13 @@ import { STYLES, footerBuilder, headerTable, loadPdfMake, slug } from './pdfCore
 // Each row is a top-level root (Thema / Goal / Deadline). Bucket key is the
 // root's projected end date (max endD of all descendant scheduled items).
 // Confidence aggregate = worst confidence among the root's open leaves.
-export async function exportWhatWhenPDF(ctx) {
+// The document definition. Returns `{ empty }` with the message the export
+// shows when there is nothing scheduled, `{ dd, fileName }` otherwise.
+export function buildWhatWhenDocDefinition(ctx) {
   ctx = projectScopedCtx(ctx, 'exportWhatWhenPDF');
   const m = buildReportModel(ctx);
   const { meta, t, dateStr, scheduled, teams, confidence, rootData, lvs, deadlineStates } = m;
-  if (!scheduled.length) {
-    alert(m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.');
-    return;
-  }
-  const pdfMake = await loadPdfMake();
+  if (!scheduled.length) return { empty: m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.' };
   const teamName = id => teams.find(x => x.id === id)?.name || id || '—';
   const now = new Date();
   // Emoji and ★ ▲ ◆ aren't in pdfmake's bundled Roboto. ● ○ ■ ✓ are safe.
@@ -159,5 +157,12 @@ export async function exportWhatWhenPDF(ctx) {
     footer: footerBuilder({ meta, t, kind: t('What comes when', 'Was kommt wann'), dateStr }),
     content,
   };
-  pdfMake.createPdf(sanitizePdfDoc(dd)).download(slug(meta.name) + '-whatwhen-' + iso(new Date()) + '.pdf');
+  return { dd: sanitizePdfDoc(dd), fileName: slug(meta.name) + '-whatwhen-' + iso(new Date()) + '.pdf' };
+}
+
+export async function exportWhatWhenPDF(ctx) {
+  const { dd, fileName, empty } = buildWhatWhenDocDefinition(ctx);
+  if (empty) return alert(empty);
+  const pdfMake = await loadPdfMake();
+  pdfMake.createPdf(dd).download(fileName);
 }

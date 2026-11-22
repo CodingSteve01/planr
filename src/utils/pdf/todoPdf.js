@@ -7,14 +7,13 @@ import { PRINT } from '../printPalette.js';
 import { STYLES, footerBuilder, headerTable, loadPdfMake, slug } from './pdfCore.js';
 
 // ── TODO / Sprint PDF ───────────────────────────────────────────────────────
-export async function exportTodoPDF(ctx, horizonDays) {
+// The document definition. Returns `{ empty }` with the message the export
+// shows when there is nothing to list, `{ dd, fileName }` otherwise.
+export function buildTodoDocDefinition(ctx, horizonDays) {
   ctx = projectScopedCtx(ctx, 'exportTodoPDF');
   const m = buildReportModel(ctx);
   const { meta, t, dateStr, scheduled, tree, teams, confidence } = m;
-  if (!scheduled.length) {
-    alert(m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.');
-    return;
-  }
+  if (!scheduled.length) return { empty: m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.' };
   const horizon = horizonDays ? Math.max(1, parseInt(horizonDays) || 30) : 30;
   const now = new Date();
   const end = new Date();
@@ -22,11 +21,7 @@ export async function exportTodoPDF(ctx, horizonDays) {
   const up = scheduled
     .filter(s => s.status !== 'done' && s.startD && s.startD <= end)
     .sort((a, b) => a.startD - b.startD || (a.prio || 4) - (b.prio || 4));
-  if (!up.length) {
-    alert((m.de ? 'Keine Aufgaben in ' : 'No tasks within ') + horizon + (m.de ? ' Tagen.' : ' days.'));
-    return;
-  }
-  const pdfMake = await loadPdfMake();
+  if (!up.length) return { empty: (m.de ? 'Keine Aufgaben in ' : 'No tasks within ') + horizon + (m.de ? ' Tagen.' : ' days.') };
   const teamName = id => teams.find(x => x.id === id)?.name || id || '—';
 
   // Group by person (preferred) or team-unassigned.
@@ -141,5 +136,12 @@ export async function exportTodoPDF(ctx, horizonDays) {
     footer: footerBuilder({ meta, t, kind: t('TODO / Sprint', 'TODO / Sprint') + ' · ' + horizon + ' ' + t('days', 'Tage'), dateStr }),
     content,
   };
-  pdfMake.createPdf(sanitizePdfDoc(dd)).download(slug(meta.name) + '-todo-' + horizon + 'd-' + iso(new Date()) + '.pdf');
+  return { dd: sanitizePdfDoc(dd), fileName: slug(meta.name) + '-todo-' + horizon + 'd-' + iso(new Date()) + '.pdf' };
+}
+
+export async function exportTodoPDF(ctx, horizonDays) {
+  const { dd, fileName, empty } = buildTodoDocDefinition(ctx, horizonDays);
+  if (empty) return alert(empty);
+  const pdfMake = await loadPdfMake();
+  pdfMake.createPdf(dd).download(fileName);
 }

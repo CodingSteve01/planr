@@ -18,16 +18,14 @@ async function rasterizeGantt(ctx, scale = 3) {
 }
 
 // ── Gantt PDF ───────────────────────────────────────────────────────────────
-export async function exportGanttPDF(ctx) {
+// The document definition, without the rasterised timeline (`gantt` is
+// `{ url, width, height }` or null). Returns `{ empty }` with the message the
+// export shows when there is nothing to draw, `{ dd, fileName }` otherwise.
+export function buildGanttDocDefinition(ctx, gantt = null) {
   ctx = projectScopedCtx(ctx, 'exportGanttPDF');
   const m = buildReportModel(ctx);
   const { meta, t, dateStr, scheduled, weeks, teams } = m;
-  if (!scheduled.length) {
-    alert(m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.');
-    return;
-  }
-  const pdfMake = await loadPdfMake();
-  const gantt = await rasterizeGantt(ctx, 3);
+  if (!scheduled.length) return { empty: m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.' };
 
   // Pick page size based on gantt width so small text stays readable.
   // A3 landscape = 1191 x 842 pt. A2 landscape = 1684 x 1191.
@@ -108,5 +106,15 @@ export async function exportGanttPDF(ctx) {
     footer: footerBuilder({ meta, t, kind: t('Gantt / Schedule', 'Gantt / Zeitplan'), dateStr }),
     content,
   };
-  pdfMake.createPdf(sanitizePdfDoc(dd)).download(slug(meta.name) + '-gantt-' + iso(new Date()) + '.pdf');
+  return { dd: sanitizePdfDoc(dd), fileName: slug(meta.name) + '-gantt-' + iso(new Date()) + '.pdf' };
+}
+
+export async function exportGanttPDF(ctx) {
+  ctx = projectScopedCtx(ctx, 'exportGanttPDF');
+  const first = buildGanttDocDefinition(ctx);
+  if (first.empty) return alert(first.empty);
+  const pdfMake = await loadPdfMake();
+  const gantt = await rasterizeGantt(ctx, 3);
+  const { dd, fileName } = buildGanttDocDefinition(ctx, gantt);
+  pdfMake.createPdf(dd).download(fileName);
 }
