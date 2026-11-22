@@ -6,6 +6,10 @@
 // last known-good JSON snapshot via Help → "Restore snapshot…".
 const SNAPSHOT_KEY = 'planr_v2_snapshots';
 const SNAPSHOT_MAX = 20;
+// Edits within this window share one slot: a save replaces the newest slot
+// instead of adding one. The localStorage value can grow to ~2MB (20 × ~100KB
+// project), so the ring catches edits at human cadence, not every auto-save.
+const SNAPSHOT_MIN_INTERVAL_MS = 60_000;
 // Module-scoped cache + dedup hash. Drops the per-keystroke
 // double-parse/double-stringify that used to dominate during typing.
 // Pushes are coalesced into a single idle task so a burst of edits
@@ -49,7 +53,12 @@ function _runSnapshot() {
   // edits instead of one entry per auto-save.
   if (_lastSnapHash === hash) return;
   const arr = loadSnapshots();
-  arr.unshift({ ts: Date.now(), data });
+  const now = Date.now();
+  // Inside the window of the newest slot the burst is still going: the slot
+  // takes the latest state (keeping its time), so the ring ends on the final
+  // state instead of dropping it.
+  if (arr.length && now - arr[0].ts < SNAPSHOT_MIN_INTERVAL_MS) arr[0] = { ts: arr[0].ts, data };
+  else arr.unshift({ ts: now, data });
   if (arr.length > SNAPSHOT_MAX) arr.length = SNAPSHOT_MAX;
   _snapCache = arr;
   _lastSnapHash = hash;
@@ -72,16 +81,8 @@ function _runSnapshot() {
     }
   }
 }
-// Min seconds between two snapshot writes. The localStorage value can grow
-// to ~2MB (20 × ~100KB project) — stringify+write on every save jankers the
-// main thread. Throttle so the ring catches edits at human cadence, not at
-// every keystroke-debounced auto-save.
-const SNAPSHOT_MIN_INTERVAL_MS = 60_000;
-let _lastSnapAt = 0;
 export function pushSnapshot(data) {
   if (!data || !Array.isArray(data.tree)) return;
-  if (Date.now() - _lastSnapAt < SNAPSHOT_MIN_INTERVAL_MS) return;
-  _lastSnapAt = Date.now();
   // Coalesce rapid pushes: keep only the latest pending data, run once
   // when the browser goes idle. Avoids stringifying on every keystroke.
   _pendingData = data;
