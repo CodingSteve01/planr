@@ -100,3 +100,50 @@ describe('fan-out batches', () => {
     expect(rows.map(x => x.beyondHorizon)).toEqual([true, true]);
   });
 });
+
+// An end date only is an offboard cut when it falls before the end of the grid.
+describe.each(branches)('%s with an end date', (_branch, members, assign) => {
+  const only = end => {
+    const people = members.map(m => ({ ...m, end }));
+    return run([root, first(assign, 30)], people).results.find(x => x.id === 'P1.1');
+  };
+
+  test('after the plan end, the grid runs out first: horizon overrun, not an offboard cut', () => {
+    const r = only('2030-01-01');
+    expect(r.beyondHorizon).toBe(true);
+    expect(r.truncatedByOffboard).toBeFalsy();
+  });
+
+  test('inside the grid, the person leaves first: offboard cut, not a horizon overrun', () => {
+    const r = only('2026-01-14');
+    expect(r.truncatedByOffboard).toBeTruthy();
+    expect(r.beyondHorizon).toBeFalsy();
+  });
+});
+
+describe.each(branches)('%s with a WIP task pulled back', (_branch, members, assign) => {
+  test('startWi follows the pulled-back start date', () => {
+    const wip = { ...second(assign), best: 10, status: 'wip', progress: 50, deps: [] };
+    // One blocker per person, so the WIP task starts in week 1 and is pulled back into week 0.
+    const blockers = members.map((m, i) => ({ ...first(assign, 5), id: `B${i}` }));
+    const { results, weeks } = schedule(
+      [root, ...blockers, wip],
+      members,
+      [],
+      '2026-01-05',
+      '2026-01-23',
+      {},
+      [1, 2, 3, 4, 5],
+      '2026-01-05',
+      {
+        now: '2026-01-05',
+        anchorToToday: false,
+        discountProgress: true,
+      },
+    );
+    const r = results.find(x => x.id === 'P1.2');
+    const idx = weeks.findIndex(w => +r.startD >= +w.mon && +r.startD < +w.mon + 7 * 864e5);
+    expect(idx).toBe(0);
+    expect(r.startWi).toBe(idx);
+  });
+});

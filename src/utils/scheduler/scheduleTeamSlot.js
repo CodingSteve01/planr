@@ -1,7 +1,7 @@
 import { addD, iso, addWorkDays, localDate } from '../date.js';
 import { deriveCap, memberAtDate } from '../capacity.js';
 import { inTeamPt } from './taskBasics.js';
-import { taskWindow } from './taskWindow.js';
+import { offboardsInGrid, taskWindow } from './taskWindow.js';
 import { lastRealSegment } from './scheduleExpand.js';
 
 export function scheduleTeamSlot(S, T) {
@@ -137,6 +137,7 @@ export function scheduleTeamSlot(S, T) {
       if (!bypassPersonQueue && parallelEndDate && parallelEndDate > skipBefore) skipBefore = parallelEndDate;
       const dailyBaseCap = deriveCap(bp) * vacInfo[bp.id];
       const endDate = bp.end ? localDate(bp.end) : null;
+      const offboardCut = offboardsInGrid(wks, endDate);
       let rem = eff,
         wi = bs,
         firstWorkDay = null,
@@ -284,7 +285,7 @@ export function scheduleTeamSlot(S, T) {
       // rem>0 means the primary simply ran out of horizon. With
       // autoCascade off we just flag `truncatedByOffboard` and let the
       // user split the task explicitly — no synthetic Gantt row.
-      if (_autoCascade && cascade.remaining > 0 && endDate) {
+      if (_autoCascade && cascade.remaining > 0 && offboardCut) {
         const lastRealDay = cascade.lastWD || lastWorkDay || (endDate && rem > 0 ? endDate : null);
         const ghostStart = lastRealDay ? addWorkDays(lastRealDay, 1, wdSet) : wks[0].mon;
         const daysNeeded = Math.max(1, Math.ceil(cascade.remaining));
@@ -308,7 +309,7 @@ export function scheduleTeamSlot(S, T) {
       }
       const leaver = lastRealSegment(segments);
       const truncated =
-        cascade.remaining > 0 && endDate
+        cascade.remaining > 0 && offboardCut
           ? {
               remainingEffort: cascade.remaining,
               personId: leaver?.personId,
@@ -352,9 +353,8 @@ export function scheduleTeamSlot(S, T) {
         wdSet,
         effort: eff,
         truncated,
-        startWi: bs,
-        // No offboarding date: the grid, not a person, ended the work.
-        ranOut: gridShort || (rem > 0 && !endDate),
+        // No offboard cut inside the grid: the grid, not a person, ended the work.
+        ranOut: gridShort || (rem > 0 && !offboardCut),
       });
       const { startD: actualStartD, endD: actualEndD } = win;
       const ws0 = computeWindowStats(actualStartD, actualEndD, hasFixedDuration ? [] : [bp.id]);

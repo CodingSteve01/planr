@@ -12,6 +12,11 @@ const clampedWeekIndex = (wks, d) => {
   return d < wks[0].mon ? 0 : wks.length - 1;
 };
 
+// An end date is an offboard cut only when it falls before the last grid day.
+// A later one never interrupts work inside the plan, so a task that does not
+// fit then ran into the horizon, not into the person leaving.
+export const offboardsInGrid = (wks, endDate) => !!endDate && endDate < addD(wks[wks.length - 1].mon, 6);
+
 // The reported window of a scheduled task, shared by the assigned and the
 // team-slot path. Guarantees `startD <= endD`.
 //
@@ -23,7 +28,6 @@ const clampedWeekIndex = (wks, d) => {
 //   firstWorkDay / lastWorkDay  first and last day that actually took work
 //   startFallback               start when no day took work (cascade start or week Monday)
 //   eW                          end week index chosen by the caller
-//   startWi                     start week index chosen by the caller
 //   consumedDays                days already worked (WIP), 0 when none
 //   depNextDate                 first free day after the latest dependency
 //   effort                      scheduled effort (0 for milestones)
@@ -40,7 +44,6 @@ export function taskWindow({
   startFallback,
   wks,
   eW,
-  startWi,
   consumedDays,
   depNextDate,
   wdSet,
@@ -51,13 +54,11 @@ export function taskWindow({
   let startD = firstWorkDay || startFallback;
   let endD = lastWorkDay || addD(wks[eW].mon, 4);
   let endWi = eW;
-  let startWeek = startWi;
   // WIP-progress: show the done portion where it happened, before the start.
   if (consumedDays > 0) startD = addWorkDays(startD, -consumedDays, wdSet);
-  if (depNextDate && startD < depNextDate) {
-    startD = depNextDate;
-    startWeek = Math.max(startWeek, clampedWeekIndex(wks, startD));
-  }
+  if (depNextDate && startD < depNextDate) startD = depNextDate;
+  // The start week follows the final start date, whichever path moved it.
+  const startWeek = clampedWeekIndex(wks, startD);
   if (endD < startD) {
     // The fallback end (last week's Friday) lies before a start pushed past
     // a dependency: follow the start, and the end week with it.

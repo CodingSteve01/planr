@@ -111,7 +111,7 @@ describe('a task beyond the plan horizon', () => {
   test('becomes a high risk that names the task', () => {
     const base = ctx();
     const scheduled = base.scheduled.map(s => (s.id === 'P1.3' ? { ...s, beyondHorizon: true } : s));
-    const risk = buildReportModel({ ...base, scheduled }).risks.find(r => r.title.includes('Nicht eingeplant'));
+    const risk = buildReportModel({ ...base, scheduled }).risks.find(r => r.title.includes('Nicht vollständig eingeplant'));
     expect(risk?.severity).toBe('high');
     expect(risk.title).toContain('Big open');
   });
@@ -119,6 +119,6 @@ describe('a task beyond the plan horizon', () => {
   test('a finished task never raises it', () => {
     const base = ctx();
     const scheduled = base.scheduled.map(s => (s.id === 'P1.1' ? { ...s, beyondHorizon: true } : s));
-    expect(buildReportModel({ ...base, scheduled }).risks.some(r => r.title.includes('Nicht eingeplant'))).toBe(false);
+    expect(buildReportModel({ ...base, scheduled }).risks.some(r => r.title.includes('Nicht vollständig eingeplant'))).toBe(false);
   });
 });

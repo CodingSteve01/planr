@@ -313,7 +313,7 @@ export function buildReportModel(rawCtx) {
       risks.push({
         severity: 'high',
         rank: s.effort || 0,
-        title: t(`Not scheduled: ${s.name}`, `Nicht eingeplant: ${s.name}`),
+        title: t(`Not fully scheduled: ${s.name}`, `Nicht vollständig eingeplant: ${s.name}`),
         text: t(
           'The plan end comes before the work does; the bar only shows the part that fits, or the earliest possible start',
           'Das Planende kommt vor der Arbeit; der Balken zeigt nur den Teil, der passt, oder den frühestmöglichen Start',
