@@ -45,12 +45,6 @@ function buildNetworkSvg() {
   return { svg: clone, width: w, height: h };
 }
 
-export function exportNetworkSVG(ctx) {
-  const r = buildNetworkSvg();
-  if (!r) return alert('Switch to the Network tab first.');
-  download(new Blob([new XMLSerializer().serializeToString(r.svg)], { type: 'image/svg+xml' }), `${slug(ctx.meta.name)}-network.svg`);
-}
-
 export async function exportNetworkPNG(ctx) {
   const r = buildNetworkSvg();
   if (!r) return alert('Switch to the Network tab first.');

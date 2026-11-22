@@ -1,14 +1,9 @@
 import { iso } from '../date.js';
 import { treeIndex } from '../scheduler.js';
-import { formatPhaseToken } from '../phases.js';
 import { download, slug } from './fileHelpers.js';
 
 export function exportJSON({ data, meta }) {
   download(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), `${slug(meta.name)}-${iso(new Date())}.json`);
-}
-
-export function exportPDF() {
-  window.print();
 }
 
 // ── Sprint Markdown ──────────────────────────────────────────────────────────
@@ -94,34 +89,4 @@ export function exportMermaid({ tree, meta }) {
   });
   out += '```\n';
   download(new Blob([out], { type: 'text/plain;charset=utf-8' }), `${slug(meta.name)}-mermaid.md`);
-}
-
-// ── CSV ──────────────────────────────────────────────────────────────────────
-export function exportCSV({ tree, meta }) {
-  // `Dropped` travels with the row: without it a round trip through a
-  // spreadsheet quietly revives abandoned work as ordinary open work.
-  const dropped = treeIndex(tree).droppedIds;
-  const hdr = ['ID', 'Level', 'Name', 'Status', 'Dropped', 'Team', 'Best (days)', 'Factor', 'Priority', 'Dependencies', 'Phases', 'Notes'];
-  const fmtPhases = phases => {
-    if (!phases?.length) return '';
-    return phases.map(p => formatPhaseToken(p)).join(', ');
-  };
-  const rows = tree.map(r => [
-    r.id,
-    r.lvl,
-    `"${(r.name || '').replace(/"/g, '""')}"`,
-    r.status,
-    dropped.has(r.id) ? 'yes' : '',
-    r.team || '',
-    r.best || '',
-    r.factor || '',
-    r.prio || '',
-    (r.deps || []).join('; '),
-    `"${fmtPhases(r.phases)}"`,
-    `"${(r.note || '').replace(/"/g, '""')}"`,
-  ]);
-  download(
-    new Blob(['\uFEFF' + [hdr.join(';'), ...rows.map(r => r.join(';'))].join('\n')], { type: 'text/csv;charset=utf-8' }),
-    `${slug(meta.name)}-${iso(new Date())}.csv`,
-  );
 }

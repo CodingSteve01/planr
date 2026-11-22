@@ -229,12 +229,6 @@ export function buildGanttSvg({ scheduled, weeks, teams, meta }) {
   return { svg, width: totalW, height: totalH };
 }
 
-export function exportGanttSVG(ctx) {
-  const r = buildGanttSvg(ctx);
-  if (!r) return alert('No scheduled items.');
-  download(new Blob([new XMLSerializer().serializeToString(r.svg)], { type: 'image/svg+xml' }), `${slug(ctx.meta.name)}-gantt.svg`);
-}
-
 export async function exportGanttPNG(ctx) {
   const r = buildGanttSvg(ctx);
   if (!r) return alert('No scheduled items.');

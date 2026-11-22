@@ -1,10 +1,10 @@
 // All export functions extracted from App.jsx to keep it under 600 LOC.
 // Each function takes a context object with the data it needs.
 
-export { exportJSON, exportPDF, exportSprintMarkdown, exportMermaid, exportCSV } from './export/textExports.js';
-export { exportNetworkSVG, exportNetworkPNG } from './export/networkExport.js';
+export { exportJSON, exportSprintMarkdown, exportMermaid } from './export/textExports.js';
+export { exportNetworkPNG } from './export/networkExport.js';
 export { svgToDataUrl } from './export/svgRaster.js';
-export { buildGanttSvg, exportGanttSVG, exportGanttPNG } from './export/ganttExport.js';
+export { buildGanttSvg, exportGanttPNG } from './export/ganttExport.js';
 export { exportJiraCSV } from './export/jiraCsv.js';
 export { exportReportDocx } from './export/reportDocx.js';
 

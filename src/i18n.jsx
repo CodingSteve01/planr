@@ -796,7 +796,6 @@ const en = {
   's.horizonExploratory': 'Still open',
   's.horizonExploratoryBody': 'Farther out: keep it visible, but leave details intentionally open.',
   's.horizonFoot': 'Rule of thumb: commit H1, rough-plan H2, and keep H3 lightweight.',
-  's.exportTodo': 'Export TODO list',
 
   // ── PlanReview ──
   'p.clear': 'clear',
@@ -2723,7 +2722,6 @@ const de = {
   's.horizonExploratory': 'Noch offen',
   's.horizonExploratoryBody': 'Liegt weiter draußen: sichtbar halten, Details aber bewusst offen lassen.',
   's.horizonFoot': 'Faustregel: H1 zusagen, H2 grob planen, H3 bewusst offen lassen.',
-  's.exportTodo': 'TODO-Liste exportieren',
 
   // ── PlanReview ──
   'p.clear': 'klar',
