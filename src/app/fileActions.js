@@ -31,7 +31,8 @@ export async function runAutoSave(c) {
     c.setFileSynced(true);
     c.lastOwnWriteRef.current = Date.now();
     c.setLastSavedAt(new Date());
-    // Snapshot ring tracks file-save events, throttled internally.
+    // Snapshot ring tracks file-save events: at most one ring write per
+    // minute, the latest state always lands.
     pushSnapshot(c.fileDataRef.current);
     c.commitSaveSideEffects(composed);
   } catch (e) {
@@ -208,8 +209,8 @@ export async function saveToFile(c, saveAs) {
     c.setSaved(true);
     c.setLastSavedAt(new Date());
     // Persist a JSON snapshot tied to a real file write — recovery scenarios
-    // care about state that landed on disk, not every keystroke. Throttled
-    // internally to ≥60s so manual rapid saves don't churn the ring.
+    // care about state that landed on disk, not every keystroke. The ring
+    // writes at most once a minute; the latest state always lands.
     pushSnapshot(c.fileDataRef.current);
     c.commitSaveSideEffects(composed);
   } catch (e) {

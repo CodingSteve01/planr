@@ -6,18 +6,21 @@
 // last known-good JSON snapshot via Help → "Restore snapshot…".
 const SNAPSHOT_KEY = 'planr_v2_snapshots';
 const SNAPSHOT_MAX = 20;
-// Edits within this window share one slot: a save replaces the newest slot
-// instead of adding one. The localStorage value can grow to ~2MB (20 × ~100KB
-// project), so the ring catches edits at human cadence, not every auto-save.
+// Autosave pushes are throttled: at most one ring write per window. A push
+// inside the window is held and written when the window ends, so the ring
+// always ends on the latest state. The localStorage value can grow to ~2MB
+// (20 × ~100KB project); stringifying it on every autosave would cause jank.
+// Every write adds a slot, an existing slot is never overwritten.
 const SNAPSHOT_MIN_INTERVAL_MS = 60_000;
-// Module-scoped cache + dedup hash. Drops the per-keystroke
-// double-parse/double-stringify that used to dominate during typing.
-// Pushes are coalesced into a single idle task so a burst of edits
-// becomes one stringify-and-compare instead of one per change.
+// Module-scoped cache + dedup hash: a write is skipped when its content
+// equals the newest slot.
 let _snapCache = null; // [{ ts, data }, …] | null = not yet loaded
-let _lastSnapHash = null; // hash (= JSON.stringify) of the most recent push
-let _pendingData = null; // data scheduled for next idle snapshot
-let _pendingHandle = null; // outstanding requestIdleCallback id
+let _lastSnapHash = null; // hash (= JSON.stringify) of the newest slot
+let _pendingData = null; // newest pushed data waiting for the window to end
+let _pendingTimer = null; // timeout that writes the pending data
+let _lastWriteAt = -Infinity; // time of the last throttled write
+let _hooked = false; // pagehide listener registered
+
 function loadSnapshots() {
   if (_snapCache) return _snapCache;
   try {
@@ -37,31 +40,15 @@ function loadSnapshots() {
   }
   return _snapCache;
 }
-function _runSnapshot() {
-  _pendingHandle = null;
-  const data = _pendingData;
-  _pendingData = null;
-  if (!data || !Array.isArray(data.tree)) return;
-  let hash;
+function _hash(data) {
+  if (!data || !Array.isArray(data.tree)) return null;
   try {
-    hash = JSON.stringify(data);
+    return JSON.stringify(data);
   } catch {
-    return;
+    return null;
   }
-  // Dedup by content. Skip when nothing actually changed since the last
-  // snapshot — that gives us a long, sparse history dominated by real
-  // edits instead of one entry per auto-save.
-  if (_lastSnapHash === hash) return;
-  const arr = loadSnapshots();
-  const now = Date.now();
-  // Inside the window of the newest slot the burst is still going: the slot
-  // takes the latest state (keeping its time), so the ring ends on the final
-  // state instead of dropping it.
-  if (arr.length && now - arr[0].ts < SNAPSHOT_MIN_INTERVAL_MS) arr[0] = { ts: arr[0].ts, data };
-  else arr.unshift({ ts: now, data });
-  if (arr.length > SNAPSHOT_MAX) arr.length = SNAPSHOT_MAX;
-  _snapCache = arr;
-  _lastSnapHash = hash;
+}
+function _persist(arr) {
   try {
     localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(arr));
   } catch {
@@ -81,15 +68,46 @@ function _runSnapshot() {
     }
   }
 }
+// Adds one slot (newest first) and persists the ring. `force` skips the
+// content dedup against the newest slot.
+function _writeSlot(data, force) {
+  const hash = _hash(data);
+  if (hash == null) return;
+  const arr = loadSnapshots();
+  if (!force && _lastSnapHash === hash) return;
+  arr.unshift({ ts: Date.now(), data });
+  if (arr.length > SNAPSHOT_MAX) arr.length = SNAPSHOT_MAX;
+  _snapCache = arr;
+  _lastSnapHash = hash;
+  _persist(arr);
+}
+function _flushPending() {
+  clearTimeout(_pendingTimer);
+  _pendingTimer = null;
+  const data = _pendingData;
+  _pendingData = null;
+  if (!data) return;
+  _lastWriteAt = Date.now();
+  _writeSlot(data, false);
+}
+function _hookPageHide() {
+  if (_hooked || typeof window === 'undefined' || !window.addEventListener) return;
+  _hooked = true;
+  window.addEventListener('pagehide', _flushPending);
+}
+// Autosave entry: trailing throttle. Only the newest pushed data is kept.
 export function pushSnapshot(data) {
   if (!data || !Array.isArray(data.tree)) return;
-  // Coalesce rapid pushes: keep only the latest pending data, run once
-  // when the browser goes idle. Avoids stringifying on every keystroke.
+  _hookPageHide();
   _pendingData = data;
-  if (_pendingHandle != null) return;
-  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
-    _pendingHandle = window.requestIdleCallback(_runSnapshot, { timeout: 3000 });
-  } else {
-    _pendingHandle = setTimeout(_runSnapshot, 0);
-  }
+  if (_pendingTimer != null) return;
+  const wait = _lastWriteAt + SNAPSHOT_MIN_INTERVAL_MS - Date.now();
+  if (wait <= 0) _flushPending();
+  else _pendingTimer = setTimeout(_flushPending, wait);
+}
+// Defensive snapshot (before a restore): written at once as its own slot,
+// ignoring the throttle. A pending autosave write stays pending and lands
+// later as a further slot.
+export function takeSnapshotNow(data) {
+  _writeSlot(data, true);
 }
