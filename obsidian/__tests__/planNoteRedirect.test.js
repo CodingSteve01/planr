@@ -11,7 +11,7 @@
 
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { WorkspaceLeaf } from 'obsidian';
-import PlanrPlugin, { PlanrView, VIEW_TYPE_PLANR, isPlanFile } from '../src/main.jsx';
+import PlanrPlugin, { PlanrView, VIEW_TYPE_PLANR, isPlanFile, isPlanNotePath } from '../src/main.jsx';
 
 // The patch only needs `settings`, `fileModes` and `register`; building a real
 // plugin would mean stubbing half of Obsidian's API for no extra coverage.
@@ -160,5 +160,54 @@ describe('the view only claims the files it owns', () => {
     expect(isPlanFile({ name: 'team.planr', extension: 'planr' })).toBe(true);
     expect(isPlanFile({ name: 'team.planr.md', extension: 'md' })).toBe(true);
     expect(isPlanFile({ name: 'Daily note.md', extension: 'md' })).toBe(false);
+  });
+});
+
+// The picker and the "Open in Planr" menu judge files in any extension case and
+// also offer notes that are plans by content. The view must take what they
+// offer instead of handing it straight back to the Markdown editor.
+describe('the view takes what the picker and the menu offer', () => {
+  it('recognises plan names in any case', () => {
+    expect(isPlanFile({ name: 'Team.PLANR', extension: 'PLANR' })).toBe(true);
+    expect(isPlanFile({ name: 'team.Planr.MD', extension: 'MD' })).toBe(true);
+    expect(isPlanNotePath('Projekte/team.PLANR.md')).toBe(true);
+    const view = Object.create(PlanrView.prototype);
+    expect(view.canAcceptExtension('PLANR')).toBe(true);
+  });
+
+  function viewFor(leafId, fileModes, app) {
+    const view = Object.create(PlanrView.prototype);
+    view.app = app;
+    view.plugin = { fileModes };
+    view.leaf = leaf(leafId);
+    view.leaf.setViewState = state => view.leaf.asked.push(state);
+    view.loaded = [];
+    view.onLoadPlanFile = async f => view.loaded.push(f.path);
+    return view;
+  }
+  const exportNote = { name: 'export.md', path: 'Notes/export.md', extension: 'md' };
+  const appWith = headings => ({
+    metadataCache: { getFileCache: () => ({ headings: headings.map(heading => ({ heading })) }) },
+  });
+
+  it('mounts a note the menu opened as a plan', async () => {
+    const view = viewFor('leaf-1', { 'leaf-1': VIEW_TYPE_PLANR }, appWith(['Kundenbereich', 'Work Tree']));
+    await view.onLoadFile(exportNote);
+    expect(view.loaded).toEqual(['Notes/export.md']);
+    expect(view.leaf.asked).toEqual([]);
+  });
+
+  it('still hands back a note nobody asked to open as a plan', async () => {
+    const view = viewFor('leaf-1', {}, appWith(['Kundenbereich', 'Work Tree']));
+    await view.onLoadFile(exportNote);
+    expect(view.loaded).toEqual([]);
+    expect(view.leaf.asked[0].type).toBe('markdown');
+  });
+
+  it('hands back an ordinary note even when the tab was a plan before', async () => {
+    const view = viewFor('leaf-1', { 'leaf-1': VIEW_TYPE_PLANR }, appWith(['Shopping']));
+    await view.onLoadFile({ name: 'todo.md', path: 'Notes/todo.md', extension: 'md' });
+    expect(view.loaded).toEqual([]);
+    expect(view.leaf.asked[0].type).toBe('markdown');
   });
 });

@@ -40,22 +40,24 @@ const PLANR_ICON = `<g transform="scale(3.125)" fill="none" stroke="currentColor
 <line x1="9" y1="21" x2="21" y2="21"/>
 </g>`;
 
+// Extensions are compared in lower case, the way the picker and the menu judge
+// them (planLike.js), so a file they offer is one this view will take.
 export function isPlanNotePath(path) {
-  return typeof path === 'string' && path.endsWith(PLAN_NOTE_SUFFIX);
+  return typeof path === 'string' && path.toLowerCase().endsWith(PLAN_NOTE_SUFFIX);
 }
 
 export function isPlanFile(file) {
   if (!file?.name) return false;
-  return file.extension === PLAN_EXTENSION || file.name.endsWith(PLAN_NOTE_SUFFIX);
+  return String(file.extension).toLowerCase() === PLAN_EXTENSION || isPlanNotePath(file.name);
 }
 
 /** The plan's name, without the machinery: "2026-09-10 team.planr.md" → "2026-09-10 team". */
 function planTitle(path) {
   const name = path.split('/').pop();
   return name
-    .replace(/\.planr\.md$/, '')
-    .replace(/\.planr$/, '')
-    .replace(/\.planr\.json$/, '');
+    .replace(/\.planr\.md$/i, '')
+    .replace(/\.planr$/i, '')
+    .replace(/\.planr\.json$/i, '');
 }
 
 // The turbodocx browser bundle reads `global` and `process` at top level —
@@ -102,13 +104,16 @@ export class PlanrView extends FileView {
     // patchLeafViewState, which rewrites the requested type before the leaf
     // acts on it, and a `.json` plan arrives through "Open in Planr", which
     // sets the view state explicitly. Both name the view type themselves.
-    return extension === PLAN_EXTENSION;
+    return String(extension).toLowerCase() === PLAN_EXTENSION;
   }
 
   async onLoadFile(file) {
     // Belt and braces for the same thing: should a foreign file reach this
     // view anyway, hand it back rather than mounting the app against a note.
-    if (!isPlanFile(file) && !/\.json$/i.test(file?.name || '')) {
+    // A note the menu or the picker opened as a plan (openPlan marks the tab)
+    // stays, as long as it still reads as one.
+    const asked = this.plugin.fileModes[this.leaf.id] === VIEW_TYPE_PLANR && isPlanNow(this.app, file);
+    if (!asked && !isPlanFile(file) && !/\.json$/i.test(file?.name || '')) {
       delete this.plugin.fileModes[this.leaf.id];
       this.leaf.setViewState({ type: 'markdown', state: { file: file.path, mode: 'source' }, active: true });
       return;
