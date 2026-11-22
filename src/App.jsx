@@ -1,10 +1,12 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNodeActions } from './app/actions/useNodeActions.js';
 import { mergeNamed } from './app/actions/bindActions.js';
+import { claimSnapshotSource, flushSnapshot, releaseSnapshotSource, takeSnapshotNow } from './app/snapshots.js';
 import { useTreeEditorActions } from './app/actions/useTreeEditorActions.js';
 import { useOpenActions } from './app/actions/useOpenActions.js';
 import { useQueueActions } from './app/actions/useQueueActions.js';
 import { useResourceActions } from './app/actions/useResourceActions.js';
+import { isMarkdownName } from './utils/fileKind.js';
 import { useTabBar } from './app/useTabBar.js';
 import { useViewFilters } from './app/useViewFilters.js';
 import { useRoadmapFocus, useUiPrefs } from './app/useUiPrefs.js';
@@ -118,8 +120,12 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const { history, setHistory, scn, scnRef, past, effDate, scnNotice, setScnNotice, dataRef, mutate } = doc;
   const { lastSavedPlanRef, lastSavedLeavesRef, leafBaselineStaleRef, resetDocumentState, handleUndo, handleRedo } = doc;
   // A different document is on screen: its undo stack is gone, and so is any
-  // scenario that was open over the previous one.
+  // scenario that was open over the previous one. Every load path ends here,
+  // so this is the one place the previous document's pending snapshot is
+  // written before the next document's first push could replace it. The
+  // snapshot source is `fileDataRef`: one stable object per App instance.
   function resetHistory() {
+    flushSnapshot(fileDataRef);
     diskTextRef.current = null;
     busyRoundsRef.current = 0;
     clearTimeout(saveRetryTimerRef.current);
@@ -305,6 +311,12 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   );
   const scenarioView = useScenarioView({ scn, data, scheduled, scnChanges });
   const { scnComparison } = scenarioView;
+  // The plan switch of an Obsidian leaf unmounts this App and mounts another:
+  // whatever this instance still holds for the ring is written, then forgotten.
+  useEffect(() => {
+    claimSnapshotSource(fileDataRef);
+    return () => releaseSnapshotSource(fileDataRef);
+  }, []);
   useEffect(() => {
     if (rootFilter && !rootItems.some(r => r.id === rootFilter)) setRootFilter('');
   }, [rootItems, rootFilter]);
@@ -521,7 +533,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       futureProgressByRootId,
       projectWaitsOf,
     });
-  const isMdFile = fileName?.endsWith('.md');
+  const isMdFile = isMarkdownName(fileName);
   const logWriters = buildLogWriters(
     mergeNamed(doc, {
       data,
@@ -545,6 +557,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     setLastSavedAt,
     forgetHandle,
     fileHandleRef,
+    diskTextRef,
     ensureHandlePermission,
   });
   const openActions = useOpenActions({ tree, scheduled, setModalFocus, setMN, setModal, setSel, setTab, exportCtx: _exportCtx });
@@ -657,6 +670,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   // write past undo without anybody noticing.
   const setHistoryEvents = events => mutate(d => ({ ...d, historyEvents: events }));
   // Another document on screen: a new project, or a snapshot brought back.
+  // The previous document's pending snapshot is flushed by resetHistory.
   const showLoadedDocument = d => {
     setData(d);
     resetHistory();
@@ -689,6 +703,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     scenarioSwitch,
     setHistoryEvents,
     showLoadedDocument,
+    takeDefensiveSnapshot: d => takeSnapshotNow(d, fileDataRef),
     startTour,
     syncTabFades,
   });

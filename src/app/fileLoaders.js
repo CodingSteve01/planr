@@ -1,3 +1,4 @@
+import { isMarkdownName } from '../utils/fileKind.js';
 import { normalizeLoadedData } from '../utils/loadedData.js';
 import { parseMdToProject } from '../utils/markdownParse.js';
 import { requestHandlePermission } from '../utils/fileHandleStore.js';
@@ -12,7 +13,7 @@ function loadFile(c, e) {
   r.onload = async ev => {
     try {
       const text = ev.target.result;
-      const isMd = f.name.endsWith('.md');
+      const isMd = isMarkdownName(f.name);
       const d = normalizeLoadedData(isMd ? parseMdToProject(text) : JSON.parse(text));
       if (!d.tree || !Array.isArray(d.tree) || d.tree.length === 0)
         throw new Error(isMd ? 'No work items found in this Markdown file.' : 'Invalid project file.');
@@ -51,6 +52,7 @@ async function newProject(c) {
 async function restoreMountedFile(c) {
   const {
     fileHandleRef,
+    diskTextRef,
     ensureHandlePermission,
     forgetHandle,
     setData,
@@ -71,10 +73,11 @@ async function restoreMountedFile(c) {
     }
     const file = await handle.getFile();
     const text = await file.text();
-    const d = normalizeLoadedData(handle.name?.endsWith('.md') ? parseMdToProject(text) : JSON.parse(text));
+    const d = normalizeLoadedData(isMarkdownName(handle.name) ? parseMdToProject(text) : JSON.parse(text));
     if (!isValidProjectData(d)) throw new Error('Invalid project file in mounted location.');
     setData(d);
     resetHistory(); // different document — the old undo stack doesn't apply
+    diskTextRef.current = text; // the baseline for the first poll
     setSel(null);
     setSaved(true);
     setLastSavedAt(new Date());

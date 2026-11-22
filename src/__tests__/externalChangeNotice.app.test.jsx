@@ -179,6 +179,55 @@ describe('the file-changed notice in the header', () => {
     ).toEqual(['Alpha Task', 'Beta Task', 'Project']);
   }, 45000);
 
+  function mountPlan(handle) {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App mount={handle} onFileChange={() => {}} />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+  }
+  const tick = ms =>
+    act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+
+  it('an edit made outside between loading and the first poll is reported', async () => {
+    const { handle, state } = changingFile(PLAN);
+    mountPlan(handle);
+    await screen.findByText('Beta Task', {}, { timeout: 10000 });
+    state.mod = 9000;
+    state.text = PLAN.replace('Beta Task', 'Gamma Task');
+    await tick(5100);
+    expect(await screen.findByTestId('external-change', {}, { timeout: 5000 })).toBeTruthy();
+  }, 30000);
+
+  it('a file that did not change between two polls raises no notice', async () => {
+    const { handle } = changingFile(PLAN);
+    mountPlan(handle);
+    await screen.findByText('Beta Task', {}, { timeout: 10000 });
+    await tick(5100);
+    await tick(5100);
+    expect(screen.queryByTestId('external-change')).toBeNull();
+  }, 30000);
+
+  it('two edits inside the autosave delay are written once', async () => {
+    const { handle, state } = changingFile(PLAN, { onDisk: true });
+    mountPlan(handle);
+    fireEvent.click((await screen.findByText('Beta Task', {}, { timeout: 10000 })).closest('tr'));
+    fireEvent.click(screen.getByTestId('tv-delete-selected'));
+    await tick(1500);
+    fireEvent.click(screen.getByText('Alpha Task').closest('tr'));
+    fireEvent.click(screen.getByTestId('tv-delete-selected'));
+    await tick(3000); // 4.5 s after the first edit, 3 s after the second: still waiting
+    expect(state.written || 0).toBe(0);
+    await tick(3000);
+    await waitFor(() => expect(state.written).toBe(1));
+    expect(parseMdToProject(state.text).tree.map(n => n.name)).toEqual(['Project']);
+  }, 30000);
+
   it('a file that is busy for a moment is saved a moment later, without asking for it again', async () => {
     const { handle, state } = changingFile(PLAN, { onDisk: true });
     let busy = 0;

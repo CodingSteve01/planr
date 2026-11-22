@@ -1,3 +1,4 @@
+import { isMarkdownName } from '../utils/fileKind.js';
 import { normalizeLoadedData } from '../utils/loadedData.js';
 import { parseMdToProject } from '../utils/markdownParse.js';
 import { isBusy, MAX_BUSY_ROUNDS, stillWritable, writeWithRetry } from '../utils/fileWrite.js';
@@ -30,8 +31,10 @@ export async function runAutoSave(c) {
     c.setFileSynced(true);
     c.lastOwnWriteRef.current = Date.now();
     c.setLastSavedAt(new Date());
-    // Snapshot ring tracks file-save events, throttled internally.
-    pushSnapshot(c.fileDataRef.current);
+    // Snapshot ring tracks file-save events: at most one ring write per
+    // minute per App instance (keyed by its fileDataRef), the latest state
+    // always lands: resetHistory flushes it when another document comes in.
+    pushSnapshot(c.fileDataRef.current, c.fileDataRef);
     c.commitSaveSideEffects(composed);
   } catch (e) {
     console.error('Auto-save failed:', e);
@@ -56,9 +59,10 @@ export async function pollDisk(c) {
     // Skip if this is our own write (within 3s window)
     const isOwnWrite = Date.now() - c.lastOwnWriteRef.current < 3000;
     if (c.diskTextRef.current == null) c.diskTextRef.current = await file.text();
-    else if (c.lastModRef.current && mod > c.lastModRef.current && !isOwnWrite) {
+    else if ((c.lastModRef.current == null || mod > c.lastModRef.current) && !isOwnWrite) {
       // Only a different text is a change. A sync service bumps the time
-      // on its own.
+      // on its own. Before the first poll there is no time yet, only the
+      // text the load (or the last save) left as the baseline.
       if ((await file.text()) !== c.diskTextRef.current) c.setExternalChangeAvailable(true);
     }
     c.lastModRef.current = mod;
@@ -69,7 +73,7 @@ export async function reloadFromFile(c) {
   try {
     const file = await c.fileHandleRef.current.getFile();
     const text = await file.text();
-    const isMd = file.name.endsWith('.md');
+    const isMd = isMarkdownName(file.name);
     const d = normalizeLoadedData(isMd ? parseMdToProject(text) : JSON.parse(text));
     if (d?.tree && Array.isArray(d.tree) && d.tree.length > 0) {
       // What changed outside Planr belongs to the day it was picked up.
@@ -111,7 +115,7 @@ async function pickSaveHandle(c, suggestedFromName) {
   const { meta = {} } = c.data; // `App` has not derived its own `meta` yet when this hook is called
   const fallbackSlug = (meta.name || 'project').toLowerCase().replace(/\s+/g, '-');
   const suggested = suggestedFromName || `${fallbackSlug}.planr.json`;
-  const isMd = suggested.endsWith('.md');
+  const isMd = isMarkdownName(suggested);
   return await pickFileToSave({
     suggestedName: suggested,
     types: isMd
@@ -206,9 +210,10 @@ export async function saveToFile(c, saveAs) {
     c.setSaved(true);
     c.setLastSavedAt(new Date());
     // Persist a JSON snapshot tied to a real file write — recovery scenarios
-    // care about state that landed on disk, not every keystroke. Throttled
-    // internally to ≥60s so manual rapid saves don't churn the ring.
-    pushSnapshot(c.fileDataRef.current);
+    // care about state that landed on disk, not every keystroke. The ring
+    // writes at most once a minute per App instance (keyed by its
+    // fileDataRef); the latest state always lands.
+    pushSnapshot(c.fileDataRef.current, c.fileDataRef);
     c.commitSaveSideEffects(composed);
   } catch (e) {
     await handleSaveError(c, e, previousFileName);
@@ -229,7 +234,7 @@ export async function loadFromFile(c) {
     });
     const file = await handle.getFile();
     const text = await file.text();
-    const isMd = handle.name.endsWith('.md');
+    const isMd = isMarkdownName(handle.name);
     const d = normalizeLoadedData(isMd ? parseMdToProject(text) : JSON.parse(text));
     if (!d.tree || !Array.isArray(d.tree) || d.tree.length === 0)
       throw new Error(
@@ -241,6 +246,7 @@ export async function loadFromFile(c) {
     await c.rememberHandle(handle);
     c.setData(d);
     c.resetHistory(); // different document — the old undo stack doesn't apply
+    c.diskTextRef.current = text; // the baseline for the first poll
     c.setSel(null);
     c.setSaved(true);
     c.setLastSavedAt(new Date());

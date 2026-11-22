@@ -64,7 +64,7 @@ function notFoundError(message) {
   return e;
 }
 
-export const PLAN_FILE_RE = /\.(json|md)$/i;
+export const PLAN_FILE_RE = /\.(json|md|planr)$/i;
 
 function fileAt(path) {
   const f = _app.vault.getAbstractFileByPath(normalizePath(path));
@@ -158,7 +158,7 @@ class PlanFileSuggest extends FuzzySuggestModal {
     // .planr.json first — a vault is mostly notes, and the one file the user
     // means is almost never the one fuzzy-matching would surface.
     const files = this.app.vault.getFiles().filter(f => PLAN_FILE_RE.test(f.name));
-    const rank = f => (f.name.endsWith('.planr.json') ? 0 : f.extension === 'json' ? 1 : 2);
+    const rank = f => (f.name.endsWith('.planr.json') || f.extension === 'planr' ? 0 : f.extension === 'json' ? 1 : 2);
     return files.sort((a, b) => rank(a) - rank(b) || a.path.localeCompare(b.path));
   }
 

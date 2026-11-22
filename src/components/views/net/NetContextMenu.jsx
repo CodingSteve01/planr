@@ -1,7 +1,9 @@
+import { useT } from '../../../i18n.jsx';
 import { fixedFrame, toFixedPoint } from '../../../utils/embedHost.js';
 
 // The right-click menu on a node: edit or delete it.
 export function NetContextMenu({ ctxMenu, iMap, onDeleteNode, onNodeClick, portalRoot, setCtxMenu, setSelId }) {
+  const { t } = useT();
   return (
     <div
       className="layer-popover"
@@ -25,7 +27,7 @@ export function NetContextMenu({ ctxMenu, iMap, onDeleteNode, onNodeClick, porta
           setCtxMenu(null);
         }}
       >
-        Edit {ctxMenu.id}
+        {t('net.ctxEdit', iMap[ctxMenu.id]?.name || ctxMenu.id)}
       </div>
       <div
         style={{ padding: '5px 10px', fontSize: 12, cursor: 'pointer', borderRadius: 4, color: 'var(--re)' }}
@@ -36,7 +38,7 @@ export function NetContextMenu({ ctxMenu, iMap, onDeleteNode, onNodeClick, porta
           setCtxMenu(null);
         }}
       >
-        Delete
+        {t('delete')}
       </div>
     </div>
   );

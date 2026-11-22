@@ -4,13 +4,12 @@ import { JiraExportModal } from '../modals/JiraExportModal.jsx';
 import { JiraImportModal } from '../modals/JiraImportModal.jsx';
 import { NewProjModal } from '../modals/NewProjModal.jsx';
 import { SnapshotModal } from '../modals/SnapshotModal.jsx';
-import { pushSnapshot } from '../../app/snapshots.js';
 import { detectJiraFieldId } from '../../utils/jiraSync.js';
 
 export function ProjectFileModals({ plan, view, handlers, exportHandlerProps }) {
   const { data, members, meta, scheduled, teams, tree } = plan;
   const { modal, setModal, setSel, setTab } = view;
-  const { applyJiraImport, showLoadedDocument } = handlers;
+  const { applyJiraImport, showLoadedDocument, takeDefensiveSnapshot } = handlers;
   return (
     <>
       {modal === 'new' && (
@@ -48,8 +47,9 @@ export function ProjectFileModals({ plan, view, handlers, exportHandlerProps }) 
               )
             )
               return;
-            // Take a defensive snapshot of current state before restoring.
-            if (data) pushSnapshot(data);
+            // Defensive snapshot of the current state: its own slot, written
+            // now, the newest one (an older pending autosave goes below it).
+            if (data) takeDefensiveSnapshot(data);
             showLoadedDocument(snap.data);
             setModal(null);
           }}
