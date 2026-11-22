@@ -546,6 +546,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
     setLastSavedAt,
     forgetHandle,
     fileHandleRef,
+    diskTextRef,
     ensureHandlePermission,
   });
   const openActions = useOpenActions({ tree, scheduled, setModalFocus, setMN, setModal, setSel, setTab, exportCtx: _exportCtx });

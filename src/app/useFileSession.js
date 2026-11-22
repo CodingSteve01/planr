@@ -59,12 +59,15 @@ async function readMountedProject(handle) {
   const text = await file.text();
   const restored = normalizeLoadedData(isMarkdownName(handle.name) ? parseMdToProject(text) : JSON.parse(text));
   if (!isValidProjectData(restored)) throw new Error('Invalid mounted project file.');
-  return restored;
+  return { restored, text };
 }
 
-async function adoptRestored({ isCancelled, setData, resetHistory, setSel, setFileWriteOk }, handle, restored) {
+async function adoptRestored({ isCancelled, setData, resetHistory, setSel, setFileWriteOk, diskTextRef }, handle, { restored, text }) {
   setData(restored);
   resetHistory(); // different document — the old undo stack doesn't apply
+  // After resetHistory, which forgets it: the text read here is what the first
+  // poll measures against, so an edit made outside since then is noticed.
+  diskTextRef.current = text;
   setSel(null);
   // Check if we have write permission (non-interactive)
   const canWrite = await ensureHandlePermission(handle, false);
@@ -86,8 +89,8 @@ async function restoreMounted(c) {
       return;
     }
 
-    const restored = await readMountedProject(handle);
-    if (!isCancelled()) await adoptRestored(c, handle, restored);
+    const read = await readMountedProject(handle);
+    if (!isCancelled()) await adoptRestored(c, handle, read);
   } catch (e) {
     console.error('Mounted file restore failed:', e);
     fileHandleRef.current = null;
@@ -204,7 +207,18 @@ export function useFileSession(args) {
   const rememberHandle = handle => rememberHandleIn(handleCtx, handle);
   const forgetHandle = () => forgetHandleIn(handleCtx);
 
-  useMountRestore({ mount, hosted, fileHandleRef, setFileName, setFileWriteOk, setBootstrapped, setData, resetHistory, setSel });
+  useMountRestore({
+    mount,
+    hosted,
+    fileHandleRef,
+    diskTextRef,
+    setFileName,
+    setFileWriteOk,
+    setBootstrapped,
+    setData,
+    resetHistory,
+    setSel,
+  });
   useLocalCache({
     data,
     hosted,

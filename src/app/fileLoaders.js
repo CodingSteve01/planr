@@ -52,6 +52,7 @@ async function newProject(c) {
 async function restoreMountedFile(c) {
   const {
     fileHandleRef,
+    diskTextRef,
     ensureHandlePermission,
     forgetHandle,
     setData,
@@ -76,6 +77,7 @@ async function restoreMountedFile(c) {
     if (!isValidProjectData(d)) throw new Error('Invalid project file in mounted location.');
     setData(d);
     resetHistory(); // different document — the old undo stack doesn't apply
+    diskTextRef.current = text; // the baseline for the first poll
     setSel(null);
     setSaved(true);
     setLastSavedAt(new Date());

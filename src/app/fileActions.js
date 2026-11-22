@@ -57,9 +57,10 @@ export async function pollDisk(c) {
     // Skip if this is our own write (within 3s window)
     const isOwnWrite = Date.now() - c.lastOwnWriteRef.current < 3000;
     if (c.diskTextRef.current == null) c.diskTextRef.current = await file.text();
-    else if (c.lastModRef.current && mod > c.lastModRef.current && !isOwnWrite) {
+    else if ((c.lastModRef.current == null || mod > c.lastModRef.current) && !isOwnWrite) {
       // Only a different text is a change. A sync service bumps the time
-      // on its own.
+      // on its own. Before the first poll there is no time yet, only the
+      // text the load (or the last save) left as the baseline.
       if ((await file.text()) !== c.diskTextRef.current) c.setExternalChangeAvailable(true);
     }
     c.lastModRef.current = mod;
@@ -242,6 +243,7 @@ export async function loadFromFile(c) {
     await c.rememberHandle(handle);
     c.setData(d);
     c.resetHistory(); // different document — the old undo stack doesn't apply
+    c.diskTextRef.current = text; // the baseline for the first poll
     c.setSel(null);
     c.setSaved(true);
     c.setLastSavedAt(new Date());
