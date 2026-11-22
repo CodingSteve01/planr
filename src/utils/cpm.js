@@ -183,29 +183,6 @@ export function rootCpm(tree) {
   };
 }
 
-// Global CPM across the entire graph. Kept for comparison/export use cases.
-export function cpm(tree) {
-  const { leafIds } = analyzeScopes(tree, [
-    {
-      id: '__global__',
-      targets: leafNodes(tree).map(node => node.id),
-      meta: {},
-    },
-  ]);
-  const result = analyzeScopes(tree, [
-    {
-      id: '__global__',
-      targets: leafIds,
-      meta: {},
-    },
-  ]);
-  return {
-    critical: result.critical,
-    edges: result.edges,
-    goalPaths: {},
-  };
-}
-
 // Goal/deadline CPM for typed root items shown in Focus views.
 export function goalCpm(tree) {
   const goals = (tree || []).filter(node => !node.id.includes('.') && node.type);

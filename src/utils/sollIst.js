@@ -60,9 +60,10 @@ export function computeSollIst(node, { workDays, holidayIso, vacationDays = 0 } 
 }
 
 // Aggregate the same data across many tasks. Drives the Retro banner: total
-// Soll/Ist effort, hit-rate (±20 % tolerance), median ratio, outliers.
+// Soll/Ist effort, hit-rate (±20 % tolerance), outliers. `ratio` is the sum of
+// Ist working days divided by the sum of Soll days (not a median of per-task ratios).
 //
-//   { count, sollSum, istSum, ratio, hitRate, hits, total, overruns: [], underruns: [] }
+//   { count, sollSum, istSum, ratio, hitRate, hits, overruns: [], underruns: [] }
 export function aggregateSollIst(nodes, ctx = {}) {
   let count = 0,
     sollSum = 0,
