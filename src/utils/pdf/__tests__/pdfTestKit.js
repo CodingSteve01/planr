@@ -1,6 +1,6 @@
 // Shared helpers for the PDF export tests: the demo plan scheduled the way the
 // app schedules it, and walkers over a pdfmake document definition.
-import { deflateSync } from 'node:zlib';
+import { crc32, deflateSync } from 'node:zlib';
 import { translatorFor } from '../../../i18n.jsx';
 import { buildDemoProject } from '../../demoProject.js';
 import { buildExportCtx } from '../../exportCtx.js';
@@ -159,16 +159,6 @@ export function titleCount(table) {
   return { n: Number(m[1]), word: m[2] };
 }
 
-const CRC = Array.from({ length: 256 }, (_, n) => {
-  let c = n;
-  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-  return c >>> 0;
-});
-const crc32 = buf => {
-  let c = 0xffffffff;
-  for (const b of buf) c = CRC[(c ^ b) & 0xff] ^ (c >>> 8);
-  return (c ^ 0xffffffff) >>> 0;
-};
 const chunk = (type, data) => {
   const body = Buffer.concat([Buffer.from(type), data]);
   const len = Buffer.alloc(4);
