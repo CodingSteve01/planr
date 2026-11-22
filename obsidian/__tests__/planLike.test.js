@@ -59,4 +59,15 @@ describe('listPlanFiles (the "Open plan file…" picker)', () => {
     const out = await listPlanFiles(app);
     expect(out.map(f => f.path)).toEqual(['b/team.planr.json', 'b/data.json', 'a/export.md']);
   });
+
+  it('accepts any extension case and lists .planr files with the .planr.json ones', async () => {
+    const mixed = [file('c/NOTES.MD'), file('c/Team.PLANR'), file('c/Data.JSON'), file('c/a.planr.json'), file('c/photo.png')];
+    const mixedHeads = { 'c/NOTES.MD': MD_PLAN, 'c/Data.JSON': JSON_PLAN };
+    const mixedApp = {
+      vault: { getFiles: () => mixed, cachedRead: async f => mixedHeads[f.path] || '' },
+      metadataCache: { getFileCache: () => null },
+    };
+    const out = await listPlanFiles(mixedApp);
+    expect(out.map(f => f.path)).toEqual(['c/a.planr.json', 'c/Team.PLANR', 'c/Data.JSON', 'c/NOTES.MD']);
+  });
 });

@@ -10,6 +10,8 @@
 // Anything else is somebody's note or config and stays out of the menu.
 
 const PLAN_NAME_RE = /\.planr\.(md|json)$/i;
+// Obsidian keeps the extension as written; `Plan.MD` is still Markdown.
+const extOf = f => (typeof f?.extension === 'string' ? f.extension.toLowerCase() : '');
 const MD_HEADING_RE = /^#{1,6}[ \t]+(.+?)[ \t#\r]*$/gm;
 
 // Above this size a JSON file is not parsed, only scanned for the two keys.
@@ -85,9 +87,9 @@ export function isPlanLike(file, probe = {}) {
   const name = file?.name;
   // A folder has a name but no extension — and may be called "x.planr.md".
   if (typeof name !== 'string' || typeof file.extension !== 'string') return false;
-  if (file.extension === 'planr' || PLAN_NAME_RE.test(name)) return true;
-  if (file.extension !== 'md' && file.extension !== 'json') return false;
-  return hasMarker(file.extension, probe || {});
+  if (extOf(file) === 'planr' || PLAN_NAME_RE.test(name)) return true;
+  if (extOf(file) !== 'md' && extOf(file) !== 'json') return false;
+  return hasMarker(extOf(file), probe || {});
 }
 
 /** The synchronous half of the probe: headings from the metadata cache. */
@@ -149,7 +151,7 @@ function createProbeCache(app) {
     // Generations are unique, so a missing entry never equals a running read's.
     if (newest.get(file.path) !== generation) return;
     newest.delete(file.path);
-    known.set(file.path, file.extension === 'md' ? textHasWorkTree(text) : jsonIsPlan(text));
+    known.set(file.path, extOf(file) === 'md' ? textHasWorkTree(text) : jsonIsPlan(text));
   };
   // Every read goes through here, so `pending` always holds the newest one.
   const start = file => {
@@ -182,13 +184,13 @@ function createProbeCache(app) {
     ensureAll,
     /** A changed file: JSON is judged again, Markdown is forgotten until asked for. */
     refresh: async file => {
-      if (file?.extension === 'json') await start(file);
+      if (extOf(file) === 'json') await start(file);
       else if (file?.path) forget(file.path);
     },
     forget,
     /** Paths with a generation entry; a test hook for the bookkeeping. */
     trackedPaths: () => newest.size,
-    warm: () => ensureAll(app.vault.getFiles().filter(f => f.extension === 'json' && !isPlanLike(f))),
+    warm: () => ensureAll(app.vault.getFiles().filter(f => extOf(f) === 'json' && !isPlanLike(f))),
   };
 }
 
@@ -198,19 +200,19 @@ function createProbeCache(app) {
  */
 export function isPlanNow(app, file) {
   if (isPlanLike(file)) return true;
-  if (file.extension === 'md') {
+  if (extOf(file) === 'md') {
     const headings = headingsOf(app, file);
     if (headings) return isPlanLike(file, { headings });
   }
-  if (file.extension !== 'md' && file.extension !== 'json') return false;
+  if (extOf(file) !== 'md' && extOf(file) !== 'json') return false;
   return isPlanLike(file, probeCacheOf(app).probe(file));
 }
 
-/** Plans in the vault, `.planr.json` first, for the "Open plan file…" picker. */
+/** Plans in the vault, `.planr.json` and `.planr` first, for the "Open plan file…" picker. */
 export async function listPlanFiles(app) {
-  const rank = f => (f.name.endsWith('.planr.json') ? 0 : f.extension === 'json' ? 1 : 2);
+  const rank = f => (/\.planr\.json$/i.test(f.name) || extOf(f) === 'planr' ? 0 : extOf(f) === 'json' ? 1 : 2);
   const all = app.vault.getFiles();
-  const unsure = all.filter(f => !isPlanLike(f) && (f.extension === 'json' || (f.extension === 'md' && !headingsOf(app, f))));
+  const unsure = all.filter(f => !isPlanLike(f) && (extOf(f) === 'json' || (extOf(f) === 'md' && !headingsOf(app, f))));
   await probeCacheOf(app).ensureAll(unsure);
   return all.filter(f => isPlanNow(app, f)).sort((a, b) => rank(a) - rank(b) || a.path.localeCompare(b.path));
 }
