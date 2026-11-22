@@ -214,10 +214,18 @@ describe('the view takes what the picker and the menu offer', () => {
 
   it('does nothing when the tab moved to another file while the note was read', async () => {
     const view = viewFor('leaf-1', {}, appWith(null, PLAN_TEXT));
-    const note = exportNote();
-    view.file = note;
-    const loading = view.onLoadFile(note);
-    view.file = new TFile('Notes/other.planr.md');
+    const loading = view.onLoadFile(exportNote());
+    await view.onUnloadFile();
+    const next = view.onLoadFile(new TFile('Notes/other.planr.md'));
+    await Promise.all([loading, next]);
+    expect(view.loaded).toEqual(['Notes/other.planr.md']);
+    expect(view.leaf.asked).toEqual([]);
+  });
+
+  it('does nothing when the tab closed while the note was read', async () => {
+    const view = viewFor('leaf-1', {}, appWith(null, PLAN_TEXT));
+    const loading = view.onLoadFile(exportNote());
+    await view.onClose();
     await loading;
     expect(view.loaded).toEqual([]);
     expect(view.leaf.asked).toEqual([]);

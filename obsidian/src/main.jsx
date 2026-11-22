@@ -112,10 +112,11 @@ export class PlanrView extends FileView {
     // view anyway, hand it back rather than mounting the app against a note.
     // A note that is a plan by its content stays: the menu and the picker
     // offer it, and Obsidian restores its tab after a restart.
+    // The read can take a moment. A tab that moved on or closed meanwhile has
+    // bumped loadSeq, and the stale verdict is dropped.
+    const seq = (this.loadSeq = (this.loadSeq ?? 0) + 1);
     const plan = isPlanFile(file) || /\.json$/i.test(file?.name || '') || (await isPlanSettled(this.app, file));
-    // The read above can take a moment; a tab that moved on meanwhile is the
-    // newer call's business.
-    if (this.file && this.file !== file) return;
+    if (seq !== this.loadSeq) return;
     if (!plan) {
       delete this.plugin.fileModes[this.leaf.id];
       this.leaf.setViewState({ type: 'markdown', state: { file: file.path, mode: 'source' }, active: true });
@@ -137,6 +138,7 @@ export class PlanrView extends FileView {
   }
 
   async onUnloadFile() {
+    this.loadSeq = (this.loadSeq ?? 0) + 1;
     this.unmount();
   }
 
@@ -192,6 +194,7 @@ export class PlanrView extends FileView {
   }
 
   async onClose() {
+    this.loadSeq = (this.loadSeq ?? 0) + 1;
     this.unmount();
     delete this.plugin.fileModes[this.leaf.id];
   }
