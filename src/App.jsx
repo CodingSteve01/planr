@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNodeActions } from './app/actions/useNodeActions.js';
 import { mergeNamed } from './app/actions/bindActions.js';
+import { flushSnapshot } from './app/snapshots.js';
 import { useTreeEditorActions } from './app/actions/useTreeEditorActions.js';
 import { useOpenActions } from './app/actions/useOpenActions.js';
 import { useQueueActions } from './app/actions/useQueueActions.js';
@@ -660,6 +661,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const setHistoryEvents = events => mutate(d => ({ ...d, historyEvents: events }));
   // Another document on screen: a new project, or a snapshot brought back.
   const showLoadedDocument = d => {
+    flushSnapshot();
     setData(d);
     resetHistory();
     setSaved(false);

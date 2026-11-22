@@ -6,7 +6,7 @@ import { inIdsOf } from '../utils/dayLog.js';
 import { withoutPendingDates } from '../utils/history.js';
 import { exportJSON } from '../utils/exports.js';
 import { filePickerAvailable, pickFileToOpen, pickFileToSave } from '../utils/filePickers.js';
-import { pushSnapshot } from './snapshots.js';
+import { flushSnapshot, pushSnapshot } from './snapshots.js';
 import { ensureHandlePermission } from './useFileSession.js';
 
 // Plain functions over a context object that `useFileSync` builds on every
@@ -242,6 +242,7 @@ export async function loadFromFile(c) {
       );
     // Apply data immediately — don't block on file write permission
     await c.rememberHandle(handle);
+    flushSnapshot();
     c.setData(d);
     c.resetHistory(); // different document — the old undo stack doesn't apply
     c.diskTextRef.current = text; // the baseline for the first poll

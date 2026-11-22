@@ -105,6 +105,11 @@ export function pushSnapshot(data) {
   if (wait <= 0) _flushPending();
   else _pendingTimer = setTimeout(_flushPending, wait);
 }
+// Another document is about to replace the current one: write its pending
+// state now, so the next document's first push cannot take its place.
+export function flushSnapshot() {
+  _flushPending();
+}
 // Defensive snapshot (before a restore): written at once as its own slot,
 // ignoring the throttle. A pending autosave write stays pending and lands
 // later as a further slot.

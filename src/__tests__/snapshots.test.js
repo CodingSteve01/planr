@@ -9,6 +9,7 @@ const ring = () => JSON.parse(localStorage.getItem(KEY) || '[]');
 
 let pushSnapshot;
 let takeSnapshotNow;
+let flushSnapshot;
 async function push(n, atMs) {
   vi.setSystemTime(atMs);
   pushSnapshot(plan(n));
@@ -21,7 +22,7 @@ describe('snapshot ring', () => {
     localStorage.clear();
     delete window.requestIdleCallback; // the timeout path, driven by the fake clock
     vi.resetModules();
-    ({ pushSnapshot, takeSnapshotNow } = await import('../app/snapshots.js'));
+    ({ pushSnapshot, takeSnapshotNow, flushSnapshot } = await import('../app/snapshots.js'));
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -86,6 +87,16 @@ describe('snapshot ring', () => {
     await push('B', t0 + 10_000);
     await vi.advanceTimersByTimeAsync(120_000);
     expect(ring().map(x => x.data.tree[0].name)).toEqual(['State B', 'State A']);
+  });
+
+  it('keeps the unwritten last state of plan A when another plan is opened', async () => {
+    const t0 = Date.parse('2026-03-02T09:00:00Z');
+    await push('A1', t0);
+    await push('A2', t0 + 10_000); // pending inside the window
+    flushSnapshot(); // another document is about to replace plan A
+    await push('B', t0 + 20_000);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(ring().map(x => x.data.tree[0].name)).toEqual(['State B', 'State A2', 'State A1']);
   });
 
   it('flushes a pending write on pagehide', async () => {
