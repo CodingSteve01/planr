@@ -12,10 +12,22 @@ const clampedWeekIndex = (wks, d) => {
   return d < wks[0].mon ? 0 : wks.length - 1;
 };
 
-// An end date is an offboard cut only when it falls before the last grid day.
-// A later one never interrupts work inside the plan, so a task that does not
-// fit then ran into the horizon, not into the person leaving.
-export const offboardsInGrid = (wks, endDate) => !!endDate && endDate < addD(wks[wks.length - 1].mon, 6);
+// An end date is an offboard cut only when a working day of the grid lies after
+// it. Work is allowed on the end date itself, so leaving on the last working day
+// of the plan, or on the weekend after it, takes nothing away: a task that does
+// not fit then ran into the horizon, not into the person leaving.
+const lastGridWorkDay = wks => {
+  for (let i = wks.length - 1; i >= 0; i--) {
+    const wds = wks[i].wds;
+    if (wds?.length) return wds[wds.length - 1];
+  }
+  return null;
+};
+export const offboardsInGrid = (wks, endDate) => {
+  if (!endDate) return false;
+  const last = lastGridWorkDay(wks);
+  return !!last && endDate < last;
+};
 
 // The reported window of a scheduled task, shared by the assigned and the
 // team-slot path. Guarantees `startD <= endD`.

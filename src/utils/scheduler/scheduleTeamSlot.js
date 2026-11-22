@@ -281,8 +281,9 @@ export function scheduleTeamSlot(S, T) {
       // reflects the real workload. Rendered as a hatched "(unassigned)"
       // segment — not pinned to any real person's queue.
       // Guard: only emit ghost + truncation when an offboarding actually
-      // triggered the shortfall AND autoCascade is on. Without endDate,
-      // rem>0 means the primary simply ran out of horizon. With
+      // triggered the shortfall AND autoCascade is on. Without an end date
+      // that falls inside the grid (offboardsInGrid), rem>0 means the
+      // primary simply ran out of horizon. With
       // autoCascade off we just flag `truncatedByOffboard` and let the
       // user split the task explicitly — no synthetic Gantt row.
       if (_autoCascade && cascade.remaining > 0 && offboardCut) {

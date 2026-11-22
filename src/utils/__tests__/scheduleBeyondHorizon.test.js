@@ -114,6 +114,14 @@ describe.each(branches)('%s with an end date', (_branch, members, assign) => {
     expect(r.truncatedByOffboard).toBeFalsy();
   });
 
+  // The plan ends on Friday 2026-01-23. Leaving on that day or on the weekend
+  // after it takes no working day out of the grid.
+  test.each(['2026-01-23', '2026-01-24'])('on the last grid day or just after (%s): horizon overrun', end => {
+    const r = only(end);
+    expect(r.beyondHorizon).toBe(true);
+    expect(r.truncatedByOffboard).toBeFalsy();
+  });
+
   test('inside the grid, the person leaves first: offboard cut, not a horizon overrun', () => {
     const r = only('2026-01-14');
     expect(r.truncatedByOffboard).toBeTruthy();
