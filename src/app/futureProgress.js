@@ -1,11 +1,13 @@
+import { addD, localDate } from '../utils/date.js';
 import { leafNodes, leafProgress, scheduleEffort } from '../utils/scheduler.js';
 
 // Source 1: scheduled bar — partial credit prorated across the bar
-// duration up to the horizon.
+// duration up to the horizon. The scheduler's endD is the last working day,
+// inclusive, so the bar ends at the midnight after it.
 function fromSchedule(s, horizonEnd, projFrac, maxFutureFrac) {
   if (!s?.endD) return projFrac;
-  const endD = s.endD instanceof Date ? s.endD : new Date(s.endD);
-  const startD = s.startD instanceof Date ? s.startD : s.startD ? new Date(s.startD) : endD;
+  const endD = addD(localDate(s.endD), 1);
+  const startD = s.startD ? localDate(s.startD) : localDate(s.endD);
   if (endD <= horizonEnd) return maxFutureFrac;
   if (startD < horizonEnd) {
     const dur = +endD - +startD;
@@ -24,9 +26,10 @@ function fromSchedule(s, horizonEnd, projFrac, maxFutureFrac) {
 // own trajectory still counts.
 function fromDueDate(lf, horizonEnd, today, { projFrac, curFrac, maxFutureFrac }) {
   if (!(lf.status === 'wip' && lf.due && projFrac < maxFutureFrac)) return projFrac;
-  const dueD = new Date(lf.due);
-  const horizonD = horizonEnd instanceof Date ? horizonEnd : new Date(horizonEnd);
-  if (!(dueD > today)) return projFrac;
+  const dueD = localDate(lf.due);
+  const horizonD = localDate(horizonEnd);
+  // A task due today is still due: `today` is a local midnight.
+  if (!(dueD >= today)) return projFrac;
   if (horizonD >= dueD) return Math.max(projFrac, maxFutureFrac);
   const span = +dueD - +today;
   const elapsed = +horizonD - +today;
@@ -66,7 +69,8 @@ export function futureProgressByRoot(tree, scheduled, horizonEnd) {
   const out = {};
   for (const root of roots) {
     const leaves = liveLeaves.filter(n => n.id === root.id || n.id.startsWith(root.id + '.'));
-    const today = new Date();
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     let total = 0,
       doneByHorizon = 0;
     for (const lf of leaves) {

@@ -64,7 +64,7 @@ export function buildWeeks(start, end, hm, workDaysArr) {
       if (x >= ps && x <= pe && isWD(x, hm, wd)) wds.push(new Date(x));
     }
     const hasH = Object.keys(hm).some(k => {
-      const hd = new Date(k);
+      const hd = localDate(k);
       return hd >= d && hd < addD(d, 7) && wd.has(hd.getDay());
     });
     // Keep weeks that have at least one working day (or sit inside the plan window for display).

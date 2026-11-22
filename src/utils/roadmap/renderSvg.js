@@ -91,7 +91,7 @@ export function renderRoadmapSvg(args) {
   const viewY = usedYs.length ? clamp(Math.min(...usedYs) - ROUTE_PAD_TOP, 0, boardH) : 0;
   const viewH = usedYs.length ? clamp(Math.max(...usedYs) + ROUTE_PAD_BOTTOM - viewY, 120, boardH - viewY) : boardH;
   out.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 ${viewY.toFixed(0)} ${SVG_W} ${viewH.toFixed(0)}" style="display:block;width:100%;height:auto;max-width:100%" preserveAspectRatio="xMidYMin meet">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" data-roadmap="1" viewBox="0 ${viewY.toFixed(0)} ${SVG_W} ${viewH.toFixed(0)}" style="display:block;width:100%;height:auto;max-width:100%" preserveAspectRatio="xMidYMin meet">`,
   );
 
   // ── Styles ──────────────────────────────────────────────────────────────────
