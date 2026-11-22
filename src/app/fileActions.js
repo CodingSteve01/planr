@@ -1,3 +1,4 @@
+import { isMarkdownName } from '../utils/fileKind.js';
 import { normalizeLoadedData } from '../utils/loadedData.js';
 import { parseMdToProject } from '../utils/markdownParse.js';
 import { isBusy, MAX_BUSY_ROUNDS, stillWritable, writeWithRetry } from '../utils/fileWrite.js';
@@ -69,7 +70,7 @@ export async function reloadFromFile(c) {
   try {
     const file = await c.fileHandleRef.current.getFile();
     const text = await file.text();
-    const isMd = file.name.endsWith('.md');
+    const isMd = isMarkdownName(file.name);
     const d = normalizeLoadedData(isMd ? parseMdToProject(text) : JSON.parse(text));
     if (d?.tree && Array.isArray(d.tree) && d.tree.length > 0) {
       // What changed outside Planr belongs to the day it was picked up.
@@ -111,7 +112,7 @@ async function pickSaveHandle(c, suggestedFromName) {
   const { meta = {} } = c.data; // `App` has not derived its own `meta` yet when this hook is called
   const fallbackSlug = (meta.name || 'project').toLowerCase().replace(/\s+/g, '-');
   const suggested = suggestedFromName || `${fallbackSlug}.planr.json`;
-  const isMd = suggested.endsWith('.md');
+  const isMd = isMarkdownName(suggested);
   return await pickFileToSave({
     suggestedName: suggested,
     types: isMd
@@ -229,7 +230,7 @@ export async function loadFromFile(c) {
     });
     const file = await handle.getFile();
     const text = await file.text();
-    const isMd = handle.name.endsWith('.md');
+    const isMd = isMarkdownName(handle.name);
     const d = normalizeLoadedData(isMd ? parseMdToProject(text) : JSON.parse(text));
     if (!d.tree || !Array.isArray(d.tree) || d.tree.length === 0)
       throw new Error(

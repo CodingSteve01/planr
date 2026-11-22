@@ -5,6 +5,7 @@ import { useTreeEditorActions } from './app/actions/useTreeEditorActions.js';
 import { useOpenActions } from './app/actions/useOpenActions.js';
 import { useQueueActions } from './app/actions/useQueueActions.js';
 import { useResourceActions } from './app/actions/useResourceActions.js';
+import { isMarkdownName } from './utils/fileKind.js';
 import { useTabBar } from './app/useTabBar.js';
 import { useViewFilters } from './app/useViewFilters.js';
 import { useRoadmapFocus, useUiPrefs } from './app/useUiPrefs.js';
@@ -521,7 +522,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
       futureProgressByRootId,
       projectWaitsOf,
     });
-  const isMdFile = fileName?.endsWith('.md');
+  const isMdFile = isMarkdownName(fileName);
   const logWriters = buildLogWriters(
     mergeNamed(doc, {
       data,

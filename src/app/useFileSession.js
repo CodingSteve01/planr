@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { SK } from '../constants.js';
+import { isMarkdownName } from '../utils/fileKind.js';
 import { normalizeLoadedData } from '../utils/loadedData.js';
 import { parseMdToProject } from '../utils/markdownParse.js';
 import {
@@ -56,7 +57,7 @@ async function forgetHandleIn({ fileHandleRef, setFileName, hosted, onFileChange
 async function readMountedProject(handle) {
   const file = await handle.getFile();
   const text = await file.text();
-  const restored = normalizeLoadedData(handle.name?.endsWith('.md') ? parseMdToProject(text) : JSON.parse(text));
+  const restored = normalizeLoadedData(isMarkdownName(handle.name) ? parseMdToProject(text) : JSON.parse(text));
   if (!isValidProjectData(restored)) throw new Error('Invalid mounted project file.');
   return restored;
 }
