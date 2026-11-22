@@ -105,37 +105,40 @@ describe('edge routing', () => {
 
   // KNOWN GAP (reported, layout left alone): with five children the layout
   // staggers them over several rows, and the straight drop from the parent's bus
-  // to the later children runs through nodes of the row above. `test.fails`
-  // keeps the expectation written down; it turns red when the gap is closed.
-  test.fails('no hierarchy edge passes through an unrelated node', () => {
+  // to the later children runs through nodes of the row above. The test pins the
+  // exact offending edges, so a change in either direction fails it.
+  test('hierarchy edges through an unrelated node (known gap)', () => {
     const bad = edges
       .filter(e => e.isHier)
       .filter(e => segments(hierPath(pos[e.from], pos[e.to])).some(s => unrelated(e).some(b => crosses(s, b))))
       .map(e => e.id);
-    expect(bad).toEqual([]);
+    // Must shrink to [] when the layout bug is fixed.
+    expect(bad).toEqual(['h|P1|P1.4', 'h|P1|P1.5']);
   });
 
   // KNOWN GAP (reported, not fixed): depPath picks the route with the fewest
   // hits, but on this tree every candidate for two of the edges still runs
-  // through a node. Same `test.fails` convention as above.
-  test.fails('no dependency edge passes through an unrelated node', () => {
+  // through a node. Pinned exactly like the test above.
+  test('dependency edges through an unrelated node (known gap)', () => {
     const bad = edges
       .filter(e => !e.isHier)
       .filter(e => segments(depPath(pos[e.from], pos[e.to], boxes).path).some(s => unrelated(e).some(b => crosses(s, b))))
       .map(e => e.id);
-    expect(bad).toEqual([]);
+    // Must shrink to [] when the layout bug is fixed.
+    expect(bad).toEqual(['d|P2.1|P1.3', 'd|P3.1|P1.2.1']);
   });
 
   // KNOWN GAP (reported, not fixed): for two nodes in one row the "vertical
   // middle" candidate leaves the source at its bottom edge, climbs to the row's
   // centre line (inside the source box) and wins on path length, so the line is
   // drawn through both boxes instead of out of the side facing the target.
-  test.fails('a dependency between neighbours in one row leaves from the side facing the target', () => {
+  test('neighbours in one row: the dependency does not yet leave from the facing side (known gap)', () => {
     const a = { x: 0, y: 0 };
     const b = { x: 300, y: 0 };
     const r = depPath(a, b, [a, b]);
+    // Must become `M${NODE_W},${NODE_H / 2}` when the bug is fixed.
     expect(r.hits).toBe(0);
-    expect(r.path.startsWith(`M${NODE_W},${NODE_H / 2}`)).toBe(true);
+    expect(r.path.split(' ')[0]).toBe('M65,44');
   });
 
   test('a node in the way makes the route go around it', () => {

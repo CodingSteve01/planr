@@ -58,18 +58,17 @@ export async function exportReportDocx(ctx) {
 
     // Rasterize the inline roadmap SVG into a PNG data URL so Word renders it
     // exactly the same as the PDF (html-to-docx accepts <img src="data:...">).
-    // The view box follows the number of lanes (renderSvg.js), so its offset and
-    // height vary; only the width is fixed.
-    const roadmapSvgMatch = htmlRaw.match(
-      /<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="(0|-?\d+) (-?\d+) 1400 (\d+)"[\s\S]*?<\/svg>/,
-    );
+    // renderSvg.js marks the roadmap with `data-roadmap`; its view box follows
+    // the number of lanes, so offset and size are read from the tag itself.
+    const roadmapSvgMatch = htmlRaw.match(/<svg\b[^>]*\bdata-roadmap\b[^>]*>[\s\S]*?<\/svg>/);
+    const box = roadmapSvgMatch?.[0].match(/viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/);
     let html = htmlRaw;
-    if (roadmapSvgMatch) {
-      const W = 1400,
-        H = Number(roadmapSvgMatch[3]);
+    if (roadmapSvgMatch && box) {
+      const W = Number(box[3]),
+        H = Number(box[4]);
       const patched = roadmapSvgMatch[0].replace(
         /^<svg [^>]*>/,
-        `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="${roadmapSvgMatch[1]} ${roadmapSvgMatch[2]} ${W} ${H}" preserveAspectRatio="xMidYMid meet">`,
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="${box[1]} ${box[2]} ${W} ${H}" preserveAspectRatio="xMidYMid meet">`,
       );
       const inlined = patched
         .replace(/var\(--tx,([^)]*)\)/g, '#1a1e2a')

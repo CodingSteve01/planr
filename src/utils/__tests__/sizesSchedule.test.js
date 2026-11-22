@@ -61,7 +61,7 @@ describe('risk catalogue', () => {
     expect(resolveRiskName({ id: 'y' }, k => k)).toBe('y');
   });
 
-  test('default weights are positive and add up to a sensible total', () => {
+  test('default weights are positive and the ids are unique', () => {
     expect(DEFAULT_RISKS.every(r => r.weight > 0)).toBe(true);
     expect(new Set(DEFAULT_RISKS.map(r => r.id)).size).toBe(DEFAULT_RISKS.length);
   });

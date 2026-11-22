@@ -54,6 +54,6 @@ describe('exportReportDocx() with a roadmap of any height', () => {
       data: {},
     });
     expect(html).toContain('alt="Roadmap"');
-    expect(html).not.toMatch(/<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 \d+ 1400 \d+"/);
+    expect(html).not.toContain('data-roadmap');
   });
 });

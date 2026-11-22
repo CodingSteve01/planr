@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 import { buildLogWriters } from '../logWriters.js';
 import { withDayLog, recordSavedEvents } from '../dayLogWrite.js';
 import { leafSnapshot, pendingDate } from '../../utils/history.js';
@@ -8,7 +8,15 @@ const leaf = (id, status, progress) => ({ id, name: id, team: 'Backend', best: 4
 const before = () => [{ id: 'P1', name: 'Rechnungen', best: 0 }, leaf('P1.1', 'open', 0), leaf('P1.2', 'open', 0)];
 const after = () => [{ id: 'P1', name: 'Rechnungen', best: 0 }, leaf('P1.1', 'wip', 40), leaf('P1.2', 'open', 0)];
 const docOf = tree => ({ tree, members: [], teams: [], vacations: [], meta: {} });
-const TODAY = iso(new Date());
+// The writers read the date when called; freeze the clock so a run across
+// midnight cannot change the expected day.
+const NOW = new Date(2026, 2, 4, 12, 0, 0);
+const TODAY = iso(NOW);
+beforeAll(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(NOW);
+});
+afterAll(() => vi.useRealTimers());
 
 // The refs and setters `App` hands to the writers, with `setData` applied to a
 // plain value so the next document can be read back.
