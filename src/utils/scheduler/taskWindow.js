@@ -5,33 +5,76 @@ const DAY = 864e5;
 // Index of the grid week holding `d`, or -1 when `d` lies outside the grid.
 const weekIndexOf = (wks, d) => wks.findIndex(w => d >= w.mon && d < addD(w.mon, 7));
 
+// Like weekIndexOf, but a date outside the grid maps to the nearest edge week.
+const clampedWeekIndex = (wks, d) => {
+  const i = weekIndexOf(wks, d);
+  if (i >= 0) return i;
+  return d < wks[0].mon ? 0 : wks.length - 1;
+};
+
 // The reported window of a scheduled task, shared by the assigned and the
 // team-slot path. Guarantees `startD <= endD`.
+//
+// Contract: `startD`/`endD` are real dates and may lie past the plan end.
+// `startWi`/`endWi` are week indices clamped to the grid (a date past the grid
+// maps to the last week), and `weeks` is computed from those clamped indices,
+// so `endWi >= startWi` and `weeks >= 1` always hold.
 //
 //   firstWorkDay / lastWorkDay  first and last day that actually took work
 //   startFallback               start when no day took work (cascade start or week Monday)
 //   eW                          end week index chosen by the caller
+//   startWi                     start week index chosen by the caller
 //   consumedDays                days already worked (WIP), 0 when none
 //   depNextDate                 first free day after the latest dependency
 //   effort                      scheduled effort (0 for milestones)
 //   truncated                   an offboarding, not the horizon, cut the task short
+//   ranOut                      the grid ended before the work did (partial
+//                               placement, or a fixed duration cut short)
 //
-// `beyondHorizon` is true when effort exists but no working day fitted before
-// the plan horizon: the dates are then a placeholder, not a plan.
-export function taskWindow({ firstWorkDay, lastWorkDay, startFallback, wks, eW, consumedDays, depNextDate, wdSet, effort, truncated }) {
+// `beyondHorizon` is true when the plan end, not an offboarding, kept the task
+// from being fully placed: either no working day fitted at all (the dates are
+// then a placeholder), or only part of it did (the end is the plan end).
+export function taskWindow({
+  firstWorkDay,
+  lastWorkDay,
+  startFallback,
+  wks,
+  eW,
+  startWi,
+  consumedDays,
+  depNextDate,
+  wdSet,
+  effort,
+  truncated,
+  ranOut,
+}) {
   let startD = firstWorkDay || startFallback;
   let endD = lastWorkDay || addD(wks[eW].mon, 4);
   let endWi = eW;
+  let startWeek = startWi;
   // WIP-progress: show the done portion where it happened, before the start.
   if (consumedDays > 0) startD = addWorkDays(startD, -consumedDays, wdSet);
-  if (depNextDate && startD < depNextDate) startD = depNextDate;
+  if (depNextDate && startD < depNextDate) {
+    startD = depNextDate;
+    startWeek = Math.max(startWeek, clampedWeekIndex(wks, startD));
+  }
   if (endD < startD) {
     // The fallback end (last week's Friday) lies before a start pushed past
     // a dependency: follow the start, and the end week with it.
     endD = startD;
-    const inGrid = weekIndexOf(wks, endD);
-    if (inGrid >= 0) endWi = inGrid;
   }
-  const beyondHorizon = !lastWorkDay && effort > 0 && !truncated;
-  return { startD, endD, endWi, beyondHorizon, calDays: Math.round((endD - startD) / DAY) + 1 };
+  // An end past the grid keeps the last week; one inside follows its date.
+  if (endD >= addD(wks[wks.length - 1].mon, 7)) endWi = wks.length - 1;
+  else if (endD !== lastWorkDay) endWi = Math.max(endWi, clampedWeekIndex(wks, endD));
+  endWi = Math.max(endWi, startWeek);
+  const beyondHorizon = !truncated && ((!lastWorkDay && effort > 0) || !!ranOut);
+  return {
+    startD,
+    endD,
+    startWi: startWeek,
+    endWi,
+    weeks: endWi - startWeek + 1,
+    beyondHorizon,
+    calDays: Math.round((endD - startD) / DAY) + 1,
+  };
 }

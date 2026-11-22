@@ -1,5 +1,6 @@
 import { iso } from '../../../utils/date.js';
 import { useT } from '../../../i18n.jsx';
+import { warningGroups } from '../../../utils/warningGroups.js';
 
 function NoCapacityGroup({ noCapacity, onOpenItem }) {
   const { t } = useT();
@@ -289,11 +290,10 @@ function BeyondHorizonGroup({ beyond, iMap, onOpenItem }) {
 
 export function WarningsSection({ scheduled, conflicts, noCapacity, fullMap, iMap, onOpenItem }) {
   const { t } = useT();
-  const dueViolations = scheduled
-    .filter(s => s.dueOverdue || (s.due && new Date(s.due) < new Date() && s.status !== 'done'))
-    .sort((a, b) => (a.due || '').localeCompare(b.due || ''));
-  const truncated = scheduled.filter(s => s.truncatedByOffboard).sort((a, b) => (a.id || '').localeCompare(b.id || ''));
-  const beyond = scheduled.filter(s => s.beyondHorizon && s.status !== 'done').sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+  const groups = warningGroups(scheduled);
+  const dueViolations = groups.dueViolations.sort((a, b) => (a.due || '').localeCompare(b.due || ''));
+  const truncated = groups.truncated.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+  const beyond = groups.beyond.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
   if (!dueViolations.length && !truncated.length && !beyond.length && !conflicts.length && !noCapacity.length) {
     return <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>{t('pr.warningsNone')}</div>;
   }

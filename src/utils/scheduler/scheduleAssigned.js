@@ -114,7 +114,8 @@ export function scheduleAssigned(S, T) {
   let rem = eff,
     wi = bs,
     firstWorkDay = null,
-    lastWorkDay = null;
+    lastWorkDay = null,
+    gridShort = false;
   const workedDays = [];
   if (hasFixedDuration) {
     const fixed = fixedWorkWindow(skipBefore, fixedDaysTotal);
@@ -122,6 +123,7 @@ export function scheduleAssigned(S, T) {
     lastWorkDay = fixed.endD;
     wi = fixed.endWi;
     rem = 0;
+    gridShort = !!fixed.short;
     workedDays.push(...fixed.workedDays);
   } else {
     while (rem > 0 && wi < wks.length) {
@@ -332,6 +334,9 @@ export function scheduleAssigned(S, T) {
     wdSet,
     effort: eff,
     truncated,
+    startWi: bs,
+    // No offboarding date: the grid, not a person, ended the work.
+    ranOut: gridShort || (rem > 0 && !endDate),
   });
   const { startD: actualStartD, endD: actualEndD } = win;
   // Dep violation diagnostic: warn if this task starts before any of its deps finish.
@@ -384,14 +389,14 @@ export function scheduleAssigned(S, T) {
     best: r.best,
     effort: eff,
     fixedDurationDays: hasFixedDuration ? fixedDaysTotal : undefined,
-    startWi: bs,
+    startWi: win.startWi,
     endWi: win.endWi,
     startD: actualStartD,
     endD: actualEndD,
     calDays: win.calDays,
     capPct: hasFixedDuration ? 100 : Math.round(deriveCap(bp) * 100),
     vacDed: hasFixedDuration ? 0 : Math.round((1 - vacInfo[bp.id]) * 100),
-    weeks: win.endWi - bs + 1,
+    weeks: win.weeks,
     beyondHorizon: win.beyondHorizon,
     parallel: false,
     pinOverridden,

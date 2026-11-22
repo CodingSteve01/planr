@@ -40,11 +40,16 @@ describe.each(branches)('%s', (_branch, members, assign) => {
       expect(r.startD <= r.endD).toBe(true);
     });
 
-    test('endWi is the week of endD and the span stays consistent', () => {
+    test('week fields are clamped to the grid, dates stay real, and the span is consistent', () => {
       const { r, weeks } = go();
-      const inGrid = weeks.findIndex(w => w.wds.some(d => +d === +r.endD) || +w.mon === +r.endD);
-      if (inGrid >= 0) expect(r.endWi).toBe(inGrid);
-      expect(r.endWi).toBeGreaterThanOrEqual(r.startWi);
+      const last = weeks.length - 1;
+      const inGrid = weeks.findIndex(w => +r.endD >= +w.mon && +r.endD < +w.mon + 7 * 864e5);
+      // Contract: endWi is the week of endD, or the last grid week when endD lies past the grid.
+      expect(r.endWi).toBe(inGrid >= 0 ? inGrid : last);
+      const startIn = weeks.findIndex(w => +r.startD >= +w.mon && +r.startD < +w.mon + 7 * 864e5);
+      expect(r.startWi).toBe(startIn >= 0 ? startIn : last);
+      expect(r.startWi).toBeLessThanOrEqual(r.endWi);
+      expect(r.startWi).toBeLessThanOrEqual(last);
       expect(r.weeks).toBe(r.endWi - r.startWi + 1);
       expect(r.calDays).toBe(Math.round((r.endD - r.startD) / 864e5) + 1);
     });
@@ -55,10 +60,43 @@ describe.each(branches)('%s', (_branch, members, assign) => {
       expect(results.find(x => x.id === 'P1.2').dueOverdue).toBe(true);
     });
 
-    test('is marked as beyond the horizon, the task that fits is not', () => {
-      const { results, r } = go();
-      expect(r.beyondHorizon).toBe(true);
-      expect(results.find(x => x.id === 'P1.1').beyondHorizon).toBeFalsy();
+    test('is marked as beyond the horizon', () => {
+      expect(go().r.beyondHorizon).toBe(true);
     });
+  });
+});
+
+// Effort that starts inside the plan but only partly fits before its end.
+describe.each(branches)('%s with a task that fits only partly', (_branch, members, assign) => {
+  test('a task that fits completely is not marked', () => {
+    const { results } = run([root, first(assign, 5), second(assign)], members);
+    expect(results.find(x => x.id === 'P1.1').beyondHorizon).toBeFalsy();
+    expect(results.find(x => x.id === 'P1.2').beyondHorizon).toBeFalsy();
+  });
+
+  test('is marked when the grid runs out before its effort does', () => {
+    const { results, weeks } = run([root, first(assign, 30)], members);
+    const r = results.find(x => x.id === 'P1.1');
+    expect(r.beyondHorizon).toBe(true);
+    expect(r.endWi).toBe(weeks.length - 1);
+    expect(r.weeks).toBe(r.endWi - r.startWi + 1);
+  });
+
+  test('a fixed-duration task running past the grid is marked, one inside is not', () => {
+    const fixed = days => ({ ...first(assign, 0), fixedDurationDays: days });
+    const over = run([root, fixed(30)], members).results.find(x => x.id === 'P1.1');
+    const inside = run([root, fixed(5)], members).results.find(x => x.id === 'P1.1');
+    expect(over.beyondHorizon).toBe(true);
+    expect(inside.beyondHorizon).toBeFalsy();
+  });
+});
+
+describe('fan-out batches', () => {
+  test('followers carry the leader beyondHorizon marker', () => {
+    const sibling = id => ({ id, name: id, team: 'Frontend', best: 20, factor: 1, assign: ['M1'], deps: ['P1.1'], status: 'open' });
+    const { results } = run([root, first(['M1'], 2), sibling('P1.2'), sibling('P1.3')], [anna]);
+    const rows = ['P1.2', 'P1.3'].map(id => results.find(x => x.id === id));
+    expect(rows.some(x => x._autoParallel)).toBe(true);
+    expect(rows.map(x => x.beyondHorizon)).toEqual([true, true]);
   });
 });

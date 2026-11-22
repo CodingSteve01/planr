@@ -1399,7 +1399,7 @@ const en = {
   'pr.warningsNone': 'No warnings — all due dates met, no offboard cuts pending.',
   'pr.warnDueOverdue': 'Due-date violations',
   'pr.warnTruncated': 'Truncated by offboard — needs split',
-  'pr.warnBeyondHorizon': 'Not scheduled — no working day left before the plan end',
+  'pr.warnBeyondHorizon': 'Not fully scheduled — the plan end comes before its work does',
   'pr.warnBeyondHorizonHint': 'Extend the plan end or reduce the work before it',
   'or.tab': 'Order',
   'or.help':
@@ -3305,7 +3305,7 @@ const de = {
   'pr.warningsNone': 'Keine Warnungen — alle Fälligkeiten eingehalten, keine offenen Offboard-Cuts.',
   'pr.warnDueOverdue': 'Fälligkeit überschritten',
   'pr.warnTruncated': 'Offboard-Cut offen — Split erforderlich',
-  'pr.warnBeyondHorizon': 'Nicht eingeplant — kein Arbeitstag mehr vor dem Planende',
+  'pr.warnBeyondHorizon': 'Nicht vollständig eingeplant — das Planende kommt vor der Arbeit',
   'pr.warnBeyondHorizonHint': 'Planende verlängern oder die Arbeit davor verringern',
   'or.tab': 'Reihenfolge',
   'or.help':

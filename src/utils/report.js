@@ -305,8 +305,8 @@ export function buildReportModel(rawCtx) {
       ask: t('Appoint a successor', 'Nachfolge benennen'),
     });
   });
-  // 5b. Tasks with no working day left before the plan end: their dates are
-  //     a placeholder, so the plan says nothing about when they finish.
+  // 5b. Tasks the plan end cuts off (no working day left, or only part of the
+  //     work fits): the plan says nothing about when they finish.
   scheduled
     .filter(s => s.beyondHorizon && s.status !== 'done')
     .forEach(s => {
@@ -315,8 +315,8 @@ export function buildReportModel(rawCtx) {
         rank: s.effort || 0,
         title: t(`Not scheduled: ${s.name}`, `Nicht eingeplant: ${s.name}`),
         text: t(
-          'No working day left before the plan end; the bar only marks the earliest possible start',
-          'Kein Arbeitstag mehr vor dem Planende; der Balken zeigt nur den frühestmöglichen Start',
+          'The plan end comes before the work does; the bar only shows the part that fits, or the earliest possible start',
+          'Das Planende kommt vor der Arbeit; der Balken zeigt nur den Teil, der passt, oder den frühestmöglichen Start',
         ),
         ask: t('Extend the plan end or reduce earlier work', 'Planende verlängern oder frühere Arbeit verringern'),
       });

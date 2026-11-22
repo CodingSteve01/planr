@@ -295,6 +295,8 @@ export function schedule(tree, members, vacations, ps, pe, hm, workDaysArr, plan
       endD: lastWorkDay || fallback,
       endWi: Math.max(0, weekIndexOfDate(lastWorkDay || fallback)),
       workedDays,
+      // The grid ended before the needed days were found.
+      short: true,
     };
   };
   const maxDate = (...dates) => dates.filter(Boolean).reduce((max, date) => (!max || date > max ? date : max), null);
