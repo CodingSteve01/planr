@@ -55,9 +55,16 @@ the same places.
   registration. `.planr` is nobody else's, and without the registration
   Obsidian would not even list such a file in the explorer.
 - **Ribbon icon** or the command **Planr: Open plan file…** — fuzzy-search the
-  vault for a plan and open it in a new tab.
-- **Right-click any plan file → Open in Planr** — same thing from the file
-  explorer, and the way in for a `.planr.json`.
+  vault for a plan and open it in a new tab. Only plan files are listed (same
+  rule as the right-click entry below).
+- **Right-click a plan file → Open in Planr** — same thing from the file
+  explorer, and the way in for a `.planr.json`. The entry appears for plan
+  files only: a name ending in `.planr.md` or `.planr.json`, a `.planr` file,
+  or a `.md` / `.json` that carries a plan's structure (a `## Work Tree`
+  heading; top-level `meta` and `tree` keys). Notes and other JSON do not get
+  it. JSON is judged from a start-of-file cache filled when the vault loads, so
+  a JSON file created a moment ago may need a second to show the entry.
+  The rule lives in `obsidian/src/planLike.js`.
 - **Save as…** inside the app moves the document; the tab follows it to the new
   file without reloading what you were doing.
 

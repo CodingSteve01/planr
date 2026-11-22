@@ -6,7 +6,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { TFile, TFolder } from 'obsidian';
-import { PLAN_FILE_RE, handleForPath, lastPlanPath, setLastPlanFolder, setVaultApp } from '../src/vaultFs.js';
+import { handleForPath, lastPlanPath, setLastPlanFolder, setVaultApp } from '../src/vaultFs.js';
 
 /** The slice of Obsidian's App that vaultFs.js actually touches. */
 function fakeApp(files = {}) {
@@ -68,14 +68,6 @@ describe('a vault-backed file handle', () => {
     expect(await file.text()).toBe('{"tree":[]}');
     // The external-change poll compares this against its own last write.
     expect(file.lastModified).toBe(4242);
-  });
-
-  it('offers every file the plugin opens as a plan in the picker, whatever the extension case', () => {
-    for (const name of ['a.json', 'a.md', 'A.MD', 'team.planr', 'Team.PLANR', 'a.planr.json']) {
-      expect(PLAN_FILE_RE.test(name), name).toBe(true);
-    }
-    expect(PLAN_FILE_RE.test('photo.png')).toBe(false);
-    expect(PLAN_FILE_RE.test('planr.txt')).toBe(false);
   });
 
   it('reports a name the app can tell .md from .json by', () => {
