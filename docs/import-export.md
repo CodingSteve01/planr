@@ -328,6 +328,8 @@ Both use `XMLSerializer` to dump the live SVG DOM.
 
 All PDFs are generated client-side via [`pdfmake`](https://pdfmake.github.io/) (dynamically imported, so the ~500 kB payload is only fetched on first use). Text is fully selectable, images are embedded as high-resolution PNGs (3× scale) so small labels stay readable.
 
+Each export is split into `build…DocDefinition` (pure: plan in, pdfmake definition out, or `{ empty }` with the message the export would alert) and the `export…PDF` function that loads pdfmake and downloads. `src/utils/pdf/__tests__/` tests the definitions' content in both languages and runs pdfmake in Node on them (`pdfRender.test.js`); the rendered files land in `e2e/.output/pdf/` for a person to open.
+
 Four PDF variants:
 
 | Export | Purpose | Content |

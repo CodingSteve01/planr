@@ -3861,6 +3861,19 @@ const de = {
 
 const LANGS = { en, de };
 
+// The translator for one language, without React: tests and scripts that need
+// the app's strings call this; the provider below uses the same function.
+export function translatorFor(lang) {
+  const dict = LANGS[lang] || en;
+  return (key, ...args) => {
+    let s = dict[key] ?? en[key] ?? key;
+    args.forEach((a, i) => {
+      s = s.replace(`{${i}}`, a);
+    });
+    return s;
+  };
+}
+
 // ── Detect browser language ──────────────────────────────────────────────────
 function detectLang() {
   const nav = navigator.language || navigator.languages?.[0] || 'en';
@@ -3879,17 +3892,7 @@ export function I18nProvider({ children }) {
     }
   });
   const lang = langPref === 'auto' ? detectLang() : langPref;
-  const dict = LANGS[lang] || en;
-
-  const t = useMemo(() => {
-    return (key, ...args) => {
-      let s = dict[key] ?? en[key] ?? key;
-      args.forEach((a, i) => {
-        s = s.replace(`{${i}}`, a);
-      });
-      return s;
-    };
-  }, [dict]);
+  const t = useMemo(() => translatorFor(lang), [lang]);
 
   const setLang = v => {
     setLangPref(v);

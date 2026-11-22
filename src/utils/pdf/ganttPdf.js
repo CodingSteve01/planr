@@ -4,7 +4,7 @@ import { projectScopedCtx } from '../exportCtx.js';
 import { sanitizePdfDoc } from '../pdfGlyphs.js';
 import { buildGanttSvg, svgToDataUrl } from '../exports.js';
 import { PRINT } from '../printPalette.js';
-import { STYLES, footerBuilder, headerTable, loadPdfMake, slug } from './pdfCore.js';
+import { STYLES, countLabel, footerBuilder, headerTable, loadPdfMake, slug } from './pdfCore.js';
 
 async function rasterizeGantt(ctx, scale = 3) {
   const r = buildGanttSvg(ctx);
@@ -18,28 +18,52 @@ async function rasterizeGantt(ctx, scale = 3) {
 }
 
 // ── Gantt PDF ───────────────────────────────────────────────────────────────
-export async function exportGanttPDF(ctx) {
+// Landscape page sizes in points.
+const PAGES = { A4: [842, 595], A3: [1191, 842], A2: [1684, 1191] };
+// The same margin the other three documents use. At 28 this one sat its
+// title and footer visibly closer to the paper edge than the summary beside
+// it, which is the first thing that reads as "a different tool made this".
+const PAGE_MARGIN = 36;
+const FOOTER_SPACE = 40;
+// The h1, the subtitle and the gap under the picture, which share page 1.
+const HEADER_SPACE = 70;
+
+// Page size and the box the picture must fit in. Without a picture the page
+// is A4; with one it follows the picture's width so small text stays readable
+// (A3 from 1100 pt wide, A2 from 1600). The box has both a width and a height:
+// a tall picture that only had a width ran past the page, was moved to a page
+// of its own and left page 1 blank.
+function pageLayout(gantt) {
+  const nativeW = gantt?.width || 0;
+  const pageSize = nativeW > 1600 ? 'A2' : nativeW > 1100 ? 'A3' : 'A4';
+  const [pageW, pageH] = PAGES[pageSize];
+  const printableW = pageW - PAGE_MARGIN * 2;
+  const printableH = pageH - PAGE_MARGIN - FOOTER_SPACE - HEADER_SPACE;
+  return {
+    pageSize,
+    pageMargin: PAGE_MARGIN,
+    bottomMargin: FOOTER_SPACE,
+    imageBox: [nativeW ? Math.min(printableW, nativeW) : printableW, printableH],
+  };
+}
+
+// The message the export shows when nothing is scheduled, null otherwise.
+// Cheap: it does not build the document.
+export function ganttEmptyMessage(ctx) {
+  if (ctx.scheduled?.length) return null;
+  return ctx.lang === 'de' ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.';
+}
+
+// The document definition, without the rasterised timeline (`gantt` is
+// `{ url, width, height }` or null). Returns `{ empty }` with the message the
+// export shows when there is nothing to draw, `{ dd, fileName }` otherwise.
+export function buildGanttDocDefinition(ctx, gantt = null) {
   ctx = projectScopedCtx(ctx, 'exportGanttPDF');
+  const empty = ganttEmptyMessage(ctx);
+  if (empty) return { empty };
   const m = buildReportModel(ctx);
   const { meta, t, dateStr, scheduled, weeks, teams } = m;
-  if (!scheduled.length) {
-    alert(m.de ? 'Kein Zeitplan vorhanden.' : 'Nothing scheduled.');
-    return;
-  }
-  const pdfMake = await loadPdfMake();
-  const gantt = await rasterizeGantt(ctx, 3);
-
-  // Pick page size based on gantt width so small text stays readable.
-  // A3 landscape = 1191 x 842 pt. A2 landscape = 1684 x 1191.
-  // Choose the smallest page whose printable width ≥ gantt native width / 1.4 (shrink tolerance).
-  const nativeW = gantt?.width || 1200;
-  const pageSize = nativeW > 1600 ? 'A2' : nativeW > 1100 ? 'A3' : 'A4';
-  // The same margin the other three documents use. At 28 this one sat its
-  // title and footer visibly closer to the paper edge than the summary beside
-  // it, which is the first thing that reads as "a different tool made this".
-  const pageMargin = 36;
-  const printableW = { A4: 841 - pageMargin * 2, A3: 1191 - pageMargin * 2, A2: 1684 - pageMargin * 2 }[pageSize];
-  const imgWidth = Math.min(printableW, nativeW);
+  const { pageSize, pageMargin, bottomMargin, imageBox } = pageLayout(gantt);
 
   const content = [
     { text: meta.name || 'Project', style: 'h1' },
@@ -49,17 +73,13 @@ export async function exportGanttPDF(ctx) {
         ' · ' +
         dateStr +
         ' · ' +
-        scheduled.length +
-        ' ' +
-        t('tasks', 'Tasks') +
+        countLabel(scheduled.length, t('task', 'Task'), t('tasks', 'Tasks')) +
         ' · ' +
-        weeks.length +
-        ' ' +
-        t('weeks', 'Wochen'),
+        countLabel(weeks.length, t('week', 'Woche'), t('weeks', 'Wochen')),
       style: 'sub',
     },
   ];
-  if (gantt) content.push({ image: gantt.url, width: imgWidth, margin: [0, 0, 0, 14] });
+  if (gantt) content.push({ image: gantt.url, fit: imageBox, margin: [0, 0, 0, 14] });
   else
     content.push({
       text: t(
@@ -93,7 +113,7 @@ export async function exportGanttPDF(ctx) {
           s.effort?.toFixed(1) || '—',
         ]),
         [50, '*', 100, 65, 65, 35],
-        (tm?.name || t('No team', 'Kein Team')) + ' · ' + items.length + ' ' + t('tasks', 'Aufgaben'),
+        (tm?.name || t('No team', 'Kein Team')) + ' · ' + countLabel(items.length, t('task', 'Aufgabe'), t('tasks', 'Aufgaben')),
       ),
     );
   });
@@ -101,12 +121,22 @@ export async function exportGanttPDF(ctx) {
   const dd = {
     pageSize,
     pageOrientation: 'landscape',
-    pageMargins: [pageMargin, pageMargin, pageMargin, 40],
+    pageMargins: [pageMargin, pageMargin, pageMargin, bottomMargin],
     info: { title: (meta.name || 'Project') + ' — Gantt', creator: 'Planr' },
     defaultStyle: { font: 'PlexSans', fontSize: 9, color: PRINT.ink },
     styles: STYLES,
     footer: footerBuilder({ meta, t, kind: t('Gantt / Schedule', 'Gantt / Zeitplan'), dateStr }),
     content,
   };
-  pdfMake.createPdf(sanitizePdfDoc(dd)).download(slug(meta.name) + '-gantt-' + iso(new Date()) + '.pdf');
+  return { dd: sanitizePdfDoc(dd), fileName: slug(meta.name) + '-gantt-' + iso(new Date()) + '.pdf' };
+}
+
+export async function exportGanttPDF(ctx) {
+  ctx = projectScopedCtx(ctx, 'exportGanttPDF');
+  const empty = ganttEmptyMessage(ctx);
+  if (empty) return alert(empty);
+  const pdfMake = await loadPdfMake();
+  const gantt = await rasterizeGantt(ctx, 3);
+  const { dd, fileName } = buildGanttDocDefinition(ctx, gantt);
+  pdfMake.createPdf(dd).download(fileName);
 }
