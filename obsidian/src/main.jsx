@@ -17,7 +17,7 @@ import { I18nProvider, ThemeProvider } from '../../src/i18n.jsx';
 import { PortalRootContext } from '../../src/utils/embedHost.js';
 import '../../src/App.css';
 import { claimPlanrKeys } from './hostKeys.js';
-import { isPlanNow, probeCacheOf } from './planLike.js';
+import { isPlanNow, isPlanSettled, probeCacheOf } from './planLike.js';
 import { handleForPath, pickOpenFile, setLastPlanFolder, setVaultApp } from './vaultFs.js';
 
 export const VIEW_TYPE_PLANR = 'planr-view';
@@ -110,10 +110,13 @@ export class PlanrView extends FileView {
   async onLoadFile(file) {
     // Belt and braces for the same thing: should a foreign file reach this
     // view anyway, hand it back rather than mounting the app against a note.
-    // A note the menu or the picker opened as a plan (openPlan marks the tab)
-    // stays, as long as it still reads as one.
-    const asked = this.plugin.fileModes[this.leaf.id] === VIEW_TYPE_PLANR && isPlanNow(this.app, file);
-    if (!asked && !isPlanFile(file) && !/\.json$/i.test(file?.name || '')) {
+    // A note that is a plan by its content stays: the menu and the picker
+    // offer it, and Obsidian restores its tab after a restart.
+    const plan = isPlanFile(file) || /\.json$/i.test(file?.name || '') || (await isPlanSettled(this.app, file));
+    // The read above can take a moment; a tab that moved on meanwhile is the
+    // newer call's business.
+    if (this.file && this.file !== file) return;
+    if (!plan) {
       delete this.plugin.fileModes[this.leaf.id];
       this.leaf.setViewState({ type: 'markdown', state: { file: file.path, mode: 'source' }, active: true });
       return;

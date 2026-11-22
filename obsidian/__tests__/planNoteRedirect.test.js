@@ -10,7 +10,7 @@
 // to open a Planr view before it ever builds a Markdown one.
 
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import { WorkspaceLeaf } from 'obsidian';
+import { TFile, WorkspaceLeaf } from 'obsidian';
 import PlanrPlugin, { PlanrView, VIEW_TYPE_PLANR, isPlanFile, isPlanNotePath } from '../src/main.jsx';
 
 // The patch only needs `settings`, `fileModes` and `register`; building a real
@@ -185,28 +185,47 @@ describe('the view takes what the picker and the menu offer', () => {
     view.onLoadPlanFile = async f => view.loaded.push(f.path);
     return view;
   }
-  const exportNote = { name: 'export.md', path: 'Notes/export.md', extension: 'md' };
-  const appWith = headings => ({
-    metadataCache: { getFileCache: () => ({ headings: headings.map(heading => ({ heading })) }) },
+  const exportNote = () => new TFile('Notes/export.md');
+  const appWith = (headings, text = '') => ({
+    metadataCache: { getFileCache: () => (headings ? { headings: headings.map(heading => ({ heading })) } : null) },
+    vault: { cachedRead: async () => text },
   });
+  const PLAN_TEXT = '# Kundenbereich\n\n## Plan\n\n## Work Tree\n- **1** Login\n';
 
   it('mounts a note the menu opened as a plan', async () => {
     const view = viewFor('leaf-1', { 'leaf-1': VIEW_TYPE_PLANR }, appWith(['Kundenbereich', 'Work Tree']));
-    await view.onLoadFile(exportNote);
+    await view.onLoadFile(exportNote());
     expect(view.loaded).toEqual(['Notes/export.md']);
     expect(view.leaf.asked).toEqual([]);
   });
 
-  it('still hands back a note nobody asked to open as a plan', async () => {
-    const view = viewFor('leaf-1', {}, appWith(['Kundenbereich', 'Work Tree']));
-    await view.onLoadFile(exportNote);
+  it('mounts such a note again when Obsidian restores the tab after a restart', async () => {
+    // A restored tab carries no mark from this session; the content decides.
+    const view = viewFor('leaf-9', {}, appWith(['Kundenbereich', 'Work Tree']));
+    await view.onLoadFile(exportNote());
+    expect(view.loaded).toEqual(['Notes/export.md']);
+  });
+
+  it('reads a note whose headings are not cached yet before it decides', async () => {
+    const view = viewFor('leaf-1', {}, appWith(null, PLAN_TEXT));
+    await view.onLoadFile(exportNote());
+    expect(view.loaded).toEqual(['Notes/export.md']);
+  });
+
+  it('does nothing when the tab moved to another file while the note was read', async () => {
+    const view = viewFor('leaf-1', {}, appWith(null, PLAN_TEXT));
+    const note = exportNote();
+    view.file = note;
+    const loading = view.onLoadFile(note);
+    view.file = new TFile('Notes/other.planr.md');
+    await loading;
     expect(view.loaded).toEqual([]);
-    expect(view.leaf.asked[0].type).toBe('markdown');
+    expect(view.leaf.asked).toEqual([]);
   });
 
   it('hands back an ordinary note even when the tab was a plan before', async () => {
     const view = viewFor('leaf-1', { 'leaf-1': VIEW_TYPE_PLANR }, appWith(['Shopping']));
-    await view.onLoadFile({ name: 'todo.md', path: 'Notes/todo.md', extension: 'md' });
+    await view.onLoadFile(new TFile('Notes/todo.md'));
     expect(view.loaded).toEqual([]);
     expect(view.leaf.asked[0].type).toBe('markdown');
   });

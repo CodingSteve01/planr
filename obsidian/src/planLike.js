@@ -208,6 +208,19 @@ export function isPlanNow(app, file) {
   return isPlanLike(file, probeCacheOf(app).probe(file));
 }
 
+/**
+ * The verdict for one file once its start has been read, for callers that can
+ * wait: a note without cached headings is read instead of judged "not a plan".
+ */
+export async function isPlanSettled(app, file) {
+  if (isPlanNow(app, file)) return true;
+  const ext = extOf(file);
+  if (ext !== 'md' && ext !== 'json') return false;
+  if (ext === 'md' && headingsOf(app, file)) return false;
+  await probeCacheOf(app).ensureAll([file]);
+  return isPlanNow(app, file);
+}
+
 /** Plans in the vault, `.planr.json` and `.planr` first, for the "Open plan file…" picker. */
 export async function listPlanFiles(app) {
   const rank = f => (/\.planr\.json$/i.test(f.name) || extOf(f) === 'planr' ? 0 : extOf(f) === 'json' ? 1 : 2);
