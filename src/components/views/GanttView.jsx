@@ -136,7 +136,6 @@ function GanttViewImpl({
   const [pinnedLineKey, setPinnedLineKey] = useState(null); // sticky-selected dep line — survives mouse leave
   const [linkDrag, setLinkDrag] = useState(null); // {fromId, fromX, fromY, mouseX, mouseY} — drag-to-link in progress
   const [selectRect, setSelectRect] = useState(null);
-  const [showAssignModal, setShowAssignModal] = useState(false);
   const hR = useRef(null),
     bR = useRef(null),
     lR = useRef(null);
@@ -724,12 +723,6 @@ function GanttViewImpl({
         adjustSelectionPrio={adjustSelectionPrio}
         onOpenBulkEdit={onOpenBulkEdit}
         clearSelectedLinks={clearSelectedLinks}
-        showAssignModal={showAssignModal}
-        teams={teams}
-        members={members}
-        setShowAssignModal={setShowAssignModal}
-        tree={tree}
-        onTaskUpdate={onTaskUpdate}
       />
       <LinkDragOverlay linkDrag={linkDrag} portalRoot={portalRoot} />
       {/* Hover tooltip on left-panel task names — same Tip component as NetGraph */}

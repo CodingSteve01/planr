@@ -26,7 +26,7 @@ Planr is one flat row of views. Pick the one that answers the question you have:
 
 There are eleven views and no modes. Every view is always one click away.
 
-The topbar has a **File** menu with Load file, Snapshots, Save as, Export…, an earlier-day entry, the Jira check and New project. The same actions are in the command palette (`/` or `⌘K`/`Ctrl+K`), which also jumps straight to any view — type a few letters and press Enter.
+The topbar has a **File** menu with Load file, Save as, Snapshots, an earlier-day entry, Export…, Import from Jira and New project. Export… opens the Report tab. The same actions are in the command palette (`/` or `⌘K`/`Ctrl+K`), which also jumps straight to any view — type a few letters and press Enter.
 
 The **Work order** tab lists the leaf items per owner. The owner is the person on the item, or the team it sits with when nobody is. The rows use the tree's keys: `Space` cycles the status, `1`–`4` set the priority, `S`/`M`/`L`/`X` set the size, `E` opens the full editor and `⌥↑`/`⌥↓` move a row.
 

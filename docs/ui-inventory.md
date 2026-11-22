@@ -99,7 +99,7 @@ The keys are in [features.md](features.md#keyboard-shortcuts).
 
 ## Schedule
 
-The bars can be dragged to pin a start, and a bar's right-edge handle drags a dependency. The Gantt has no right-click menu. Selecting bars opens a selection bar (`src/components/views/gantt/GanttSelectionBar.jsx`) with the assign dialog. See [gantt.md](gantt.md).
+The bars can be dragged to pin a start, and a bar's right-edge handle drags a dependency. The Gantt has no right-click menu. Selecting bars opens a selection bar (`src/components/views/gantt/GanttSelectionBar.jsx`) with link, reorder, priority, bulk edit and clear-links controls. See [gantt.md](gantt.md).
 
 ## Network
 
@@ -118,7 +118,6 @@ The subway map has zoom controls. With the Δ Review window on, the Δ banner an
 | Add item | `src/components/modals/AddModal.jsx` | "+ Add item" |
 | Item editor | `src/components/modals/NodeModal.jsx` | the full-edit buttons |
 | Estimation wizard | `src/components/modals/EstimationWizard.jsx` | the estimate button in the editor |
-| Assign | `src/components/modals/AssignModal.jsx` | the Gantt selection bar |
 | New project | `src/components/modals/NewProjModal.jsx` | File menu, empty state |
 | Jira import | `src/components/modals/JiraImportModal.jsx` | File menu, empty state, palette |
 | Jira export | `src/components/modals/JiraExportModal.jsx` | the Jira export card |

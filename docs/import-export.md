@@ -2,7 +2,7 @@
 
 Planr supports two persistent formats (`.json` and `.md`) and several export-only formats (PDF, Word, Jira CSV, Sprint Markdown, Mermaid, PNG).
 
-All exports are cards in one place. The **Report** tab shows them, and the **Export…** entry in the File menu opens the same cards in a dialog (`src/components/modals/ExportModal.jsx`). `⌘E` / `Ctrl+E` opens the Report tab. The cards are grouped as PDF, Word, Tool, Image and Data:
+All exports are cards in one place. The **Report** tab shows them. The **Export…** entry in the File menu and `⌘E` / `Ctrl+E` both open that tab; the same cards also open in a dialog (`src/components/modals/ExportModal.jsx`) from the command palette only. The cards are grouped as PDF, Word, Tool, Image and Data:
 
 | Card | Group | Output |
 |---|---|---|

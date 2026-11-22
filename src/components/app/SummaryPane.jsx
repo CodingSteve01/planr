@@ -29,7 +29,6 @@ export function SummaryPane({ plan, view, handlers }) {
   const {
     onOpenItemDialog,
     onRoadmapAssignmentChange,
-    onSumExportTodo,
     onSumNavigate,
     persistDiffOnlyChanged,
     persistHorizon,
@@ -76,7 +75,6 @@ export function SummaryPane({ plan, view, handlers }) {
           setArchiveDays={setArchiveDays}
           onNavigate={onSumNavigate}
           onOpenItem={onOpenItemDialog}
-          onExportTodo={onSumExportTodo}
         />
       </Frozen>
     </div>

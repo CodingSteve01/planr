@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { useT } from '../../i18n.jsx';
 import { Icon } from './Icon.jsx';
 
-// The export card grid — used by ExportModal.jsx (Export… (dialog), still
-// reachable from the `/` palette) AND by ReportView.jsx (Report mode's
-// primary surface, phase 3 of the rebuild). Lifted out of ExportModal so
+// The export card grid — used by ExportModal.jsx (the dialog, reachable only
+// from the `/` palette) AND by ReportView.jsx (the Report tab, which the File
+// menu's Export… entry opens). Lifted out of ExportModal so
 // neither place duplicates the handler/state logic (docs/principles.md,
 // "How we read proposals" — nothing about export capability changes here,
 // only where it is reached from).
@@ -198,8 +198,8 @@ export function ExportCards({
       />
 
       {/* Jira reconcile (the return path) used to be a second dialog here —
-          it's now Run mode's drift section (BriefingView.jsx), acted on as
-          rows instead of opened as a dialog. See docs/features.md "Run mode". */}
+          it's now the drift section of the Briefing tab (BriefingView.jsx),
+          acted on as rows instead of opened as a dialog. */}
 
       <Card
         cat="tool"

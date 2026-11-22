@@ -1,8 +1,7 @@
-// Floating action bar for the Gantt multi-selection, plus the assign modal it opens.
+// Floating action bar for the Gantt multi-selection.
 
 import { SelectionActionBar } from '../../shared/SelectionActionBar.jsx';
 import { Icon } from '../../shared/Icon.jsx';
-import { AssignModal } from '../../modals/AssignModal.jsx';
 
 export function GanttSelectionBar({
   selectedTaskIds,
@@ -13,12 +12,6 @@ export function GanttSelectionBar({
   adjustSelectionPrio,
   onOpenBulkEdit,
   clearSelectedLinks,
-  showAssignModal,
-  teams,
-  members,
-  setShowAssignModal,
-  tree,
-  onTaskUpdate,
 }) {
   return (
     <>
@@ -123,35 +116,6 @@ export function GanttSelectionBar({
           {t('g.clearSelectedLinks')}
         </button>
       </SelectionActionBar>
-      {showAssignModal && (
-        <AssignModal
-          count={selectedTaskIds.length}
-          teams={teams}
-          members={members}
-          onClose={() => setShowAssignModal(false)}
-          onApply={({ team, persons }) => {
-            const sel = new Set(selectedTaskIds);
-            (tree || []).forEach(node => {
-              if (!sel.has(node.id) || !onTaskUpdate) return;
-              const patch = { ...node };
-              let changed = false;
-              if (team !== null && team !== undefined && (node.team || '') !== (team || '')) {
-                patch.team = team || '';
-                changed = true;
-              }
-              if (Array.isArray(persons)) {
-                const cur = (node.assign || []).slice().sort().join(',');
-                const nxt = persons.slice().sort().join(',');
-                if (cur !== nxt) {
-                  patch.assign = persons.slice();
-                  changed = true;
-                }
-              }
-              if (changed) onTaskUpdate(patch);
-            });
-          }}
-        />
-      )}
     </>
   );
 }

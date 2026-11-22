@@ -1,4 +1,4 @@
-// Run mode's "what needs a look" feed — one ranked list instead of five
+// The Briefing tab's "what needs a look" feed — one ranked list instead of five
 // separate chip-filtered panels. Five reasons an item earns a row, most
 // urgent first:
 //

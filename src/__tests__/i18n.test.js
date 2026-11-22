@@ -168,7 +168,6 @@ const TOOLTIP_TRANSLATED_FILES = [
   'components/modals/SnapshotModal.jsx',
   'components/modals/SettingsModal.jsx',
   'components/modals/EstimationWizard.jsx',
-  'components/modals/AssignModal.jsx',
   'components/modals/NewProjModal.jsx',
   'components/modals/NodeModal.jsx',
   'components/modals/node/EffortTab.jsx',

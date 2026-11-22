@@ -48,11 +48,6 @@
       "count": 1
     }
   },
-  "src/components/modals/AssignModal.jsx": {
-    "complexity": {
-      "count": 1
-    }
-  },
   "src/components/modals/EstimationWizard.jsx": {
     "complexity": {
       "count": 1
