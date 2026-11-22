@@ -17,7 +17,7 @@ import { I18nProvider, ThemeProvider } from '../../src/i18n.jsx';
 import { PortalRootContext } from '../../src/utils/embedHost.js';
 import '../../src/App.css';
 import { claimPlanrKeys } from './hostKeys.js';
-import { createJsonProbeCache, headingsOf, isPlanLike } from './planLike.js';
+import { isPlanNow, probeCacheOf } from './planLike.js';
 import { handleForPath, pickOpenFile, setLastPlanFolder, setVaultApp } from './vaultFs.js';
 
 export const VIEW_TYPE_PLANR = 'planr-view';
@@ -252,25 +252,29 @@ export default class PlanrPlugin extends Plugin {
    * "Open in Planr" in the file menu, for plan files only (a `.json` plan, or
    * a `.planr.md` with the redirect switched off). The callback is
    * synchronous: Markdown is judged by the metadata cache's headings, JSON by
-   * a head cache filled in the background (see createJsonProbeCache).
+   * a verdict cache filled in the background (see probeCacheOf).
    */
   registerPlanMenu() {
-    const cache = createJsonProbeCache(this.app);
+    const cache = probeCacheOf(this.app);
     const { vault, workspace } = this.app;
-    workspace.onLayoutReady(() => cache.warm());
-    this.registerEvent(vault.on('create', f => cache.refresh(f)));
-    this.registerEvent(vault.on('modify', f => cache.refresh(f)));
-    this.registerEvent(vault.on('delete', f => cache.forget(f.path)));
-    this.registerEvent(
-      vault.on('rename', (f, from) => {
-        cache.forget(from);
-        cache.refresh(f);
-      }),
-    );
+    // The vault handlers wait for layout ready: Obsidian fires `create` for
+    // every file while the vault loads, which would read each JSON a second
+    // time next to the warm-up.
+    workspace.onLayoutReady(() => {
+      cache.warm();
+      this.registerEvent(vault.on('create', f => cache.refresh(f)));
+      this.registerEvent(vault.on('modify', f => cache.refresh(f)));
+      this.registerEvent(vault.on('delete', f => cache.forget(f.path)));
+      this.registerEvent(
+        vault.on('rename', (f, from) => {
+          cache.forget(from);
+          cache.refresh(f);
+        }),
+      );
+    });
     this.registerEvent(
       workspace.on('file-menu', (menu, file) => {
-        const probe = file?.extension === 'json' ? cache.probe(file) : { headings: headingsOf(this.app, file) };
-        if (!isPlanLike(file, probe)) return;
+        if (!file || file.children || !isPlanNow(this.app, file)) return;
         menu.addItem(item =>
           item
             .setTitle('Open in Planr')

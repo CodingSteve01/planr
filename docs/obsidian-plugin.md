@@ -60,10 +60,13 @@ the same places.
 - **Right-click a plan file → Open in Planr** — same thing from the file
   explorer, and the way in for a `.planr.json`. The entry appears for plan
   files only: a name ending in `.planr.md` or `.planr.json`, a `.planr` file,
-  or a `.md` / `.json` that carries a plan's structure (a `## Work Tree`
-  heading; top-level `meta` and `tree` keys). Notes and other JSON do not get
-  it. JSON is judged from a start-of-file cache filled when the vault loads, so
-  a JSON file created a moment ago may need a second to show the entry.
+  or a `.md` / `.json` that carries a plan's structure (a `Work Tree` heading
+  of any level and case; top-level `meta` and `tree` keys, wherever in the file
+  `tree` sits, so large plans count too). Notes and other JSON do not get it.
+  JSON is judged from a verdict cache filled once when the layout is ready and
+  kept current by create/modify/rename/delete; the picker uses the same cache
+  and reads only files not yet known, eight at a time. A JSON file created a
+  moment ago may need a second to show the entry.
   The rule lives in `obsidian/src/planLike.js`.
 - **Save as…** inside the app moves the document; the tab follows it to the new
   file without reloading what you were doing.

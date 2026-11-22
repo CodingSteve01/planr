@@ -21,19 +21,19 @@ describe('isPlanLike', () => {
     expect(isPlanLike(file('team.planr.json'))).toBe(true);
   });
   it('rejects a plain note', () => {
-    expect(isPlanLike(file('Notes/todo.md'), { head: '# Shopping\n\n- milk\n' })).toBe(false);
+    expect(isPlanLike(file('Notes/todo.md'), { text: '# Shopping\n\n- milk\n' })).toBe(false);
   });
   it('accepts a note whose start carries the plan marker', () => {
-    expect(isPlanLike(file('Notes/export.md'), { head: MD_PLAN })).toBe(true);
+    expect(isPlanLike(file('Notes/export.md'), { text: MD_PLAN })).toBe(true);
   });
   it('accepts a note whose cached headings carry the plan marker', () => {
     expect(isPlanLike(file('Notes/export.md'), { headings: ['Kundenbereich', 'Work Tree'] })).toBe(true);
   });
   it('accepts a JSON file with the plan keys', () => {
-    expect(isPlanLike(file('data/export.json'), { head: JSON_PLAN })).toBe(true);
+    expect(isPlanLike(file('data/export.json'), { text: JSON_PLAN })).toBe(true);
   });
   it('rejects any other JSON file', () => {
-    expect(isPlanLike(file('.obsidian/app.json'), { head: '{\n  "alwaysUpdateLinks": true\n}' })).toBe(false);
+    expect(isPlanLike(file('.obsidian/app.json'), { text: '{\n  "alwaysUpdateLinks": true\n}' })).toBe(false);
   });
   it('rejects a JSON file nothing is known about yet', () => {
     expect(isPlanLike(file('data/unknown.json'))).toBe(false);
@@ -43,7 +43,7 @@ describe('isPlanLike', () => {
     expect(isPlanLike(folder('archive'))).toBe(false);
   });
   it('rejects other file types that merely contain the marker', () => {
-    expect(isPlanLike(file('notes.txt'), { head: MD_PLAN })).toBe(false);
+    expect(isPlanLike(file('notes.txt'), { text: MD_PLAN })).toBe(false);
   });
 });
 
