@@ -16,6 +16,8 @@ const T0 = Date.parse('2026-03-02T09:00:00Z');
 let pushSnapshot;
 let takeSnapshotNow;
 let flushSnapshot;
+let releaseSnapshotSource;
+let claimSnapshotSource;
 async function push(n, atMs, source = SRC) {
   vi.setSystemTime(atMs);
   pushSnapshot(plan(n), source);
@@ -28,7 +30,7 @@ describe('snapshot ring', () => {
     localStorage.clear();
     delete window.requestIdleCallback; // the timeout path, driven by the fake clock
     vi.resetModules();
-    ({ pushSnapshot, takeSnapshotNow, flushSnapshot } = await import('../app/snapshots.js'));
+    ({ pushSnapshot, takeSnapshotNow, flushSnapshot, releaseSnapshotSource, claimSnapshotSource } = await import('../app/snapshots.js'));
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -102,6 +104,25 @@ describe('snapshot ring', () => {
     await push('B', T0 + 20_000);
     await vi.advanceTimersByTimeAsync(120_000);
     expect(names()).toEqual(['State B', 'State A2', 'State A1']);
+  });
+
+  it('writes a save that ends after its source was released at once and keeps nothing for it', async () => {
+    await push('A1', T0);
+    releaseSnapshotSource(SRC); // the App unmounted while a save was still running
+    await push('A2', T0 + 1_000);
+    await push('A3', T0 + 2_000);
+    expect(names()).toEqual(['State A3', 'State A2', 'State A1']);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('throttles again once a released source is claimed by a remount', async () => {
+    await push('A1', T0);
+    releaseSnapshotSource(SRC);
+    claimSnapshotSource(SRC);
+    await push('A2', T0 + 1_000);
+    expect(names()).toEqual(['State A2', 'State A1']); // first push of a fresh entry lands at once
+    await push('A3', T0 + 2_000);
+    expect(names()).toEqual(['State A2', 'State A1']); // held for the window
   });
 
   it('flushes only the source that is asked for', async () => {

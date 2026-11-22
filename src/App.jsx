@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNodeActions } from './app/actions/useNodeActions.js';
 import { mergeNamed } from './app/actions/bindActions.js';
-import { flushSnapshot, releaseSnapshotSource, takeSnapshotNow } from './app/snapshots.js';
+import { claimSnapshotSource, flushSnapshot, releaseSnapshotSource, takeSnapshotNow } from './app/snapshots.js';
 import { useTreeEditorActions } from './app/actions/useTreeEditorActions.js';
 import { useOpenActions } from './app/actions/useOpenActions.js';
 import { useQueueActions } from './app/actions/useQueueActions.js';
@@ -313,7 +313,10 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   const { scnComparison } = scenarioView;
   // The plan switch of an Obsidian leaf unmounts this App and mounts another:
   // whatever this instance still holds for the ring is written, then forgotten.
-  useEffect(() => () => releaseSnapshotSource(fileDataRef), []);
+  useEffect(() => {
+    claimSnapshotSource(fileDataRef);
+    return () => releaseSnapshotSource(fileDataRef);
+  }, []);
   useEffect(() => {
     if (rootFilter && !rootItems.some(r => r.id === rootFilter)) setRootFilter('');
   }, [rootItems, rootFilter]);

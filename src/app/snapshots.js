@@ -85,6 +85,10 @@ function _writeSlot(data, force) {
 // so the ring sees at most (open plans) writes a minute: no lost last state,
 // no write storm.
 const _sources = new Map(); // sourceKey -> { data, timer, lastWriteAt }
+// Sources whose App is gone. A save still running at unmount pushes after the
+// release: that state is written at once and no entry is made again, so the
+// map never holds a plan nobody will release.
+const _released = new WeakSet();
 function _source(key) {
   let s = _sources.get(key);
   if (!s) {
@@ -128,6 +132,10 @@ function _unhookIfIdle() {
 // instance whose document this is.
 export function pushSnapshot(data, sourceKey) {
   if (!data || !Array.isArray(data.tree)) return;
+  if (sourceKey && typeof sourceKey === 'object' && _released.has(sourceKey)) {
+    _writeSlot(data, false);
+    return;
+  }
   _hookPageHide();
   const s = _source(sourceKey);
   s.data = data;
@@ -142,10 +150,15 @@ export function pushSnapshot(data, sourceKey) {
 export function flushSnapshot(sourceKey) {
   _flushSource(sourceKey);
 }
+// The source is (again) in use: a remount with the same key throttles again.
+export function claimSnapshotSource(sourceKey) {
+  if (sourceKey && typeof sourceKey === 'object') _released.delete(sourceKey);
+}
 // The source is gone (its App unmounted): flush, then forget it.
 export function releaseSnapshotSource(sourceKey) {
   _flushSource(sourceKey);
   _sources.delete(sourceKey);
+  if (sourceKey && typeof sourceKey === 'object') _released.add(sourceKey);
 }
 // Defensive snapshot (before a restore): written at once as its own slot,
 // ignoring the throttle, and always the newest. The source's pending autosave
