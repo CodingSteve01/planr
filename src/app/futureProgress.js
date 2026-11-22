@@ -1,12 +1,13 @@
-import { localDate } from '../utils/date.js';
+import { addD, localDate } from '../utils/date.js';
 import { leafNodes, leafProgress, scheduleEffort } from '../utils/scheduler.js';
 
 // Source 1: scheduled bar — partial credit prorated across the bar
-// duration up to the horizon.
+// duration up to the horizon. The scheduler's endD is the last working day,
+// inclusive, so the bar ends at the midnight after it.
 function fromSchedule(s, horizonEnd, projFrac, maxFutureFrac) {
   if (!s?.endD) return projFrac;
-  const endD = localDate(s.endD);
-  const startD = s.startD ? localDate(s.startD) : endD;
+  const endD = addD(localDate(s.endD), 1);
+  const startD = s.startD ? localDate(s.startD) : localDate(s.endD);
   if (endD <= horizonEnd) return maxFutureFrac;
   if (startD < horizonEnd) {
     const dur = +endD - +startD;

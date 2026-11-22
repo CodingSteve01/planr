@@ -22,8 +22,9 @@ describe('futureProgressByRoot() west of UTC', () => {
     vi.setSystemTime(new Date(2026, 5, 1, 9, 0, 0));
     const horizon = new Date(2026, 5, 14, 20, 0, 0);
     const sched = [{ id: 'P1.1', startD: '2026-06-10', endD: '2026-06-15' }];
-    // 4 days 20 h of 5 days → 29/30, not the 0.99 cap of a bar that already ended.
-    expect(futureProgressByRoot([root, leaf('P1.1')], sched, horizon).P1).toBeCloseTo(29 / 30, 10);
+    // endD is the last working day, inclusive: the bar runs 6 days. 4 days 20 h
+    // of 6 days → 29/36, not the 0.99 cap of a bar that already ended.
+    expect(futureProgressByRoot([root, leaf('P1.1')], sched, horizon).P1).toBeCloseTo(29 / 36, 10);
   });
 
   test('a due day that is still ahead counts once the horizon passes it', () => {

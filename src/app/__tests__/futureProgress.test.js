@@ -25,7 +25,8 @@ describe('futureProgressByRoot()', () => {
   });
 
   test('a bar the horizon cuts in half gives half credit', () => {
-    const sched = [bar('P1.2', '2026-06-10', '2026-06-20')];
+    // endD is the last working day, inclusive: 10 to 19 June is 10 days.
+    const sched = [bar('P1.2', '2026-06-10', '2026-06-19')];
     // Horizon is 5 of 10 days into the bar → 0.5; the first leaf stays at 0.5.
     expect(futureProgressByRoot(plan(), sched, HORIZON).P1).toBeCloseTo(0.5, 10);
   });

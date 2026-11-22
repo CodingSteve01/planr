@@ -136,9 +136,10 @@ describe('edge routing', () => {
     const a = { x: 0, y: 0 };
     const b = { x: 300, y: 0 };
     const r = depPath(a, b, [a, b]);
-    // Must become `M${NODE_W},${NODE_H / 2}` when the bug is fixed.
+    // Today it starts at the middle of the bottom edge. Must become
+    // `M${NODE_W},${NODE_H / 2}` when the bug is fixed.
     expect(r.hits).toBe(0);
-    expect(r.path.split(' ')[0]).toBe('M65,44');
+    expect(r.path.split(' ')[0]).toBe(`M${NODE_W / 2},${NODE_H}`);
   });
 
   test('a node in the way makes the route go around it', () => {
