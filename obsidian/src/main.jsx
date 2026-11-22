@@ -17,6 +17,7 @@ import { I18nProvider, ThemeProvider } from '../../src/i18n.jsx';
 import { PortalRootContext } from '../../src/utils/embedHost.js';
 import '../../src/App.css';
 import { claimPlanrKeys } from './hostKeys.js';
+import { isPlanNow, isPlanSettled, probeCacheOf } from './planLike.js';
 import { handleForPath, pickOpenFile, setLastPlanFolder, setVaultApp } from './vaultFs.js';
 
 export const VIEW_TYPE_PLANR = 'planr-view';
@@ -39,22 +40,24 @@ const PLANR_ICON = `<g transform="scale(3.125)" fill="none" stroke="currentColor
 <line x1="9" y1="21" x2="21" y2="21"/>
 </g>`;
 
+// Extensions are compared in lower case, the way the picker and the menu judge
+// them (planLike.js), so a file they offer is one this view will take.
 export function isPlanNotePath(path) {
-  return typeof path === 'string' && path.endsWith(PLAN_NOTE_SUFFIX);
+  return typeof path === 'string' && path.toLowerCase().endsWith(PLAN_NOTE_SUFFIX);
 }
 
 export function isPlanFile(file) {
   if (!file?.name) return false;
-  return file.extension === PLAN_EXTENSION || file.name.endsWith(PLAN_NOTE_SUFFIX);
+  return String(file.extension).toLowerCase() === PLAN_EXTENSION || isPlanNotePath(file.name);
 }
 
 /** The plan's name, without the machinery: "2026-09-10 team.planr.md" → "2026-09-10 team". */
 function planTitle(path) {
   const name = path.split('/').pop();
   return name
-    .replace(/\.planr\.md$/, '')
-    .replace(/\.planr$/, '')
-    .replace(/\.planr\.json$/, '');
+    .replace(/\.planr\.md$/i, '')
+    .replace(/\.planr$/i, '')
+    .replace(/\.planr\.json$/i, '');
 }
 
 // The turbodocx browser bundle reads `global` and `process` at top level —
@@ -101,13 +104,20 @@ export class PlanrView extends FileView {
     // patchLeafViewState, which rewrites the requested type before the leaf
     // acts on it, and a `.json` plan arrives through "Open in Planr", which
     // sets the view state explicitly. Both name the view type themselves.
-    return extension === PLAN_EXTENSION;
+    return String(extension).toLowerCase() === PLAN_EXTENSION;
   }
 
   async onLoadFile(file) {
     // Belt and braces for the same thing: should a foreign file reach this
     // view anyway, hand it back rather than mounting the app against a note.
-    if (!isPlanFile(file) && !/\.json$/i.test(file?.name || '')) {
+    // A note that is a plan by its content stays: the menu and the picker
+    // offer it, and Obsidian restores its tab after a restart.
+    // The read can take a moment. A tab that moved on or closed meanwhile has
+    // bumped loadSeq, and the stale verdict is dropped.
+    const seq = (this.loadSeq = (this.loadSeq ?? 0) + 1);
+    const plan = isPlanFile(file) || /\.json$/i.test(file?.name || '') || (await isPlanSettled(this.app, file));
+    if (seq !== this.loadSeq) return;
+    if (!plan) {
       delete this.plugin.fileModes[this.leaf.id];
       this.leaf.setViewState({ type: 'markdown', state: { file: file.path, mode: 'source' }, active: true });
       return;
@@ -128,6 +138,7 @@ export class PlanrView extends FileView {
   }
 
   async onUnloadFile() {
+    this.loadSeq = (this.loadSeq ?? 0) + 1;
     this.unmount();
   }
 
@@ -183,6 +194,7 @@ export class PlanrView extends FileView {
   }
 
   async onClose() {
+    this.loadSeq = (this.loadSeq ?? 0) + 1;
     this.unmount();
     delete this.plugin.fileModes[this.leaf.id];
   }
@@ -244,10 +256,36 @@ export default class PlanrPlugin extends Plugin {
 
     this.addCommand({ id: 'open', name: 'Open plan file…', callback: () => this.openPlanPrompt() });
 
-    // A `.json` plan, or a `.planr.md` with the redirect switched off.
+    this.registerPlanMenu();
+  }
+
+  /**
+   * "Open in Planr" in the file menu, for plan files only (a `.json` plan, or
+   * a `.planr.md` with the redirect switched off). The callback is
+   * synchronous: Markdown is judged by the metadata cache's headings, JSON by
+   * a verdict cache filled in the background (see probeCacheOf).
+   */
+  registerPlanMenu() {
+    const cache = probeCacheOf(this.app);
+    const { vault, workspace } = this.app;
+    // The vault handlers wait for layout ready: Obsidian fires `create` for
+    // every file while the vault loads, which would read each JSON a second
+    // time next to the warm-up.
+    workspace.onLayoutReady(() => {
+      cache.warm();
+      this.registerEvent(vault.on('create', f => cache.refresh(f)));
+      this.registerEvent(vault.on('modify', f => cache.refresh(f)));
+      this.registerEvent(vault.on('delete', f => cache.forget(f.path)));
+      this.registerEvent(
+        vault.on('rename', async (f, from) => {
+          cache.forget(from);
+          await cache.refresh(f);
+        }),
+      );
+    });
     this.registerEvent(
-      this.app.workspace.on('file-menu', (menu, file) => {
-        if (!file?.name || !/\.(json|md|planr)$/i.test(file.name)) return;
+      workspace.on('file-menu', (menu, file) => {
+        if (!file || file.children || !isPlanNow(this.app, file)) return;
         menu.addItem(item =>
           item
             .setTitle('Open in Planr')
