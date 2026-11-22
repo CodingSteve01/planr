@@ -135,10 +135,55 @@ describe('cheap JSON check', () => {
     expect(jsonIsPlan(large({ meta: { name: 'Big' }, pad: padding, teams: { tree: 1 } }))).toBe(false);
     expect(jsonIsPlan(large({ meta: {}, pad: padding, members: [{ tree: 1 }] }))).toBe(false);
   });
-  it('large compact one-line file is decided by a top-level parse', () => {
+  it('large compact one-line file is never parsed and not offered', () => {
+    const spy = vi.spyOn(JSON, 'parse');
     const plan = JSON.stringify({ meta: { name: 'Big' }, pad: padding, tree: [] });
-    const nested = JSON.stringify({ meta: { name: 'Big' }, pad: padding, teams: { tree: 1 } });
-    expect(jsonIsPlan(plan)).toBe(true);
-    expect(jsonIsPlan(nested)).toBe(false);
+    expect(plan.length).toBeGreaterThan(JSON_PARSE_CAP);
+    expect(jsonIsPlan(plan)).toBe(false);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+  it('large file: a tab-indented plan is recognised', () => {
+    expect(jsonIsPlan(JSON.stringify({ meta: { name: 'Big' }, pad: padding, tree: [] }, null, '\t'))).toBe(true);
+  });
+  it('large file: a four-space-indented plan is recognised', () => {
+    expect(jsonIsPlan(JSON.stringify({ meta: { name: 'Big' }, pad: padding, tree: [] }, null, 4))).toBe(true);
+  });
+  it('large file: a tree nested one level deeper is not a plan', () => {
+    for (const indent of [2, 4, '\t']) {
+      const text = JSON.stringify({ meta: { name: 'Big' }, pad: padding, teams: { tree: 1 } }, null, indent);
+      expect(jsonIsPlan(text)).toBe(false);
+    }
+  });
+});
+
+describe('generation bookkeeping', () => {
+  it('keeps no entry for a path once its newest read finished', async () => {
+    const { app, calls } = deferredApp();
+    const f = file('d/a.json');
+    const cache = probeCacheOf(app);
+    cache.probe(f);
+    const second = cache.refresh(f);
+    await flush();
+    calls[1].resolve(JSON_PLAN);
+    await second;
+    expect(cache.trackedPaths()).toBe(0);
+    calls[0].resolve(NOT_PLAN); // the older read must still be discarded
+    await flush();
+    expect(cache.trackedPaths()).toBe(0);
+    expect(cache.probe(f)).toEqual({ plan: true });
+  });
+  it('keeps no entry for a forgotten path, yet its running read stays discarded', async () => {
+    const { app, calls } = deferredApp();
+    const f = file('d/b.json');
+    const cache = probeCacheOf(app);
+    cache.probe(f);
+    await flush();
+    cache.forget(f.path);
+    expect(cache.trackedPaths()).toBe(0);
+    calls[0].resolve(JSON_PLAN);
+    await flush();
+    expect(cache.trackedPaths()).toBe(0);
+    expect(cache.probe(f)).toEqual({}); // the stale verdict was not stored
   });
 });

@@ -15,12 +15,18 @@ const MD_HEADING_RE = /^#{1,6}[ \t]+(.+?)[ \t#\r]*$/gm;
 // Above this size a JSON file is not parsed, only scanned for the two keys.
 const JSON_PARSE_CAP = 8 * 1024 * 1024;
 const JSON_META_NEAR = 8192;
-// A top-level key of what the writer emits, `JSON.stringify(plan, null, 2)`:
-// exactly two spaces. Deeper keys have four or more, so a nested `tree` never
-// matches. Compact one-line JSON has no such line and is decided by a parse.
-const JSON_KEY_RE = key => new RegExp(`^ {2}"${key}"[ \\t]*:`, 'm');
-const JSON_META_RE = JSON_KEY_RE('meta');
-const JSON_TREE_RE = JSON_KEY_RE('tree');
+// The indent of the first key line after the opening `{` is the top-level
+// indent (two spaces from the writer, but a reformat may use tabs or four).
+// A key counts only at exactly that indent, so a nested `tree` never matches.
+// A file without such a line is compact one-line JSON and is not offered.
+const JSON_INDENT_RE = /^\s*\{[ \t]*\r?\n([ \t]*)"/;
+const keyAt = (indent, key) => new RegExp(`^${indent}"${key}"[ \\t]*:`, 'm');
+
+function scanTopLevelKeys(head, s) {
+  const indent = JSON_INDENT_RE.exec(head)?.[1];
+  if (indent === undefined) return false;
+  return keyAt(indent, 'meta').test(head) && keyAt(indent, 'tree').test(s);
+}
 
 /** Concurrent vault reads, across the picker, the menu cache and the warm-up. */
 export const READ_LIMIT = 8;
@@ -51,14 +57,14 @@ function parsedIsPlan(s) {
  * Does this JSON text have top-level `meta` and `tree`? The writer puts `meta`
  * first, so a head without the word is no plan and costs no parse (every
  * autosave of any JSON asks). Otherwise the file is parsed; above the cap it is
- * scanned for the two top-level keys, or parsed when it is one compact line.
+ * never parsed, only scanned for the two top-level keys.
  */
 export function jsonIsPlan(text) {
   const s = String(text);
   const head = s.slice(0, JSON_META_NEAR);
   if (!head.includes('"meta"')) return false;
-  if (s.length <= JSON_PARSE_CAP || !head.includes('\n')) return parsedIsPlan(s);
-  return JSON_META_RE.test(head) && JSON_TREE_RE.test(s);
+  if (s.length <= JSON_PARSE_CAP) return parsedIsPlan(s);
+  return scanTopLevelKeys(head, s);
 }
 
 function hasMarker(extension, probe) {
@@ -140,7 +146,9 @@ function createProbeCache(app) {
       // Unreadable counts as "not a plan".
     }
     release();
+    // Generations are unique, so a missing entry never equals a running read's.
     if (newest.get(file.path) !== generation) return;
+    newest.delete(file.path);
     known.set(file.path, file.extension === 'md' ? textHasWorkTree(text) : jsonIsPlan(text));
   };
   // Every read goes through here, so `pending` always holds the newest one.
@@ -157,7 +165,7 @@ function createProbeCache(app) {
     return pending.get(file.path) ?? start(file);
   };
   const forget = path => {
-    supersede(path);
+    newest.delete(path); // a running read finds no matching generation and is discarded
     pending.delete(path);
     return known.delete(path);
   };
@@ -178,6 +186,8 @@ function createProbeCache(app) {
       else if (file?.path) forget(file.path);
     },
     forget,
+    /** Paths with a generation entry; a test hook for the bookkeeping. */
+    trackedPaths: () => newest.size,
     warm: () => ensureAll(app.vault.getFiles().filter(f => f.extension === 'json' && !isPlanLike(f))),
   };
 }
