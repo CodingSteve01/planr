@@ -1,7 +1,7 @@
 /** @vitest-environment node */
 // The Gantt PDF: the schedule table, and the page it picks for the picture.
 import { describe, expect, test, vi } from 'vitest';
-import { buildGanttDocDefinition } from '../ganttPdf.js';
+import { buildGanttDocDefinition, ganttEmptyMessage } from '../ganttPdf.js';
 import {
   PRINTABLE,
   badTexts,
@@ -13,6 +13,8 @@ import {
   findTables,
   headerLabels,
   tableProblems,
+  tinyPlanCtx,
+  titleCount,
 } from './pdfTestKit.js';
 
 vi.hoisted(() => {
@@ -25,6 +27,7 @@ const HEADERS = {
   de: ['ID', 'Name', 'Person', 'Start', 'Ende', 'PT'],
 };
 const picture = width => ({ url: 'data:image/png;base64,AAAA', width, height: 500 });
+const PAGE_HEIGHT = { A4: 595, A3: 842, A2: 1191 };
 const rows = dd => findTables(dd).flatMap(bodyRows);
 
 describe.each(['en', 'de'])('gantt PDF (%s)', lang => {
@@ -78,7 +81,7 @@ describe.each(['en', 'de'])('gantt PDF (%s)', lang => {
     findTables(dd).forEach(tb => {
       expect(headerLabels(tb)).toEqual(HEADERS[lang]);
       expect(tb.widths).toHaveLength(6);
-      expect(tableProblems(tb, PRINTABLE.A3)).toEqual([]);
+      expect(tableProblems(tb, PRINTABLE.A4)).toEqual([]);
     });
   });
 
@@ -103,8 +106,25 @@ describe('gantt PDF page size follows the picture', () => {
     const { dd } = buildGanttDocDefinition(ctx, picture(width));
     expect(dd.pageSize).toBe(size);
     const image = dd.content.find(n => n.image);
-    expect(image.width).toBeLessThanOrEqual(PRINTABLE[size]);
-    expect(image.width).toBeLessThanOrEqual(width);
+    expect(image.fit[0]).toBeLessThanOrEqual(PRINTABLE[size]);
+    expect(image.fit[0]).toBeLessThanOrEqual(width);
+  });
+
+  test('a tall picture is fitted into the printable box of its page', () => {
+    const { dd } = buildGanttDocDefinition(ctx, { url: 'data:image/png;base64,AAAA', width: 1200, height: 4000 });
+    const [, top, , bottom] = dd.pageMargins;
+    const image = dd.content.find(n => n.image);
+    expect(image.width).toBeUndefined();
+    expect(image.fit[0]).toBeLessThanOrEqual(PRINTABLE[dd.pageSize]);
+    // Leaves room for the title and the subtitle above the picture.
+    expect(image.fit[1]).toBeLessThanOrEqual(PAGE_HEIGHT[dd.pageSize] - top - bottom - 40);
+    expect(image.fit[1]).toBeGreaterThan(300);
+  });
+
+  test('without a picture the page is A4 landscape', () => {
+    const { dd } = buildGanttDocDefinition(ctx);
+    expect(dd.pageSize).toBe('A4');
+    expect(dd.pageOrientation).toBe('landscape');
   });
 
   test('with a picture the table starts on a new page', () => {
@@ -117,6 +137,36 @@ describe('gantt PDF page size follows the picture', () => {
   test('German heading for the table', () => {
     const { dd } = buildGanttDocDefinition(demoCtx('de'), picture(1500));
     expect(collectTexts(dd.content.find(n => n.style === 'h2'))).toEqual(['Terminübersicht']);
+  });
+});
+
+describe('gantt PDF counts in singular for one', () => {
+  test.each([
+    ['en', 1, '1 task'],
+    ['en', 2, '2 tasks'],
+    ['de', 1, '1 Task'],
+    ['de', 2, '2 Tasks'],
+  ])('%s with %i task(s): subtitle says "%s"', (lang, n, label) => {
+    const { dd } = buildGanttDocDefinition(tinyPlanCtx(n, lang));
+    expect(collectTexts(dd.content[1]).join('')).toContain(` · ${label} · `);
+  });
+
+  test.each([
+    ['en', 1, 'task'],
+    ['en', 2, 'tasks'],
+    ['de', 1, 'Aufgabe'],
+    ['de', 2, 'Aufgaben'],
+  ])('%s with %i task(s): the team table title ends in "%s"', (lang, n, word) => {
+    const { dd } = buildGanttDocDefinition(tinyPlanCtx(n, lang));
+    expect(findTables(dd).map(titleCount)).toEqual([{ n, word }]);
+  });
+});
+
+describe('gantt PDF emptiness check', () => {
+  test('answers without building the definition', () => {
+    expect(ganttEmptyMessage(emptyCtx('en'))).toBe('Nothing scheduled.');
+    expect(ganttEmptyMessage(emptyCtx('de'))).toBe('Kein Zeitplan vorhanden.');
+    expect(ganttEmptyMessage(demoCtx('en'))).toBeNull();
   });
 });
 

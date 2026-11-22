@@ -8,11 +8,13 @@ import {
   bodyRows,
   cellText,
   collectTexts,
+  ctxFromData,
   demoCtx,
   emptyCtx,
   findTables,
   headerLabels,
   tableProblems,
+  titleCount,
 } from './pdfTestKit.js';
 
 vi.hoisted(() => {
@@ -61,8 +63,9 @@ describe.each(['en', 'de'])('what-when PDF (%s)', lang => {
 
   test('every bucket title counts its topics', () => {
     findTables(dd).forEach(tb => {
-      const title = cellText(tb.body[0][0]);
-      expect(title).toContain('  ·  ' + bodyRows(tb).length + (lang === 'de' ? ' Themen' : ' topics'));
+      const { n, word } = titleCount(tb);
+      expect(n).toBe(bodyRows(tb).length);
+      expect(word).toBe(n === 1 ? (lang === 'de' ? 'Thema' : 'topic') : lang === 'de' ? 'Themen' : 'topics');
     });
   });
 
@@ -96,6 +99,37 @@ describe.each(['en', 'de'])('what-when PDF (%s)', lang => {
 
   test('prints no undefined, NaN, null or [object] anywhere', () => {
     expect(badTexts(dd)).toEqual([]);
+  });
+});
+
+// `n` top-level topics with one task each, all for one person.
+function topicsCtx(n, lang) {
+  const tree = Array.from({ length: n }, (_, i) => [
+    { id: 'P' + (i + 1), name: 'Rechnungen ' + (i + 1), status: 'open' },
+    { id: `P${i + 1}.1`, name: 'Export', status: 'open', best: 3, factor: 1, team: 'T1', assign: ['m1'] },
+  ]).flat();
+  return ctxFromData(
+    {
+      tree,
+      members: [{ id: 'm1', name: 'Anna Noor', team: 'T1', cap: 1 }],
+      teams: [{ id: 'T1', name: 'Frontend', color: '#2563eb' }],
+      meta: { name: 'Kundenbereich', planStart: '2026-06-15' },
+    },
+    lang,
+  );
+}
+
+describe('what-when PDF counts in singular for one', () => {
+  test.each([
+    ['en', 1, 'topic', 'topics'],
+    ['en', 2, 'topic', 'topics'],
+    ['de', 1, 'Thema', 'Themen'],
+    ['de', 2, 'Thema', 'Themen'],
+  ])('%s with %i topic(s): a bucket of one says "%s", more say "%s"', (lang, n, one, many) => {
+    const { dd } = buildWhatWhenDocDefinition(topicsCtx(n, lang));
+    const titles = findTables(dd).map(titleCount);
+    expect(titles.reduce((sum, x) => sum + x.n, 0)).toBe(n);
+    titles.forEach(x => expect(x.word).toBe(x.n === 1 ? one : many));
   });
 });
 

@@ -1,6 +1,6 @@
 /** @vitest-environment node */
 // The management summary PDF: sections, labels in both languages, options.
-import { describe, expect, test, vi } from 'vitest';
+import { beforeAll, describe, expect, test, vi } from 'vitest';
 import { buildSummaryDocDefinition } from '../summaryPdf.js';
 import {
   PRINTABLE,
@@ -34,9 +34,12 @@ describe.each(['en', 'de'])('summary PDF (%s)', lang => {
   const ctx = demoCtx(lang);
   let dd;
   let texts;
-  test('builds', async () => {
+  beforeAll(async () => {
     dd = (await buildSummaryDocDefinition(ctx)).dd;
     texts = collectTexts(dd);
+  });
+
+  test('builds a document with plenty of text', () => {
     expect(texts.length).toBeGreaterThan(200);
   });
 

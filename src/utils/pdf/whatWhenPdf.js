@@ -5,7 +5,7 @@ import { sanitizePdfDoc } from '../pdfGlyphs.js';
 import { horizonLabel, horizonBucket } from '../horizon.js';
 import { progressPctLabel } from '../progress.js';
 import { PRINT } from '../printPalette.js';
-import { STYLES, footerBuilder, headerTable, loadPdfMake, slug } from './pdfCore.js';
+import { STYLES, countLabel, footerBuilder, headerTable, loadPdfMake, slug } from './pdfCore.js';
 
 // ── "What comes when" PDF — horizon-aware buckets, TOPIC level ──────────────
 // Each row is a top-level root (Thema / Goal / Deadline). Bucket key is the
@@ -133,7 +133,7 @@ export function buildWhatWhenDocDefinition(ctx) {
           },
         ]),
         [90, 45, '*', 100, 80, 35, 85],
-        bucket.label + '  ·  ' + bucket.items.length + ' ' + t('topics', 'Themen'),
+        bucket.label + '  ·  ' + countLabel(bucket.items.length, t('topic', 'Thema'), t('topics', 'Themen')),
       ),
     );
   });

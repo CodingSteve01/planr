@@ -4,7 +4,7 @@ import { projectScopedCtx } from '../exportCtx.js';
 import { sanitizePdfDoc } from '../pdfGlyphs.js';
 import { horizonLabel } from '../horizon.js';
 import { PRINT } from '../printPalette.js';
-import { STYLES, footerBuilder, headerTable, loadPdfMake, slug } from './pdfCore.js';
+import { STYLES, countLabel, footerBuilder, headerTable, loadPdfMake, slug } from './pdfCore.js';
 
 // ── TODO / Sprint PDF ───────────────────────────────────────────────────────
 // The document definition. Returns `{ empty }` with the message the export
@@ -59,13 +59,9 @@ export function buildTodoDocDefinition(ctx, horizonDays) {
         ' → ' +
         iso(end) +
         ') · ' +
-        up.length +
-        ' ' +
-        t('tasks', 'Tasks') +
+        countLabel(up.length, t('task', 'Task'), t('tasks', 'Tasks')) +
         ', ' +
-        sorted.length +
-        ' ' +
-        t('lanes', 'Lanes'),
+        countLabel(sorted.length, t('lane', 'Lane'), t('lanes', 'Lanes')),
       style: 'sub',
     },
   ];
@@ -107,7 +103,7 @@ export function buildTodoDocDefinition(ctx, horizonDays) {
           ];
         }),
         [75, 75, 45, '*', 80, 40, 50, 25],
-        g.label + '  ·  ' + g.items.length + ' ' + t('tasks', 'Aufgaben'),
+        g.label + '  ·  ' + countLabel(g.items.length, t('task', 'Aufgabe'), t('tasks', 'Aufgaben')),
       ),
     );
   });

@@ -1,5 +1,6 @@
 // Shared helpers for the PDF export tests: the demo plan scheduled the way the
 // app schedules it, and walkers over a pdfmake document definition.
+import { deflateSync } from 'node:zlib';
 import { translatorFor } from '../../../i18n.jsx';
 import { buildDemoProject } from '../../demoProject.js';
 import { buildExportCtx } from '../../exportCtx.js';
@@ -8,10 +9,6 @@ import { compileMembers } from '../../effective.js';
 import { sortTree } from '../../treeEdit.js';
 import { goalCpm, rootCpm } from '../../cpm.js';
 import { computeConfidence, enrichParentSchedules, schedule, treeStats } from '../../scheduler.js';
-
-// The fixed "today" every PDF test runs at. Midday, so date maths cannot flip
-// the day in any timezone.
-export const FIXED_NOW = new Date('2026-06-15T12:00:00');
 
 // The export ctx for a plan, with the scheduler run as usePlanModel runs it.
 export function ctxFromData(data, lang) {
@@ -132,4 +129,68 @@ export function tableProblems(table, printable) {
   });
   if (fixedWidthSum(table) > printable) problems.push(`fixed widths ${fixedWidthSum(table)} exceed ${printable}`);
   return problems;
+}
+
+// A plan of `n` flat tasks for one person, all starting on the plan start.
+export function tinyPlanCtx(n, lang) {
+  const tree = Array.from({ length: n }, (_, i) => ({
+    id: 'T' + (i + 1),
+    name: 'Export ' + (i + 1),
+    status: 'open',
+    best: 3,
+    factor: 1,
+    team: 'T1',
+    assign: ['m1'],
+  }));
+  return ctxFromData(
+    {
+      tree,
+      members: [{ id: 'm1', name: 'Anna Noor', team: 'T1', cap: 1 }],
+      teams: [{ id: 'T1', name: 'Frontend', color: '#2563eb' }],
+      meta: { name: 'Kundenbereich', planStart: '2026-06-15' },
+    },
+    lang,
+  );
+}
+
+// The count and the noun a table title ends in ("Name  ·  3 tasks").
+export function titleCount(table) {
+  const m = cellText(table.body[0][0]).match(/·\s+(\d+) (\S+)$/);
+  return { n: Number(m[1]), word: m[2] };
+}
+
+const CRC = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+const crc32 = buf => {
+  let c = 0xffffffff;
+  for (const b of buf) c = CRC[(c ^ b) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+};
+const chunk = (type, data) => {
+  const body = Buffer.concat([Buffer.from(type), data]);
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(data.length);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(body));
+  return Buffer.concat([len, body, crc]);
+};
+
+// A real width x height PNG (8-bit grey, light stripes) as a data URL, so the
+// layout sees a plausible aspect ratio instead of a 1 x 1 pixel.
+export function pngDataUrl(width, height) {
+  const head = Buffer.alloc(13);
+  head.writeUInt32BE(width, 0);
+  head.writeUInt32BE(height, 4);
+  head[8] = 8; // bit depth 8, colour type 0 (grey), the rest stays 0
+  const rows = Array.from({ length: height }, (_, y) => Buffer.concat([Buffer.from([0]), Buffer.alloc(width, y % 20 < 10 ? 235 : 250)]));
+  const png = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', head),
+    chunk('IDAT', deflateSync(Buffer.concat(rows))),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+  return 'data:image/png;base64,' + png.toString('base64');
 }

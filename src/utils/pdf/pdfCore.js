@@ -4,6 +4,11 @@ export function slug(name) {
   return (name || 'planr').toLowerCase().replace(/\s+/g, '-');
 }
 
+// "1 task", "2 tasks": the count with the noun in the right number.
+export function countLabel(n, one, many) {
+  return n + ' ' + (n === 1 ? one : many);
+}
+
 let _pdfMake = null;
 export async function loadPdfMake() {
   if (_pdfMake) return _pdfMake;
