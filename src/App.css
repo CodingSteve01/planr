@@ -742,7 +742,7 @@ td[data-col="effort"] .tv-cell-edit{min-width:84px;}
 .htip-muted{color:var(--tx3);}
 .htip-pop{z-index:var(--z-tooltip);background:var(--bg2);color:var(--tx);border:1px solid var(--b2);border-radius:var(--r);padding:6px 10px;font:500 12px/1.4 var(--font);box-shadow:0 4px 16px rgba(0,0,0,.4);max-width:320px;white-space:pre-line;}
 
-/* ── Plan mode's Roadmap tab (components/views/PlanRoadmap.jsx) ───────────
+/* ── The Roadmap tab (components/views/PlanRoadmap.jsx) ───────────
    Built to sit next to the Gantt and read as the same family: the same 28px
    row, the same sticky label column, the same horizontal scroll. The SVG
    roadmap that still serves the Subway map and the PDF scales with the

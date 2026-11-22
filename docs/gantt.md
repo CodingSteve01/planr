@@ -111,15 +111,15 @@ When zoom reaches 70 px / week or more:
   - **Estimated** — striped/hatched pattern over the team color
   - **Exploratory** — dashed outline instead of a solid bar
 - **Weighted phase overlay** — if a task has phases, the subtle phase segmentation inside the bar uses phase effort percentages instead of equal-width slices
-- **Critical-path bars** get a 1.5 px red inset ring (via `.cp-bar`). A link-mode blue outline takes precedence when the user is actively creating a dependency.
+- **Critical-path bars** get a 1.5 px red inset ring (via `.cp-bar`). A blue outline takes precedence while a dependency is being dragged.
 - **Row hover** is a neutral rgba tint (`rgba(127,127,127,.10)` for direct, `.05` for connected rows) so the bar color stays untouched
-- **Dragging cursor** appears on hover; link-mode switches to a crosshair
-- **Done tasks** are not drawn
+- **Dragging cursor** appears on hover; dragging a link switches to a crosshair
+- **Done tasks** keep their bar, drawn in the done colour. They are editable (see below). The "hide done" filter removes them from the view.
 - **Unestimated leaves** show an empty row with a `no estimate` badge on the left — a reminder, not hidden
 
 ### Drag a bar to pin it
 
-Click and drag a bar horizontally. On release, the start week becomes `pinnedStart` on the underlying task. A `📌` icon appears on the bar. The scheduler treats `pinnedStart` as a **hard floor** — it can't move the task earlier, but capacity and deps can still push it later. If that happens, the icon becomes `⚠📌` and the tooltip explains which constraint pushed it.
+Click and drag a bar horizontally. On release, the start week becomes `pinnedStart` on the underlying task. A pin marker (`▸`) appears in front of the bar's name. The scheduler treats `pinnedStart` as a **hard floor** — it can't move the task earlier, but capacity and deps can still push it later. If that happens, the marker becomes `!▸` and the tooltip explains which constraint pushed it.
 
 ### Drag-to-edit-reality (done bars)
 
@@ -131,16 +131,7 @@ Done bars represent **reality**, not plan. A done bar therefore reacts different
 
 Pinning is disabled for done bars — `pinnedStart` is a plan-side hint that has no meaning once a task is in the past.
 
-To **unpin**, right-click the bar → `📌 Unpin (currently YYYY-MM-DD)`.
-
-### Right-click context menu
-
-- **📝 Open / edit…** — opens the QuickEdit side panel
-- **⬇ Add a successor…** — puts you in click-link mode; click another bar to add it as a successor
-- **⬆ Add a predecessor…** — same, but the other direction
-- **📌 Pin to current start week** — pins the bar to where it currently sits
-- **📌 Unpin** — drops the pin
-- **× predecessor ID** — remove one specific predecessor directly
+To **unpin**, click the pin marker (`▸`) in front of the bar's name. The Gantt has no right-click menu. Edit a task with `E` or `↵` on the selected bar, or open it with a click.
 
 ## Dependencies
 
@@ -165,7 +156,7 @@ Default default opacity is 0.55 (CP: 0.7); hover bumps to 0.95 with a thicker st
 Two ways:
 
 1. **Drag from the bar's right-edge handle** (the small circle sitting just outside the bar) onto another bar. A live preview line follows the cursor. Drop on the target to link.
-2. **Right-click → Add a successor/predecessor** — then click the other bar.
+2. **In the item editor** — the Predecessors / Successors section (QuickEdit or the item dialog).
 
 All link mutations use a **targeted update path** in `App.jsx` (`addDep(fromId, depId)`) that reads the latest tree state — no stale-closure overwrites even when multiple mutations happen in the same tick.
 
@@ -192,13 +183,11 @@ Each tree root with a `date` becomes a deadline marker.
 
 ## Search and highlight
 
-The search field in the sub-toolbar (top right, shared across Tree / Gantt / Network) drives a match set. In the Gantt:
+The search field in the sub-toolbar (top right, shared across Tree / Gantt / Network) filters the rows. In the Gantt:
 
-- Matching bars get a 2.5 px amber outline on top of their team color
-- Non-matches dim to 25 % opacity
-- The left row label dims to 35 %
-- On query change, the body auto-scrolls both axes so the first match lands near the middle of the viewport
-- The footer shows `🔍 N matches` so you can see at a glance whether the query hit anything
+- Only tasks that match stay in the chart. The text searched is the task's id, name, note, team, people and dependencies, plus the same fields of its parents.
+- Matching bars get an amber ring. The footer shows the position in the match list (`i / N`).
+- The `▲` / `▼` buttons at the search box, `Enter` in it, and `Ctrl/Cmd+↑` / `Ctrl/Cmd+↓` step from match to match. The active match gets a blue ring.
 
 `Ctrl/Cmd+F` focuses the input. `Esc` clears it.
 
@@ -271,7 +260,7 @@ Below the bar area:
 - **Critical path: N** — click to toggle dim-non-critical mode
 - **N no estimate** — count of unestimated leaves (they're listed but uncheduled)
 - **Planning horizon legend** — explicit H1 / H2 / H3 reminder so the confidence model is visible without prior training
-- **Link-mode hint** — shown while a link-mode or link-drag is active
+- **Link-mode hint** — shown while a link is being dragged
 - **Confidence legend** — visual key explaining bar styling for each confidence level (solid = committed, striped = estimated, dashed = exploratory)
 
 ## Row order
@@ -294,4 +283,4 @@ alphabetically. That is a property of the people, not of the plan.
 
 - No double-click anywhere.
 - Single click on a row label or on a bar opens the QuickEdit sidebar.
-- Drag-the-bar = pin; drag-the-handle = link. The cursor tells you which mode you're in.
+- Drag-the-bar = pin; drag-the-handle = link. The cursor tells you which one you are doing.

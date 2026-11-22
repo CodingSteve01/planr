@@ -9,7 +9,7 @@ Client-only SPA. No backend, no bundler lock-in beyond Vite, no TypeScript. The 
 | Framework | Vite 8 + React 19 |
 | Language | JavaScript (ES modules) — no TypeScript, no PropTypes |
 | Styling | CSS with theme variables (`--bg`, `--tx`, `--ac`, etc.); dark + light palettes; switched via `data-theme` on `<html>` |
-| i18n | Lightweight, ~350 keys in `src/i18n.jsx`; React context + `useT()` hook; Auto/EN/DE |
+| i18n | Lightweight, keys in `src/i18n.jsx`; React context + `useT()` hook; Auto/EN/DE |
 | Persistence | `localStorage` + File System Access API |
 | Deployment | GitHub Pages via `gh-pages` branch (`peaceiris/actions-gh-pages` workflow) |
 | Routing | None — everything is one page with tabs |
@@ -32,13 +32,14 @@ src/
       NetGraph.jsx         — network graph — see docs/network-graph.md; its parts live in views/net/, the layout in utils/net/
       ResView.jsx          — resources: teams + members
       HolView.jsx          — holidays editor
-      DLView.jsx           — deadlines / goals summary
+      WorkOrderView.jsx    — the Work order tab: one queue per person or team; its parts live in views/workorder/
+      PlanRoadmap.jsx      — the Roadmap tab (project lens); TimetableView.jsx is the station timetable the Overview offers beside the metro map
       SumView.jsx          — per-goal progress summary; its panels live in views/sum/
       QuickEdit.jsx        — sidebar editor (primary interaction); tabs and fields live in views/quickedit/
-      PlanReview.jsx       — folded into Plan mode's tab bar (Decisions, Team Capacity, Blocked); one section component per tab in review/
-      BriefingView.jsx     — Run mode's only view: attention list, per-person queues, Jira drift (one component per block in briefing/)
+      PlanReview.jsx       — the Planning tab (Decisions, Team Capacity, Blocked and more); one section component per tab in review/
+      BriefingView.jsx     — the Briefing tab: attention list, per-person queues, Jira drift (one component per block in briefing/)
       Onboard.jsx          — first-launch onboarding
-      ReportView.jsx       — Report mode's only view — ExportCards as a screen, not a modal
+      ReportView.jsx       — the Report tab — ExportCards as a screen, not a modal
     modals/
       NodeModal.jsx        — full editor modal (⊞ button opens this)
       AddModal.jsx         — add a new tree item
@@ -46,14 +47,14 @@ src/
       SettingsModal.jsx    — theme, file handle, etc.
       DLModal.jsx          — deadline editor
       NewProjModal.jsx     — new-project wizard
-      ExportModal.jsx      — Export dialog chrome around ExportCards.jsx (still reachable from `/`)
+      ExportModal.jsx      — Export dialog chrome around shared/ExportCards.jsx (reachable from `/`)
     shared/
       SearchSelect.jsx     — searchable dropdown (used everywhere >5 items)
+      ExportCards.jsx      — the export card grid, shared by ExportModal.jsx and ReportView.jsx
       LazyInput.jsx        — debounced text input for perf in long lists
       Tooltip.jsx          — shared tooltip component
       Badges.jsx           — status/severity/priority badges
       CommandPalette.jsx   — `/` / ⌘K palette — see "Views and the command palette" below
-      ExportCards.jsx      — the export card grid, shared by ExportModal.jsx and ReportView.jsx
   utils/
     modes.js                — the views the shell knows about, in bar order (TAB_IDS, initialTab)
     palette.js               — pure command-palette filter/rank logic (filterCommands)
@@ -64,10 +65,10 @@ src/
     exportCtx.js           — exports read the PLAN, never the filtered view (buildExportCtx)
     projectRoadmap.js      — single-project roadmap: calendar rows instead of a metro line
     jiraSync.js            — Jira table parsing + plan-vs-board reconciliation (consumed inline by
-                             Run mode's drift section now — no more standalone Jira dialog)
-    attention.js            — Run mode's ranked "what needs a look" feed (overdue/drift/at-risk/
+                             the Briefing's drift section)
+    attention.js            — the Briefing's ranked "what needs a look" feed (overdue/drift/at-risk/
                              blocked/unestimated), built off scheduler.js's memoised tree index
-    cpm.js                 — critical path method, global + per-goal
+    cpm.js                 — critical path method, per root (rootCpm) and per goal (goalCpm)
     date.js                — date arithmetic helpers (addD, iso, etc.)
     holidays.js            — NRW holiday algorithm + week grid builder
     fileHandleStore.js     — File System Access API persistence layer (the Obsidian build
@@ -78,7 +79,7 @@ src/
                              because two Planr panes can be open at once)
     tipText.js             — the tooltip dialect (**bold**, __muted__, newline, "- " detail);
                              replaced the HTML-in-a-string tooltips that needed innerHTML
-    exports.js             — one import point for all export functions (CSV, Sprint MD, Mermaid, SVG, PNG, PDF); the code is in export/
+    exports.js             — one import point for all export functions (JSON, Sprint MD, Mermaid, Jira CSV, PNG, PDF, Word); the code is in export/
     markdown.js            — Markdown writer (buildMarkdownText)
     markdownParse.js       — Markdown reader entry (re-exports parseMdToProject) — out of App.jsx so a
                              plan can be read without mounting one
@@ -93,14 +94,14 @@ src/
                              list of changes, portablePatch: the name tokens that carry a patch
                              through a Markdown file)
     scenarioCompare.js     — plan against scenario: schedules both, reports what moves
-    report.js              — HTML report generation (bilingual, auto-print) + buildReportModel()
+    report.js              — buildReportModel() + the bilingual report HTML the Word export converts
     pdfExports.js          — re-exports the pdfmake exports; the code is in utils/pdf/
     pdf/                   — pdfmake exports (Management Summary, Gantt, TODO, What-comes-when), one module per document plus pdfCore.js and pdfSvg.js
     progress.js            — single source of truth for aggregate progress % / PT + formatting
                              (aggregateProgressPct is THE percentage for any multi-task scope;
                               scheduler.treeStats imports it back — a deliberate call-time cycle)
     timeline.js            — node period/planned/actual windows + deadlineStatus() state machine
-  i18n.jsx                 — internationalization: ~350 keys, React context, useT() hook
+  i18n.jsx                 — internationalization: React context, useT() hook
 obsidian/                  — the Obsidian plugin: one FileView per open plan
   src/main.jsx             — Plugin + FileView, plan-note redirect, ribbon icon, command, file menu
   src/vaultFs.js           — File System Access API reimplemented on app.vault
@@ -135,8 +136,8 @@ Derived values via `useMemo`:
 - `goals` — tree roots with a `type`
 - `scheduled` — scheduler output
 - `stats` — `treeStats(tree) + enrichParentSchedules`
-- `cpSet` — global CPM critical set
-- `goalPaths` — per-goal CPM
+- `cpSet` — the critical IDs from `rootCpm`, unioned over all roots
+- `goalPaths` — per-goal CPM (`goalCpm`)
 - `leaves` — `leafNodes(tree)`
 - `shortNamesMap` — member short-name lookup
 - `weeks` — week grid from the scheduler
@@ -252,16 +253,10 @@ Which view a load starts on is one decision, taken in one place:
 otherwise `DEFAULT_TAB` (`tree` — a plan has to be authored before it can be
 planned, run, reviewed or reported on).
 
-There were five **modes** here until September 2026 — Build, Plan, Run,
-Review, Report — each owning a subset of the tabs, switched from a segmented
-control in the top bar, with `TAB_OWNER`, `modeForTab`, `switchMode`,
-`visibleTabs` and a guard test that no tab became unreachable. The premise
-(docs/principles.md, principle 1) was that a planner does one thing at a time.
-A real loop turned out to be: look at the roadmap, restructure the tree, set
-the order, update progress, reconcile Jira — four modes deep, several times an
-hour. The mode did not remove a decision, it added one, and `visibleTabs`
-existed only to undo the hiding the modes had just done. One flat row replaced
-all of it.
+The tabs are one flat row. Nothing owns a subset of them and no tab is hidden.
+The loop a planner follows — look at the roadmap, restructure the tree, set
+the order, update progress, reconcile Jira — crosses several views several
+times an hour, so each view is one click away from every other.
 
 The `/` command palette (`src/components/shared/CommandPalette.jsx`) is a
 self-contained component: it owns its own open/closed state, listens for `/`
@@ -271,16 +266,17 @@ the topbar's `/` button can open it without App.jsx having to lift the open
 state. `App.jsx` builds one flat `paletteCommands` array
 (`{id, labelKey, group, groupLabel, run}`) covering everything that used to
 be a topbar button (Load, Snapshots, Save as, Export…, New project,
-Help/Tour) plus a jump to every mode and every `TAB_IDS` entry, and hands it
+Help/Tour), the keyboard map, the scenario and day commands, and a jump to
+every `TAB_IDS` entry, and hands it
 to `<CommandPalette commands={paletteCommands} />`. The filter/rank logic
 itself is pure and lives in [`src/utils/palette.js`](../src/utils/palette.js)
 (`filterCommands(commands, query)` — substring match first, then an in-order
 fuzzy subsequence fallback) so it is unit-testable without mounting React.
 
-Report mode's only tab (`report`) renders `ReportView.jsx`, which is the old
-Export-modal card grid (`ExportCards.jsx`, shared with `ExportModal.jsx` so
-neither duplicates the export handler wiring) rendered as a normal view
-instead of a modal.
+The `report` tab renders `ReportView.jsx`, which is the old
+export card grid (`components/shared/ExportCards.jsx`, shared with
+`ExportModal.jsx` so neither duplicates the handler wiring in
+`app/exportHandlerProps.js`) rendered as a normal view instead of a modal.
 
 ### Display filters vs. facts
 
@@ -362,8 +358,7 @@ structural, in [exportCtx.js](../src/utils/exportCtx.js):
   deliberately does not pass them, so `activeTree` / `visibleTree` cannot reach
   an export by accident.
 - `projectScopedCtx(ctx, label)` runs at the entry of all four PDFs and of
-  `buildReportModel` (which the HTML report and the DOCX export both route
-  through). A hand-built ctx carrying a filtered tree is repaired, not
+  `buildReportModel` (which the Word export routes through). A hand-built ctx carrying a filtered tree is repaired, not
   rejected — the user asked for a document, and the correct document is the
   complete one — and the repair is logged.
 - `scheduled` / `stats` / `cpSet` / `goalPaths` cannot be re-derived here (they
@@ -383,10 +378,10 @@ structural, in [exportCtx.js](../src/utils/exportCtx.js):
 
 ## Critical path
 
-[cpm.js](../src/utils/cpm.js) runs twice:
+[cpm.js](../src/utils/cpm.js) runs twice, both times over the scopes of the tree roots:
 
-- **Global** — over all leaves, treating the whole tree as one DAG. Result: `cpSet` — Set of IDs on the critical path.
-- **Per-goal** — for each tree root, CPM restricted to leaves under that root. Result: `goalPaths` — `{ rootId: Set<id> }`.
+- **`rootCpm`** — for each tree root, CPM restricted to the leaves under it (a deadline root is scoped to the work that feeds it). Result: `cpData` — the union of the critical IDs (`cpSet`), the union of the edges and the per-root paths (`rootPaths`).
+- **`goalCpm`** — the same for roots that carry a `type` (goal, painpoint, deadline). Result: `goalPaths` — one path record per typed root, keyed by root id.
 
 Both use earliest-start / latest-finish forward/backward passes. Slack is zero on the critical path, positive everywhere else.
 
@@ -396,7 +391,7 @@ Three levels: **committed**, **estimated**, **exploratory**. Computed automatica
 
 ## Internationalization (i18n)
 
-`src/i18n.jsx` provides a lightweight translation system with ~500 keys. Uses React context and a `useT()` hook. Language selector in Settings: Auto / English / Deutsch. "Auto" follows `navigator.language`. No external library (no i18next, no react-intl). When adding new user-facing strings, add both EN and DE keys —
+`src/i18n.jsx` provides a lightweight translation system. Uses React context and a `useT()` hook. Language selector in Settings: Auto / English / Deutsch. "Auto" follows `navigator.language`. No external library (no i18next, no react-intl). When adding new user-facing strings, add both EN and DE keys —
 [`src/__tests__/i18n.test.js`](../src/__tests__/i18n.test.js) enforces it:
 the two dictionaries must carry identical key sets, and the surfaces reworked
 during the rebuild must carry no hardcoded display text at all. A key present
@@ -411,9 +406,9 @@ Manual Dark / Light / Auto toggle in Settings. The selected theme is stored in `
 
 Export-related logic has been extracted from `App.jsx` into dedicated modules:
 
-- `src/utils/exports.js` — re-exports the CSV, Sprint MD, Mermaid, SVG, PNG, PDF export functions kept in `src/utils/export/` (`textExports.js`, `jiraCsv.js`, `networkExport.js`, `ganttExport.js`, `svgRaster.js`, `reportDocx.js`, `fileHelpers.js`)
+- `src/utils/exports.js` — re-exports the JSON, Sprint MD, Mermaid, Jira CSV, PNG, PDF and Word export functions kept in `src/utils/export/` (`textExports.js`, `jiraCsv.js`, `networkExport.js`, `ganttExport.js`, `svgRaster.js`, `reportDocx.js`, `fileHelpers.js`)
 - `src/utils/markdown.js` — Markdown parsing (`parseMdToProject`) and writing (`buildMarkdownText`)
-- `src/utils/report.js` — HTML report generation (bilingual, opens in new tab, auto-triggers print)
+- `src/utils/report.js` — the report model (`buildReportModel`) and the bilingual report HTML that the Word export converts. No screen opens this HTML directly.
 
 ## Design decisions (non-obvious)
 
@@ -427,10 +422,10 @@ Export-related logic has been extracted from `App.jsx` into dedicated modules:
 
 ## Known issues / backlog
 
-The structural direction — five modes, one editing surface, subtractive
+The structural direction — one editing surface, subtractive
 feature policy — lives in [principles.md](principles.md); the phase-by-phase
-rebuild order is its last section, and [ui-inventory.md](ui-inventory.md) is
-the control-by-control basis for it. Items below are independent of that.
+rebuild order is its last section, and [ui-inventory.md](ui-inventory.md) lists
+the controls that frame the app. Items below are independent of that.
 
 See [scheduler.md](scheduler.md#known-limitations) for scheduler-specific items. Other open items:
 

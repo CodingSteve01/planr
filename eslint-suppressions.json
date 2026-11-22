@@ -17,11 +17,6 @@
       "count": 1
     }
   },
-  "src/__tests__/jiraExportDropped.test.jsx": {
-    "no-irregular-whitespace": {
-      "count": 1
-    }
-  },
   "src/__tests__/treeEditor.app.test.jsx": {
     "no-unused-vars": {
       "count": 1
@@ -50,11 +45,6 @@
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 1
-    }
-  },
-  "src/components/modals/AssignModal.jsx": {
-    "complexity": {
       "count": 1
     }
   },

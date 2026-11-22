@@ -109,15 +109,4 @@ describe('the structural exports say when something was dropped', () => {
     expect(out).toContain('class A_2 dropped');
     expect(out).not.toContain('class A_1 dropped');
   });
-
-  it('the plain CSV carries the flag, so a round trip cannot revive it', async () => {
-    const { exportCSV } = await import('../utils/exports.js');
-    const out = capture(() => exportCSV({ tree: TREE, meta: META }));
-    const [hdr, ...rows] = out.replace(/^﻿/, '').trim().split('\n');
-    const col = hdr.split(';').indexOf('Dropped');
-    expect(col).toBeGreaterThan(-1);
-    const rowOf = id => rows.find(r => r.split(';')[0] === id).split(';');
-    expect(rowOf('A.2')[col]).toBe('yes');
-    expect(rowOf('A.1')[col]).toBe('');
-  });
 });

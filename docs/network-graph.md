@@ -56,8 +56,8 @@ Great for jumping back to a subtree after panning far away.
 
 The search field lives in the shared sub-toolbar (top right, driven by App's global `search` state). When you type:
 
-- Matching nodes keep full opacity with a 2.5 px amber outline
-- Non-matches dim to 25 %
+- The graph is not filtered: every node stays in place. Nodes whose id or name contains the query keep full opacity with an amber outline, and the others dim.
+- `▲` / `▼` at the search box, `Enter`, and `Ctrl/Cmd+↑` / `Ctrl/Cmd+↓` step through the matches
 - On every query change, the viewport auto-pans/zooms to fit the match set via `fitToNodes(searchMatches)`
 - Match count shows next to the Fit / zoom controls
 
