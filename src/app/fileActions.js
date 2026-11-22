@@ -6,7 +6,7 @@ import { inIdsOf } from '../utils/dayLog.js';
 import { withoutPendingDates } from '../utils/history.js';
 import { exportJSON } from '../utils/exports.js';
 import { filePickerAvailable, pickFileToOpen, pickFileToSave } from '../utils/filePickers.js';
-import { flushSnapshot, pushSnapshot } from './snapshots.js';
+import { pushSnapshot } from './snapshots.js';
 import { ensureHandlePermission } from './useFileSession.js';
 
 // Plain functions over a context object that `useFileSync` builds on every
@@ -32,8 +32,9 @@ export async function runAutoSave(c) {
     c.lastOwnWriteRef.current = Date.now();
     c.setLastSavedAt(new Date());
     // Snapshot ring tracks file-save events: at most one ring write per
-    // minute, the latest state always lands.
-    pushSnapshot(c.fileDataRef.current);
+    // minute per App instance (keyed by its fileDataRef), the latest state
+    // always lands: resetHistory flushes it when another document comes in.
+    pushSnapshot(c.fileDataRef.current, c.fileDataRef);
     c.commitSaveSideEffects(composed);
   } catch (e) {
     console.error('Auto-save failed:', e);
@@ -210,8 +211,9 @@ export async function saveToFile(c, saveAs) {
     c.setLastSavedAt(new Date());
     // Persist a JSON snapshot tied to a real file write — recovery scenarios
     // care about state that landed on disk, not every keystroke. The ring
-    // writes at most once a minute; the latest state always lands.
-    pushSnapshot(c.fileDataRef.current);
+    // writes at most once a minute per App instance (keyed by its
+    // fileDataRef); the latest state always lands.
+    pushSnapshot(c.fileDataRef.current, c.fileDataRef);
     c.commitSaveSideEffects(composed);
   } catch (e) {
     await handleSaveError(c, e, previousFileName);
@@ -242,7 +244,6 @@ export async function loadFromFile(c) {
       );
     // Apply data immediately — don't block on file write permission
     await c.rememberHandle(handle);
-    flushSnapshot();
     c.setData(d);
     c.resetHistory(); // different document — the old undo stack doesn't apply
     c.diskTextRef.current = text; // the baseline for the first poll

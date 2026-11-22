@@ -74,7 +74,10 @@ Inside the app, everything works as on the web. `Cmd/Ctrl+S`, *Save as…* and
 asks for a vault-relative path instead of an OS file dialog. Auto-save,
 external-change detection and the snapshot ring are unchanged — a plan edited
 by Obsidian Sync on another machine shows up as an external change, exactly as
-a plan edited by another app does on the web.
+a plan edited by another app does on the web. The ring is shared by all open
+plans, but each plan (each `<App>`) keeps its own pending state and its own
+60-second window, and writes it when its document is replaced or its tab is
+closed, so two plans side by side cannot overwrite each other's last state.
 
 Two file formats, same as always: `*.planr.json` keeps everything and is the
 safe default, `*.md` stays readable as a note (and loses what the Markdown
