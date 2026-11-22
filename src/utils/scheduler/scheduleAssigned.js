@@ -1,6 +1,7 @@
 import { addD, iso, addWorkDays, localDate } from '../date.js';
 import { deriveCap, memberAtDate } from '../capacity.js';
 import { inTeamPt } from './taskBasics.js';
+import { offboardsInGrid, taskWindow } from './taskWindow.js';
 import { lastRealSegment } from './scheduleExpand.js';
 
 export function scheduleAssigned(S, T) {
@@ -110,10 +111,12 @@ export function scheduleAssigned(S, T) {
     : bp.end
       ? localDate(bp.end)
       : null;
+  const offboardCut = offboardsInGrid(wks, endDate);
   let rem = eff,
     wi = bs,
     firstWorkDay = null,
-    lastWorkDay = null;
+    lastWorkDay = null,
+    gridShort = false;
   const workedDays = [];
   if (hasFixedDuration) {
     const fixed = fixedWorkWindow(skipBefore, fixedDaysTotal);
@@ -121,6 +124,7 @@ export function scheduleAssigned(S, T) {
     lastWorkDay = fixed.endD;
     wi = fixed.endWi;
     rem = 0;
+    gridShort = !!fixed.short;
     workedDays.push(...fixed.workedDays);
   } else {
     while (rem > 0 && wi < wks.length) {
@@ -273,7 +277,7 @@ export function scheduleAssigned(S, T) {
   const segments = [primarySegment, ...cascade.segments];
   // Ghost + truncated only fire when an actual offboard caused the
   // shortfall AND autoCascade is on. See the comment in scheduleTeamSlot.js.
-  if (_autoCascade && cascade.remaining > 0 && endDate) {
+  if (_autoCascade && cascade.remaining > 0 && offboardCut) {
     const lastRealDay = cascade.lastWD || lastWorkDay || (endDate && rem > 0 ? endDate : null);
     const ghostStart = lastRealDay ? addWorkDays(lastRealDay, 1, wdSet) : wks[0].mon;
     const daysNeeded = Math.max(1, Math.ceil(cascade.remaining));
@@ -297,7 +301,7 @@ export function scheduleAssigned(S, T) {
   }
   const leaver = lastRealSegment(segments);
   const truncated =
-    cascade.remaining > 0 && endDate
+    cascade.remaining > 0 && offboardCut
       ? {
           remainingEffort: cascade.remaining,
           personId: leaver?.personId,
@@ -318,14 +322,23 @@ export function scheduleAssigned(S, T) {
   }
   if (r.pinnedStart) reservePinnedDays(asgn, workedDays);
   const firstCascadeSegExplicit = cascade.segments[0];
-  let actualStartD = firstWorkDay || firstCascadeSegExplicit?.startD || wks[bs].mon;
-  const actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
-  // Same WIP-progress backward shift as in scheduleTeamSlot.js (see the comment there).
-  if (!hasFixedDuration && consumedEff > 0 && dailyBaseCap > 0) {
-    const consumedDays = Math.max(1, Math.round(consumedEff / dailyBaseCap));
-    actualStartD = addWorkDays(actualStartD, -consumedDays, wdSet);
-  }
-  if (depNextDate && actualStartD < depNextDate) actualStartD = depNextDate;
+  const consumedDays = !hasFixedDuration && consumedEff > 0 && dailyBaseCap > 0 ? Math.max(1, Math.round(consumedEff / dailyBaseCap)) : 0;
+  // Same window derivation as in scheduleTeamSlot.js (see taskWindow.js).
+  const win = taskWindow({
+    firstWorkDay,
+    lastWorkDay,
+    startFallback: firstCascadeSegExplicit?.startD || wks[bs].mon,
+    wks,
+    eW,
+    consumedDays,
+    depNextDate,
+    wdSet,
+    effort: eff,
+    truncated,
+    // No offboard cut inside the grid: the grid, not a person, ended the work.
+    ranOut: gridShort || (rem > 0 && !offboardCut),
+  });
+  const { startD: actualStartD, endD: actualEndD } = win;
   // Dep violation diagnostic: warn if this task starts before any of its deps finish.
   allD.forEach(depId => {
     const dEnd = tEW[depId];
@@ -346,7 +359,8 @@ export function scheduleAssigned(S, T) {
     if (actualStartD > pinD) pinOverridden = true;
   }
   // Per-task soft ultimatum: flag if scheduled end blows past r.due.
-  let dueOverdue = false;
+  // A task that fits nowhere before the horizon cannot meet its due date.
+  let dueOverdue = !!(r.due && win.beyondHorizon);
   if (r.due && actualEndD) {
     const dueD = localDate(r.due);
     if (actualEndD > dueD) dueOverdue = true;
@@ -375,14 +389,15 @@ export function scheduleAssigned(S, T) {
     best: r.best,
     effort: eff,
     fixedDurationDays: hasFixedDuration ? fixedDaysTotal : undefined,
-    startWi: bs,
-    endWi: eW,
+    startWi: win.startWi,
+    endWi: win.endWi,
     startD: actualStartD,
     endD: actualEndD,
-    calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
+    calDays: win.calDays,
     capPct: hasFixedDuration ? 100 : Math.round(deriveCap(bp) * 100),
     vacDed: hasFixedDuration ? 0 : Math.round((1 - vacInfo[bp.id]) * 100),
-    weeks: eW - bs + 1,
+    weeks: win.weeks,
+    beyondHorizon: win.beyondHorizon,
     parallel: false,
     pinOverridden,
     due: r.due || '',

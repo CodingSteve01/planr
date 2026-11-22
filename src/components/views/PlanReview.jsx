@@ -8,6 +8,7 @@ import { ResourceLoadMatrix } from '../shared/ResourceLoadMatrix.jsx';
 import { buildMemberShortMap } from '../../App.jsx';
 import { useT } from '../../i18n.jsx';
 import { planInconsistencies } from '../../utils/planIntegrity.js';
+import { warningGroups } from '../../utils/warningGroups.js';
 import { OrderSearch } from '../shared/OrderSearch.jsx';
 import { DecideSection } from './review/DecideSection.jsx';
 import { PhasesSection } from './review/PhasesSection.jsx';
@@ -257,9 +258,7 @@ function PlanReviewImpl({
         reader their place. */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 16, minWidth: 0 }}>
         {(() => {
-          const dueViolations = scheduled.filter(s => s.dueOverdue || (s.due && new Date(s.due) < new Date() && s.status !== 'done'));
-          const truncated = scheduled.filter(s => s.truncatedByOffboard);
-          const warnCount = dueViolations.length + truncated.length + conflicts.length + noCapacity.length;
+          const warnCount = warningGroups(scheduled, conflicts, noCapacity).count;
           return [
             ['decide', `${t('p.decisions')} (${readyItems.length})`],
             ['phases', `${t('p.phaseTodos')} (${phaseTodos.length})`],

@@ -305,6 +305,22 @@ export function buildReportModel(rawCtx) {
       ask: t('Appoint a successor', 'Nachfolge benennen'),
     });
   });
+  // 5b. Tasks the plan end cuts off (no working day left, or only part of the
+  //     work fits): the plan says nothing about when they finish.
+  scheduled
+    .filter(s => s.beyondHorizon && s.status !== 'done')
+    .forEach(s => {
+      risks.push({
+        severity: 'high',
+        rank: s.effort || 0,
+        title: t(`Not fully scheduled: ${s.name}`, `Nicht vollständig eingeplant: ${s.name}`),
+        text: t(
+          'The plan end comes before the work does; the bar only shows the part that fits, or the earliest possible start',
+          'Das Planende kommt vor der Arbeit; der Balken zeigt nur den Teil, der passt, oder den frühestmöglichen Start',
+        ),
+        ask: t('Extend the plan end or reduce earlier work', 'Planende verlängern oder frühere Arbeit verringern'),
+      });
+    });
   // 6. Offboard-handoff tasks — task was split into multiple person-segments
   //    to work around offboarding. Surface so user can verify the handoff.
   scheduled.forEach(s => {

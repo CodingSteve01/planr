@@ -1,5 +1,6 @@
 import { iso } from '../../../utils/date.js';
 import { useT } from '../../../i18n.jsx';
+import { warningGroups } from '../../../utils/warningGroups.js';
 
 function NoCapacityGroup({ noCapacity, onOpenItem }) {
   const { t } = useT();
@@ -241,13 +242,59 @@ function TruncatedGroup({ truncated, iMap, onOpenItem }) {
   );
 }
 
+// Tasks for which no working day fitted before the plan end: their bar is a
+// placeholder, so they are listed instead of looking like scheduled work.
+function BeyondHorizonGroup({ beyond, iMap, onOpenItem }) {
+  const { t } = useT();
+  return (
+    <div style={{ marginBottom: 18 }} data-testid="warn-beyond-horizon">
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 6,
+          paddingBottom: 4,
+          borderBottom: '2px solid var(--re)',
+        }}
+      >
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--re)' }}>! {t('pr.warnBeyondHorizon')}</span>
+        <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'var(--mono)' }}>{beyond.length}</span>
+      </div>
+      {beyond.map(s => (
+        <div
+          key={s.id}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '5px 8px',
+            borderBottom: '1px solid var(--b)',
+            cursor: 'pointer',
+            fontSize: 12,
+          }}
+          onClick={() => onOpenItem?.(s.treeId || s.id)}
+        >
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ac)', fontWeight: 600, flexShrink: 0, minWidth: 70 }}>
+            {s.id}
+          </span>
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {iMap[s.treeId || s.id]?.name || s.name}
+          </span>
+          <span style={{ fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>↳ {t('pr.warnBeyondHorizonHint')}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function WarningsSection({ scheduled, conflicts, noCapacity, fullMap, iMap, onOpenItem }) {
   const { t } = useT();
-  const dueViolations = scheduled
-    .filter(s => s.dueOverdue || (s.due && new Date(s.due) < new Date() && s.status !== 'done'))
-    .sort((a, b) => (a.due || '').localeCompare(b.due || ''));
-  const truncated = scheduled.filter(s => s.truncatedByOffboard).sort((a, b) => (a.id || '').localeCompare(b.id || ''));
-  if (!dueViolations.length && !truncated.length && !conflicts.length && !noCapacity.length) {
+  const groups = warningGroups(scheduled);
+  const dueViolations = groups.dueViolations.sort((a, b) => (a.due || '').localeCompare(b.due || ''));
+  const truncated = groups.truncated.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+  const beyond = groups.beyond.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+  if (!dueViolations.length && !truncated.length && !beyond.length && !conflicts.length && !noCapacity.length) {
     return <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tx3)', fontSize: 12 }}>{t('pr.warningsNone')}</div>;
   }
   return (
@@ -255,6 +302,7 @@ export function WarningsSection({ scheduled, conflicts, noCapacity, fullMap, iMa
       {noCapacity.length > 0 && <NoCapacityGroup noCapacity={noCapacity} onOpenItem={onOpenItem} />}
       {conflicts.length > 0 && <ConflictsGroup conflicts={conflicts} fullMap={fullMap} onOpenItem={onOpenItem} />}
       {dueViolations.length > 0 && <DueGroup dueViolations={dueViolations} iMap={iMap} onOpenItem={onOpenItem} />}
+      {beyond.length > 0 && <BeyondHorizonGroup beyond={beyond} iMap={iMap} onOpenItem={onOpenItem} />}
       {truncated.length > 0 && <TruncatedGroup truncated={truncated} iMap={iMap} onOpenItem={onOpenItem} />}
     </>
   );
