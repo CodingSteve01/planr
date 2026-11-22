@@ -14,6 +14,7 @@ Planr is one flat row of views. Pick the one that answers the question you have:
 |---|---|
 | **Overview** | how far along is everything — the subway map, one line per project |
 | **Work Tree** | the plan itself. The only place it is changed, and where the order of the work is set |
+| **Work order** | in which order each person or team works through their items |
 | **Schedule** | when each item happens, who is on it, where it is tight |
 | **Roadmap** | one project as a calendar |
 | **Network** | how the pieces depend on each other |
@@ -23,9 +24,11 @@ Planr is one flat row of views. Pick the one that answers the question you have:
 | **Holidays** | when nobody is there |
 | **Report** | what leaves the building |
 
-There were five **modes** above this row until September 2026 — Build, Plan, Run, Review, Report — each showing a subset of the tabs. They are gone: the real loop (look at the roadmap → restructure the tree → set the order → update progress → reconcile Jira) crossed four of them several times an hour, so the mode was one more thing to remember rather than one less.
+There are eleven views and no modes. Every view is always one click away.
 
-Everything that used to live in the topbar's button row (Load, Snapshots, Save as, Export…, New, Help) is one keypress away in the `/` command palette (`/` or `⌘K`/`Ctrl+K`), which also jumps straight to any view — type a few letters and press Enter.
+The topbar has a **File** menu with Load file, Snapshots, Save as, Export…, an earlier-day entry, the Jira check and New project. The same actions are in the command palette (`/` or `⌘K`/`Ctrl+K`), which also jumps straight to any view — type a few letters and press Enter.
+
+The **Work order** tab lists the leaf items per owner. The owner is the person on the item, or the team it sits with when nobody is. The rows use the tree's keys: `Space` cycles the status, `1`–`4` set the priority, `S`/`M`/`L`/`X` set the size, `E` opens the full editor and `⌥↑`/`⌥↓` move a row.
 
 ## 1. Start a project
 
@@ -92,7 +95,7 @@ The tree is built for bottom-up entry too — sketch structure on paper or a wir
 4. Need a child instead of the next sibling? **⇧Enter** instead of `Enter` — same idea, one level deeper.
 5. Typed something you didn't mean? **Esc** backs out without touching the row's name (or, on a row you just created, removes it).
 6. Got the nesting wrong? Select the row and press **⌘⇧→** (or **Tab**) to indent it — it becomes the last child of the row above — and **⌘⇧←** (or **⇧Tab**) to outdent it, which puts it right after its old parent. Ids and dependency references follow. **⌘⇧↑**/**⌘⇧↓** re-order it among its siblings and never change its parent. The same four commands are buttons in the bar above the tree.
-7. Select several rows (`⇧↑`/`⇇↓`, or the usual Ctrl/Shift-click) and press `1`–`4` for priority, `S`/`M`/`L`/`X` for a T-shirt size, or `Space` to step through open → wip → done — every row in the selection changes at once, as one `⌘Z`.
+7. Select several rows (`⇧↑`/`⇧↓`, or the usual Ctrl/Shift-click) and press `1`–`4` for priority, `S`/`M`/`L`/`X` for a T-shirt size, or `Space` to step through open → wip → done — every row in the selection changes at once, as one `⌘Z`.
 8. Already have a list somewhere else — a text file, an email, a wireframe's annotation? Select the row that should be the parent and paste. Every line becomes a row; leading tabs or a couple of spaces become nesting, and a leading `-`/`*`/`•` bullet is stripped automatically.
 
 None of this replaces the Add-item dialog, the reorder buttons, or QuickEdit — they still do exactly what they did before. It's a second, faster way in for exactly the moment this section is about: getting a plan out of your head (or off a wireframe) and into the tree as fast as you can type. The full key list is in [features.md](features.md#keyboard-shortcuts); how it's built is in [architecture.md](architecture.md#tree-editor-keyboard-model).
@@ -142,9 +145,10 @@ Three ways to add one:
 
 - **In QuickEdit or NodeModal** — the "Predecessors" / "Successors" section with a searchable dropdown.
 - **In the Gantt** — drag from a bar's right-edge handle onto the target bar. See [gantt.md](gantt.md#creating-a-dependency).
-- **Right-click menu in the Gantt** — "Add a predecessor…" or "Add a successor…" then click the other bar.
 
 Deps are inherited from ancestors: if a parent depends on X, all its leaves inherit that dependency. This is intentional — it lets you gate a whole sub-project on a single prerequisite.
+
+The **Network** tab draws these dependencies. When the plan has more than 140 items and no project or scope filter is set, it does not draw the graph at once. It shows a short note with a project picker instead. **Draw all of it anyway** draws the whole plan.
 
 ## 7. Schedule
 
@@ -197,29 +201,23 @@ You see this in the Gantt footer and in the Summary view, so the application tea
 Same renderer family, two homes — pick the one that matches what you're doing
 rather than switching a dropdown on one screen:
 
-- **Portfolio lens (Review mode, Overview)** — the Subway map, always every
+- **Portfolio lens (Overview)** — the Subway map, always every
   project. Use this to compare eight lines at a glance and to see the Δ
-  banner (what moved since your last review cutoff) sitting right above the
-  map. There is no per-project picker here any more — narrowing to one line
-  used to live here and now lives in Plan mode instead, because a portfolio
-  review is exactly the moment you do *not* want to narrow to one line.
+  banner (what moved since your review cutoff) sitting right above the
+  map. There is no per-project picker here; narrowing to one line happens in
+  the Roadmap tab.
   - **Zoom** — `−` / `+` / `Fit` in the map's top-right corner, or Ctrl/Cmd +
     mouse wheel over the map. Above 100 % you can drag the map with the mouse
     or scroll it in both directions, so a crowded plan is readable instead of
     tiny. Plain scrolling still moves the page.
 
-- **Project lens (Plan mode, the Roadmap tab)** — a tab of its own, directly
-  after Schedule, not a panel toggled from a chip: it first shipped as a chip
-  in the filter row that opened a 380px sidebar, and nobody found it there —
-  a view belongs in the tab bar, not next to *Overdue* and *Unestimated*.
-  It renders a **real roadmap for one project**: one row per work package on
+- **Project lens (the Roadmap tab)** — a tab of its own, directly
+  after Schedule. It renders a **real roadmap for one project**: one row per work package on
   a month axis, sized by its actual dates, with its tasks as stops, today as
   a green line and the deadline (if there is one) in red. Hover a row or a
   stop and you get the **same item card the network graph shows** — status,
   dates, effort, dependencies, phases; click it and the item opens in its
-  **normal edit dialog**, right where you are. (Both used to be poorer here:
-  the tooltip only said *"AB.1 öffnen"*, and clicking a work package filtered
-  the tree and threw you over to the Tree tab.)
+  **normal edit dialog**, right where you are.
   Pick the project from the searchable field at the top; your choice is
   remembered. It is drawn as real DOM (the same fixed row height as the
   Gantt), not the Subway map's scaled SVG, so it never grows oversized on a
@@ -239,7 +237,7 @@ rather than switching a dropdown on one screen:
 
   What archiving does **not** do: change any number. The headline percentage,
   the PT total and the leaf counts keep counting the archived work — a finished
-  project stays finished. Exports (PDF, Word, HTML report) also stay complete;
+  project stays finished. Exports (PDF, Word) also stay complete;
   they are documents of record. Only the map, tree, Gantt, network, goal cards
   and the person dropdown get shorter, and the `N archived` chip always
   says how much, one click away from showing it again.
@@ -248,7 +246,7 @@ rather than switching a dropdown on one screen:
   archived — Planr cannot tell whether that was last week or in 2019.
 
   **Exports ignore all of this.** The PDFs (including the per-project roadmap
-  pages), the HTML report and the Word export always cover the whole plan,
+  pages) and the Word export always cover the whole plan,
   whatever the screen is currently filtering —
   including the archived projects, and including projects hidden because you
   are looking at a single-project roadmap. Someone reading a PDF cannot tell
@@ -275,18 +273,18 @@ Use the diff filter to drive a sprint review ("Stand 2026-04-28 → heute"); use
 
 Every done leaf carries `best` + `factor` (the estimate) plus `completedStart` + `completedEnd` (the actual run). Wherever both are present, the app computes a workday-adjusted actual duration (weekends and holidays subtracted) and compares it to the realistic estimate (`best × factor`).
 
-- **Per task** — open a done item in QuickEdit (or the side panel) to see a Planned / Actual line: `Planned: 7d · Actual: 9d (2026-05-04 → 2026-05-13) · Δ +2d (+29%)`. (The labels currently render as `Soll:` / `Ist:` regardless of language — a known gap, not yet routed through i18n.) The Δ pill is green when the task came in within ±20% of the estimate, amber when it overran moderately, red when the overrun exceeds 20%. Hover the actual value to see the confounders that were excluded (`Calendar days: 10 · Weekends: 2 · Holidays: 1`).
+- **Per task** — open a done item in QuickEdit (or the side panel) to see a Planned / Actual line: `Planned: 7d · Actual: 9d (2026-05-04 → 2026-05-13) · Δ +2d (+29%)`. (The labels read `Soll:` / `Ist:` in both languages.) The Δ pill is amber when the task came in within ±20% of the estimate, red when it overran by more than 20%, green when it came in more than 20% under. Hover the actual value to see the confounders that were excluded (`Calendar days: 10 · Weekends: 2 · Holidays: 1`).
 
-- **Per window (Retro panel)** — when the Δ Review filter is on, an extra **Retro · Planned/Actual** band appears above the map. It aggregates over every leaf completed in the window:
-  - `Planned Xd → Actual Yd · Ratio Z×` — the totals plus their ratio (green ≤ 0.80, amber between, red ≥ 1.20).
-  - `Hit rate N% (k/total)` — share of tasks landing within ±20% of their estimate.
-  - **Top overruns** / **Top underruns** — three biggest outliers each, clickable to drill into the task.
+- **Per window (Retro panel)** — when the Δ Review filter is on, the Overview map has a **Review · Estimate vs actual** band above it. It aggregates over every leaf completed in the window:
+  - The estimated and actual workdays in total, and their ratio (green below 0.80, amber between, red above 1.20).
+  - The share of tasks landing within ±20% of their estimate, with the counts.
+  - **Largest estimate overruns** / **Largest underruns** — three each, clickable to open the task.
 
 Treat the ratio as a learning signal, not as a target. The same retro panel surfaces both the systemic over/underrun and the individual outliers so you can decide whether to revise the size catalogue's factor, re-estimate certain task types, or just accept that one outlier and move on.
 
 ### Keeping Jira and Planr in sync
 
-The Jira export creates tickets; **Run mode's Jira drift section** (below the
+The Jira export creates tickets; **Jira drift section** (below the
 milestones on the Briefing screen) is how you find out what drifted
 afterwards — inline, not a dialog you have to open. It matches plan items to
 tickets through the Jira-key custom field (`{cv.jira:PRJ-385}` in the
@@ -320,12 +318,12 @@ Common moves:
 
 - **"This is my next task"** — select it in the Work Tree, open QuickEdit, click **Start today**. Pins `pinnedStart` to today so the scheduler won't place it any earlier.
 - **Push a task later** — drag its Gantt bar horizontally, or set a future Pinned start date in QuickEdit. A pin is a **hard floor** only (capacity/deps can still push it rightward — that shows as `⚠📌`).
-- **Reorder siblings** — select an item in the Work Tree, then use the contextual toolbar: `⤒ First`, `▲ Up`, `▼ Down`, `⤓ Last`. All IDs in the sibling group renumber sequentially, dep references update everywhere.
+- **Reorder siblings** — select an item in the Work Tree, then use the contextual toolbar: `⤒ First`, `▲ Up`, `▼ Down`, `⤓ Last`. Reordering writes a `displayOrder` on the siblings. IDs and dependency references stay as they are. Only moving an item under a different parent renumbers IDs, and the dependency references follow.
 - **Move work earlier** — reduce the estimate, remove a blocking dep, or bump `prio` (lower number = higher priority, breaks ties).
-- **Split a task** — add children under it via the `+` row button or the Add modal. The leaf check flips: the former leaf becomes a parent and is no longer scheduled; its children are.
-- **Mark done** — set status to `done` or slide progress to 100 %. The bar disappears from the timeline.
-- **Find a specific item fast** — `Ctrl/Cmd+F` focuses the global search (top right). Matches highlight amber across Tree, Gantt, and Network tabs, and each view auto-scrolls/pans to the first match. In the Work order the search narrows the queues to matching rows; `Enter` jumps to the first one.
-- **Pull TODO lists per person** — use **Summary → Up next → Export TODO list** or the topbar export entry. You get Markdown grouped by person for the selected horizon.
+- **Split a task** — add children under it via the child button (`↳`) on its row, `⇧Enter`, or the Add modal. The `+` button adds a new row below instead. The leaf check flips: the former leaf becomes a parent and is no longer scheduled; its children are.
+- **Mark done** — set status to `done` or slide progress to 100 %. The bar stays on the timeline, drawn as done, and you can still edit it.
+- **Find a specific item fast** — `Ctrl/Cmd+F` focuses the global search (top right). The tree filters to the matching rows. The Gantt keeps only the matching tasks. The Network keeps every node in place, outlines the matches in amber, dims the rest and pans to them. In the Work order the search narrows the queues to matching rows; `Enter` jumps to the first one. In the Gantt and the Network, `▲`/`▼` or `Ctrl/Cmd+↑`/`↓` step from match to match.
+- **Pull TODO lists per person** — use **Export TODO** in the Briefing. You get Markdown grouped by person for the selected horizon.
 
 ### From a date on
 
@@ -386,6 +384,12 @@ See [import-export.md](import-export.md) for format details and round-trip cavea
 | Shortcut | Action |
 |---|---|
 | `Ctrl+S` / `Cmd+S` | Save to the mounted file now (bypasses the 5 s debounce) |
+| `Ctrl+Shift+S` / `Cmd+Shift+S` | Save as |
+| `Ctrl+O` / `Cmd+O` | Open a file |
+| `Ctrl+E` / `Cmd+E` | Open the Report tab (the export cards) |
+| `Ctrl+,` / `Cmd+,` | Open the settings |
+| `Ctrl+K` / `Cmd+K` or `/` | Command palette |
+| `?` | Keyboard map |
 | `Ctrl+F` / `Cmd+F` | Focus the global search field |
 | `Ctrl+Z` / `Cmd+Z` | Undo the last edit |
 | `Ctrl+Y` / `Cmd+Shift+Z` | Redo |
@@ -394,13 +398,16 @@ See [import-export.md](import-export.md) for format details and round-trip cavea
 | `Ctrl+Click` | Toggle multi-selection |
 | `Shift+Click` | Range-select in tree |
 
+In the tree, `0` marks the active row as dropped (and takes it back). The other tree keys are in [features.md](features.md#keyboard-shortcuts).
+
 Undo/redo work anywhere in the app except while a text field has focus — there, `Ctrl/Cmd+Z` is left to the browser's native text-editing undo. `↶` / `↷` buttons next to the save-state pill do the same thing for click users; both grey out when there's nothing to step through.
 
 ## Language and theme settings
 
 Open **Settings** (gear icon in the topbar) to configure:
 
-- **Language** — Auto / English / Deutsch. "Auto" follows `navigator.language`. The app uses ~350 translated keys; all UI labels, tooltips, and the HTML report are bilingual.
+- **Language** — Auto / English / Deutsch. "Auto" follows `navigator.language`. All UI labels, tooltips and the exports are bilingual.
+- **Item editor** — Auto / Side panel / Dialog. Auto keeps the editor panel beside the tree while there is room for both, and switches to a dialog when there is not. Side panel and Dialog fix the choice.
 - **Theme** — Dark / Light / Auto. "Auto" follows your OS preference (`prefers-color-scheme`). The choice is persisted in `localStorage`.
 
 ## Interaction conventions (important)

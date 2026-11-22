@@ -113,7 +113,7 @@ All user-facing strings go through the `useT()` hook from `src/i18n.jsx`. When a
 2. Provide **both** an English and a German value
 3. Use `t('your.key')` in the component instead of a raw string
 
-There are ~350 keys currently. The convention is dot-separated namespaces (e.g. `gantt.zoom`, `settings.language`, `review.decisions`). "Auto" language follows `navigator.language`.
+The convention is dot-separated namespaces (e.g. `gantt.zoom`, `settings.language`, `review.decisions`). "Auto" language follows `navigator.language`.
 
 ## Licensing
 

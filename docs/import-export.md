@@ -1,8 +1,25 @@
 # Import / Export
 
-Planr supports two persistent formats (`.json` and `.md`) and several export-only formats (PDF, DOCX, CSV, Sprint MD, Mermaid, SVG, PNG).
+Planr supports two persistent formats (`.json` and `.md`) and several export-only formats (PDF, Word, Jira CSV, Sprint Markdown, Mermaid, PNG).
 
-All export operations are reached through a single **Export…** dialog in the topbar (`src/components/modals/ExportModal.jsx`). Every PDF carries the project name, export kind and generation date in the footer, plus "made with Planr." with the wordmark linked to the project page.
+All exports are cards in one place. The **Report** tab shows them, and the **Export…** entry in the File menu opens the same cards in a dialog (`src/components/modals/ExportModal.jsx`). `⌘E` / `Ctrl+E` opens the Report tab. The cards are grouped as PDF, Word, Tool, Image and Data:
+
+| Card | Group | Output |
+|---|---|---|
+| Scenario comparison | PDF | the open scenario against the plan |
+| Management summary | PDF | status table, findings, roadmap, capacity cards, critical path |
+| Schedule / Gantt | PDF | Gantt image plus the date table per team |
+| What comes when | PDF | one row per topic, coarser dates further out |
+| To-do / sprint | PDF | near-term tasks per person |
+| Project report | Word | the full report for Confluence import |
+| Jira export | Tool | CSV with epic/story/task mapping, set up in its own dialog |
+| Sprint (Markdown) | Tool | the to-do list as Markdown |
+| Mermaid graph | Tool | the structure as a Mermaid flowchart |
+| Network image | Image | PNG of the network graph |
+| Gantt image | Image | PNG of the Gantt |
+| Backup | Data | the whole project as JSON |
+
+The scenario card is offered while a scenario is open. There is no plain CSV, SVG or standalone HTML export, and no print/PDF button. Every PDF carries the project name, export kind and generation date in the footer, plus "made with Planr." with the wordmark linked to the project page.
 
 ## Persistent formats
 
@@ -247,7 +264,7 @@ Appears next to the filename whenever there's anything to save — **dirty** (lo
 ## Importing a Jira board
 
 Both existing Jira paths went outwards: the CSV export creates the tickets, and
-the reconcile half (Run mode's drift section, `jiraSync.js`) keeps the plan
+the reconcile half (the Briefing's drift section, `jiraSync.js`) keeps the plan
 honest against them afterwards. The direction everybody actually starts in was
 missing — the tickets are already in Jira, and nobody retypes two hundred of
 them to try a planner.
@@ -292,13 +309,9 @@ one ⌘Z takes it back, which is the only thing that makes trying it safe.
 
 ## Export-only formats
 
-### CSV
+### Jira CSV
 
-Tabular export. One row per item with columns for ID, level, name, status,
-`Dropped`, team, estimate, factor, priority, dependencies, phases and notes.
-Good for spreadsheet post-processing. The `Dropped` column carries `yes` for
-dropped work, so a round trip through a spreadsheet cannot revive it as
-ordinary open work.
+`exportJiraCSV()` — the Jira export card opens its own dialog (`src/components/modals/JiraExportModal.jsx`) where the epic/story/task mapping is set. It is the only CSV the app writes.
 
 ### Sprint Markdown
 
@@ -310,15 +323,6 @@ ordinary open work.
 items get their own `dropped` class (grey, dashed), applied after the status
 classes so it wins — they are part of the structure but not work ahead of the
 team.
-
-### SVG
-
-Two flavors:
-
-- `exportSVG()` — network graph SVG
-- `exportGanttSVG()` — Gantt chart SVG (scheduled bars per team/person, date axis, week scale)
-
-Both use `XMLSerializer` to dump the live SVG DOM.
 
 ### PNG
 
@@ -440,12 +444,9 @@ document.
 
 ### The printed palette
 
-The PDFs and the HTML report draw from
+The PDFs and the Word report (through its intermediate HTML) draw from
 [`printPalette.js`](../src/utils/printPalette.js), which mirrors the **light**
-block of `App.css` — print is always on white. They used to carry a palette of
-their own, left over from before the rebuild: ink at `#1a1e2a`, headings in
-`#1d4ed8`, tables banded `#edf2fa`, greens at `#16a34a`, ambers at `#d97706` —
-the Tailwind-ish blues the screen no longer uses. A management summary that
+block of `App.css` — print is always on white. A management summary that
 does not look like the tool it came out of reads as a different document, and
 the figures on it read as different figures.
 
@@ -520,8 +521,8 @@ Every export goes through `buildExportCtx` / `projectScopedCtx`
 ([`src/utils/exportCtx.js`](../src/utils/exportCtx.js)), which take the
 plan-shaped fields from `data` rather than from whatever the views are
 rendering. So none of the display filters — hide-done, root/team/person, the
-archive filter, single-project roadmap mode — can shrink a PDF, the HTML
-report or the Word export.
+archive filter, single-project roadmap mode — can shrink a PDF or the Word
+export.
 
 This is enforced rather than documented-and-hoped: `App._exportCtx` cannot pass
 a tree at all, the four PDF entry points and `buildReportModel` re-derive it
@@ -537,21 +538,17 @@ the scope. The per-person **work order** reaches every export, because App
 computes `scheduled` once — with the queues — and hands that one array to all
 of them. **Dropped** work leaves every export: out of the report, the DOCX, the
 four PDFs, the forward "Plan" projection and the Jira CSV, and marked rather
-than silently omitted in the two structural exports (a `dropped` class in
-Mermaid, a `Dropped` column in the plain CSV). Both are pinned through the real
-App in
+than silently omitted in the structural Mermaid export (a `dropped` class).
+Both are pinned through the real App in
 [`src/__tests__/exportQueueParity.app.test.jsx`](../src/__tests__/exportQueueParity.app.test.jsx)
 and [`src/__tests__/jiraExportDropped.test.jsx`](../src/__tests__/jiraExportDropped.test.jsx).
 
 ### Jira reconcile (`src/utils/jiraSync.js`)
 
-Not an export — the way back. It used to live behind its own **Export… →
-Jira-Abgleich** dialog; that dialog is gone, and the two halves below now
-render inline in **Run mode's Jira drift section** (`views/briefing/JiraDriftSection.jsx`, state in `BriefingView.jsx`) —
-link health is always visible, a collapsible paste box replaces the
-"Compare" tab. Nothing about the parsing or matching changed, only where the
-result is shown; Phase 7 is expected to make Jira a real connected source,
-at which point this paste step goes away entirely.
+Not an export — the way back. The two halves below render inline in the
+Briefing's Jira drift section (`views/briefing/JiraDriftSection.jsx`, state in
+`BriefingView.jsx`). Link health is always visible, and a collapsible paste box
+takes the pasted Jira table.
 
 **Link health** needs no input. It reads the Jira-key custom field
 (auto-detected: a field whose id or name matches `jira` / `issue key` / `ticket`

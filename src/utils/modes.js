@@ -12,7 +12,7 @@
 // of "which view was that?". And with Review owning exactly one tab, the app
 // showed a tab bar containing one tab underneath a row of five mode buttons.
 //
-// So: one flat row. Ten destinations, one level, no hidden ones. The overlays
+// So: one flat row. Eleven destinations, one level, no hidden ones. The overlays
 // modes were supposed to keep apart — the Δ window for a review, the horizon
 // for planning — live in the filter popup where they are switched on
 // deliberately and say so while they are on.

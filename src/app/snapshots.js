@@ -3,7 +3,7 @@
 // save also drops the current data into a 20-slot ring in localStorage,
 // keyed by timestamp. If the .md file ever gets corrupted by an external
 // editor (Obsidian rendering, iCloud merge), the user can restore from the
-// last known-good JSON snapshot via Help → "Restore snapshot…".
+// last known-good JSON snapshot via File → "Snapshots" (or "Snapshots" in the command palette).
 const SNAPSHOT_KEY = 'planr_v2_snapshots';
 const SNAPSHOT_MAX = 20;
 // Autosave pushes are throttled: at most one ring write per window. A push

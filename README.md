@@ -109,15 +109,15 @@ Everything lives in [docs/](docs/). This README is an index.
 - **[docs/scenarios.md](docs/scenarios.md)** — what-if versions of the plan: the model, the comparison, the file format
 - **[docs/gantt.md](docs/gantt.md)** — Gantt chart: drag-to-pin, link handles, dependency arrows, deadline flags, critical path
 - **[docs/network-graph.md](docs/network-graph.md)** — network graph: layout, zoom, fit-to-selection
-- **[docs/import-export.md](docs/import-export.md)** — JSON, Markdown, CSV, Sprint MD, Mermaid, SVG, PNG, round-trip caveats
+- **[docs/import-export.md](docs/import-export.md)** — JSON, Markdown, PDFs, Word, Jira CSV, Sprint MD, Mermaid, PNG, round-trip caveats
 - **[docs/obsidian-plugin.md](docs/obsidian-plugin.md)** — Planr inside Obsidian: install, plan files in the vault, how the plugin is built
 
 The Roadmap view (metro-style SVG map) is documented in [docs/features.md](docs/features.md) under "Views and navigation" and in [docs/user-guide.md](docs/user-guide.md#8-review-the-result).
 
 ### Where the app is going
 
-- **[docs/principles.md](docs/principles.md)** — the eight principles, the five modes, design language, roadmap lenses, and the rebuild order. Every proposal is read against this first.
-- **[docs/ui-inventory.md](docs/ui-inventory.md)** — every control the app has today, assigned to a mode and a visibility tier — or marked as removed.
+- **[docs/principles.md](docs/principles.md)** — the eight principles, design language, roadmap lenses, and the rebuild order. Every proposal is read against this first.
+- **[docs/ui-inventory.md](docs/ui-inventory.md)** — the topbar, the File menu and the controls of each tab.
 
 ### For developers
 
@@ -138,7 +138,7 @@ The Roadmap view (metro-style SVG map) is documented in [docs/features.md](docs/
 - **Metro-style Roadmap** — SVG subway map: each project is a colored line, stations are milestone clusters, a pulsing train shows effort-weighted progress. Exports vector-clean into PDF. Pick one project and it switches to a real per-project roadmap: packages as calendar rows, tasks as stops, today and the deadline as lines.
 - **Jira reconcile (not just export)** — paste a Jira table (CSV, TSV or a copied search result, EN or DE headers) and get the drift: status differences you can accept per row, renamed tickets, tickets nobody planned, plan items no longer in Jira. Plus a paste-free check for open work without a ticket and keys used twice.
 - **Archive filter** — projects finished long ago and people who left long ago drop off the map, tree, Gantt and dropdowns by default, without leaving the totals. A finished project stays 100 % finished; only the screen gets quieter.
-- **Exports can't ship a subset** — the display filters are structurally unable to reach a PDF, the HTML report or the Word export: the export context reads the plan from the store, not from the view, and a test asserts each PDF is byte-identical when handed a filtered one.
+- **Exports can't ship a subset** — the display filters are structurally unable to reach a PDF or the Word export: the export context reads the plan from the store, not from the view, and a test asserts each PDF is byte-identical when handed a filtered one.
 
 ### Standard planner features
 
@@ -166,7 +166,7 @@ Full list in [docs/features.md](docs/features.md).
 
 - Vite 8 + React 19, plain JavaScript (no TypeScript, no PropTypes)
 - CSS with theme variables, dark + light mode via `data-theme` attribute
-- Lightweight i18n system (no external library, ~350 keys in `src/i18n.jsx`)
+- Lightweight i18n system (no external library, keys in `src/i18n.jsx`)
 - `localStorage` + File System Access API (no server)
 - Deployed to GitHub Pages via `gh-pages` branch
 - Ships a second time as an Obsidian plugin (esbuild, single CJS bundle) from the same `src/`
