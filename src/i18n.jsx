@@ -664,6 +664,7 @@ const en = {
   'g.prioDownTip':
     'Lower priority (higher number) on the selection. Use when the z-order buttons did not pull the bars back far enough — priority dominates the scheduler sort.',
   'g.durationPreviewTip': 'Target duration after release: {0} workdays',
+  'net.ctxEdit': 'Edit “{0}”',
   'g.ctxEdit': 'Open / edit…',
   'g.ctxSucc': 'Add a successor… (this → other)',
   'g.ctxPred': 'Add a predecessor… (other → this)',
@@ -2589,6 +2590,7 @@ const de = {
   'g.prioDownTip':
     'Priorität senken (höhere Zahl) für die Auswahl. Wenn die Z-Order-Buttons nicht ausreichen — Priorität dominiert die Scheduler-Sortierung.',
   'g.durationPreviewTip': 'Zieldauer nach Loslassen: {0} Arbeitstage',
+  'net.ctxEdit': 'Bearbeiten: „{0}“',
   'g.ctxEdit': 'Öffnen / bearbeiten…',
   'g.ctxSucc': 'Nachfolger hinzufügen… (dies → anderer)',
   'g.ctxPred': 'Vorgänger hinzufügen… (anderer → dies)',
