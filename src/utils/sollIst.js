@@ -12,15 +12,15 @@
 //     ok: 'on'|'over'|'under'|null,
 //   }
 // `null` is returned when the task lacks enough data to compute Soll/Ist.
-import { workDaysBetween, offDaysBetween } from './date.js';
+import { workDaysBetween, offDaysBetween, localDate } from './date.js';
 
 export function computeSollIst(node, { workDays, holidayIso, vacationDays = 0 } = {}) {
   if (!node || node.status !== 'done') return null;
   const startStr = node.completedStart || node.completedAt;
   const endStr = node.completedEnd || node.completedAt;
   if (!startStr || !endStr) return null;
-  const startD = new Date(startStr);
-  const endD = new Date(endStr);
+  const startD = localDate(startStr);
+  const endD = localDate(endStr);
 
   const best = typeof node.best === 'number' ? node.best : 0;
   const factor = typeof node.factor === 'number' ? node.factor : 1.5;
@@ -33,9 +33,9 @@ export function computeSollIst(node, { workDays, holidayIso, vacationDays = 0 } 
   const planned =
     node.plannedStart && node.plannedEnd
       ? {
-          startD: new Date(node.plannedStart),
-          endD: new Date(node.plannedEnd),
-          workDays: workDaysBetween(new Date(node.plannedStart), new Date(node.plannedEnd), workDays, holidayIso),
+          startD: localDate(node.plannedStart),
+          endD: localDate(node.plannedEnd),
+          workDays: workDaysBetween(localDate(node.plannedStart), localDate(node.plannedEnd), workDays, holidayIso),
         }
       : null;
 
