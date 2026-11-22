@@ -259,7 +259,8 @@ function PlanReviewImpl({
         {(() => {
           const dueViolations = scheduled.filter(s => s.dueOverdue || (s.due && new Date(s.due) < new Date() && s.status !== 'done'));
           const truncated = scheduled.filter(s => s.truncatedByOffboard);
-          const warnCount = dueViolations.length + truncated.length + conflicts.length + noCapacity.length;
+          const beyond = scheduled.filter(s => s.beyondHorizon && s.status !== 'done');
+          const warnCount = dueViolations.length + truncated.length + beyond.length + conflicts.length + noCapacity.length;
           return [
             ['decide', `${t('p.decisions')} (${readyItems.length})`],
             ['phases', `${t('p.phaseTodos')} (${phaseTodos.length})`],

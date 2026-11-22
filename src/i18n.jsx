@@ -1399,6 +1399,8 @@ const en = {
   'pr.warningsNone': 'No warnings — all due dates met, no offboard cuts pending.',
   'pr.warnDueOverdue': 'Due-date violations',
   'pr.warnTruncated': 'Truncated by offboard — needs split',
+  'pr.warnBeyondHorizon': 'Not scheduled — no working day left before the plan end',
+  'pr.warnBeyondHorizonHint': 'Extend the plan end or reduce the work before it',
   'or.tab': 'Order',
   'or.help':
     'Planr tries other orders of the projects and shows the best ones with what each gains and costs. Dependencies, pinned dates and the order inside a project stay as they are. Nothing changes until you apply one.',
@@ -3303,6 +3305,8 @@ const de = {
   'pr.warningsNone': 'Keine Warnungen — alle Fälligkeiten eingehalten, keine offenen Offboard-Cuts.',
   'pr.warnDueOverdue': 'Fälligkeit überschritten',
   'pr.warnTruncated': 'Offboard-Cut offen — Split erforderlich',
+  'pr.warnBeyondHorizon': 'Nicht eingeplant — kein Arbeitstag mehr vor dem Planende',
+  'pr.warnBeyondHorizonHint': 'Planende verlängern oder die Arbeit davor verringern',
   'or.tab': 'Reihenfolge',
   'or.help':
     'Planr probiert andere Reihenfolgen der Projekte durch und zeigt die besten mit allem, was sie bringen und kosten. Abhängigkeiten, feste Termine und die Reihenfolge innerhalb eines Projekts bleiben, wie sie sind. Geändert wird erst, wenn du eine übernimmst.',

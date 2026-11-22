@@ -2,7 +2,7 @@
 
 The auto-scheduler lives in [src/utils/scheduler.js](../src/utils/scheduler.js) and runs automatically on every change to `tree`, `members`, `vacations`, `planStart`, `planEnd`, or the holiday map. There is no manual "schedule" button.
 
-`scheduler.js` itself only re-exports; the code is in `src/utils/scheduler/`: `schedule.js` (setup, order of work, the per-task loop), `scheduleTeamSlot.js` (the path for unassigned tasks), `scheduleAssigned.js` (the path for assigned tasks), `scheduleExpand.js` (handoff segments into rows), `treeIndex.js` (the cached tree index and leaf lookups), `treeSummary.js` (confidence, `treeStats`, next child id) and `taskBasics.js` (effort maths, team labels, parent ids). The two paths receive the loop's state as two objects (`S` for the plan-wide state, `T` for the current task) and destructure it, so their bodies read as they did inside one function.
+`scheduler.js` itself only re-exports; the code is in `src/utils/scheduler/`: `schedule.js` (setup, order of work, the per-task loop), `scheduleTeamSlot.js` (the path for unassigned tasks), `scheduleAssigned.js` (the path for assigned tasks), `scheduleExpand.js` (handoff segments into rows), `treeIndex.js` (the cached tree index and leaf lookups), `treeSummary.js` (confidence, `treeStats`, next child id) and `taskBasics.js` (effort maths, team labels, parent ids) and `taskWindow.js` (the reported start/end window of a task). The two paths receive the loop's state as two objects (`S` for the plan-wide state, `T` for the current task) and destructure it, so their bodies read as they did inside one function.
 
 ## Inputs
 
@@ -21,6 +21,12 @@ For each scheduled leaf: `{ id, name, team, person, personId, startWi, endWi, st
 `blockedBy` is populated **only** when the dep was the actual binding floor for this row's start — i.e. the chosen `bs` equals `depWi`. If the assignee's prior queue (or member start) pushed the start past the dep's end, `blockedBy` stays `null` so the UI doesn't blame a long-finished/done predecessor when the real reason is the person being busy.
 
 Week indices (`startWi`, `endWi`) reference the precomputed week grid.
+
+### `startD <= endD`, and the task that runs past the horizon
+
+A scheduled row never ends before it starts. Both paths derive the window through one helper, [`taskWindow.js`](../src/utils/scheduler/taskWindow.js): first working day (or the cascade start), the WIP backward shift, the dependency floor, then the clamp. When no working day fitted before the plan end, the fallback end (the last week's Friday) can lie before a start pushed past a dependency; the end then follows the start, and `endWi`, `weeks` and `calDays` follow the clamped end.
+
+Such a task did not get its effort placed, so its dates are a placeholder. It carries `beyondHorizon: true` (set when the task has effort, no working day fitted, and it is not an offboard truncation, which has `truncatedByOffboard`). A task with a due date and `beyondHorizon` also gets `dueOverdue`. The Planning review's warnings list these tasks (and count them on the tab), and the report names each as a high risk. Fix: extend the plan end or reduce the work scheduled before it. Covered in [`scheduleBeyondHorizon.test.js`](../src/utils/__tests__/scheduleBeyondHorizon.test.js).
 
 ## Algorithm
 

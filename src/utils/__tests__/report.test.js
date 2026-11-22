@@ -106,3 +106,19 @@ describe('a late deadline names its cause', () => {
     expect(risk.ask).toBe('P9 hinter P1 schieben: 80 Tage früher');
   });
 });
+
+describe('a task beyond the plan horizon', () => {
+  test('becomes a high risk that names the task', () => {
+    const base = ctx();
+    const scheduled = base.scheduled.map(s => (s.id === 'P1.3' ? { ...s, beyondHorizon: true } : s));
+    const risk = buildReportModel({ ...base, scheduled }).risks.find(r => r.title.includes('Nicht eingeplant'));
+    expect(risk?.severity).toBe('high');
+    expect(risk.title).toContain('Big open');
+  });
+
+  test('a finished task never raises it', () => {
+    const base = ctx();
+    const scheduled = base.scheduled.map(s => (s.id === 'P1.1' ? { ...s, beyondHorizon: true } : s));
+    expect(buildReportModel({ ...base, scheduled }).risks.some(r => r.title.includes('Nicht eingeplant'))).toBe(false);
+  });
+});

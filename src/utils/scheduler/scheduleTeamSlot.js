@@ -1,6 +1,7 @@
 import { addD, iso, addWorkDays, localDate } from '../date.js';
 import { deriveCap, memberAtDate } from '../capacity.js';
 import { inTeamPt } from './taskBasics.js';
+import { taskWindow } from './taskWindow.js';
 import { lastRealSegment } from './scheduleExpand.js';
 
 export function scheduleTeamSlot(S, T) {
@@ -332,20 +333,25 @@ export function scheduleTeamSlot(S, T) {
       // was ready), take the first cascade segment's start so the task's
       // reported window reflects when it ACTUALLY ran.
       const firstCascadeSeg = cascade.segments[0];
-      let actualStartD = firstWorkDay || firstCascadeSeg?.startD || wks[bs]?.mon || wks[0].mon;
-      let actualEndD = lastWorkDay || addD(wks[eW].mon, 4);
-      // WIP-progress: extend the bar's visible start backward by the days
-      // already consumed at this person's daily capacity. Done portion sits
-      // in the past where it actually happened; remaining portion stays on
-      // the freshly placed dates from today onward.
-      if (!hasFixedDuration && consumedEff > 0 && dailyBaseCap > 0) {
-        const consumedDays = Math.max(1, Math.round(consumedEff / dailyBaseCap));
-        actualStartD = addWorkDays(actualStartD, -consumedDays, wdSet);
-      }
-      if (depNextDate && actualStartD < depNextDate) actualStartD = depNextDate;
-      // No working day fitted before the horizon: the fallback end (last
-      // week's Friday) can lie before a start pushed past a dependency.
-      if (actualEndD < actualStartD) actualEndD = actualStartD;
+      // WIP-progress: the bar's visible start moves backward by the days
+      // already consumed at this person's daily capacity (the done portion
+      // sits in the past where it happened). Applied in taskWindow.js, which
+      // also keeps startD <= endD.
+      const consumedDays =
+        !hasFixedDuration && consumedEff > 0 && dailyBaseCap > 0 ? Math.max(1, Math.round(consumedEff / dailyBaseCap)) : 0;
+      const win = taskWindow({
+        firstWorkDay,
+        lastWorkDay,
+        startFallback: firstCascadeSeg?.startD || wks[bs]?.mon || wks[0].mon,
+        wks,
+        eW,
+        consumedDays,
+        depNextDate,
+        wdSet,
+        effort: eff,
+        truncated,
+      });
+      const { startD: actualStartD, endD: actualEndD } = win;
       const ws0 = computeWindowStats(actualStartD, actualEndD, hasFixedDuration ? [] : [bp.id]);
       let pinOverridden0 = false;
       if (r.pinnedStart && actualStartD) {
@@ -381,13 +387,14 @@ export function scheduleTeamSlot(S, T) {
           effort: eff,
           fixedDurationDays: hasFixedDuration ? fixedDaysTotal : undefined,
           startWi: bs,
-          endWi: eW,
+          endWi: win.endWi,
           startD: actualStartD,
           endD: actualEndD,
-          calDays: Math.round((actualEndD - actualStartD) / 864e5) + 1,
+          calDays: win.calDays,
           capPct: hasFixedDuration ? 100 : Math.round(deriveCap(bp) * 100),
           vacDed: hasFixedDuration ? 0 : Math.round((1 - vacInfo[bp.id]) * 100),
-          weeks: eW - bs + 1,
+          weeks: win.endWi - bs + 1,
+          beyondHorizon: win.beyondHorizon,
           vacDays: ws0.vacDays,
           holidaysInWindow: ws0.holidaysInWindow,
           workingDaysInWindow: ws0.workingDaysInWindow,
@@ -398,7 +405,8 @@ export function scheduleTeamSlot(S, T) {
           truncatedByOffboard: truncated,
           pinOverridden: pinOverridden0,
           due: r.due || '',
-          dueOverdue: !!(r.due && actualEndD && actualEndD > localDate(r.due)),
+          // A task that fits nowhere before the horizon cannot meet its due date.
+          dueOverdue: !!(r.due && ((actualEndD && actualEndD > localDate(r.due)) || win.beyondHorizon)),
           latestStart,
           dueInfeasible,
           blockedBy: depBlocked ? { id: depBlockerId, endD: depNextDate } : null,
