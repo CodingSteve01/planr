@@ -2,6 +2,7 @@ import { isMarkdownName } from '../utils/fileKind.js';
 import { normalizeLoadedData } from '../utils/loadedData.js';
 import { parseMdToProject } from '../utils/markdownParse.js';
 import { requestHandlePermission } from '../utils/fileHandleStore.js';
+import { FILE_READ_TIMEOUT_MS, withTimeout } from '../utils/withTimeout.js';
 import { isValidProjectData } from './shell.js';
 import { bindActions } from './actions/bindActions.js';
 
@@ -54,7 +55,6 @@ async function restoreMountedFile(c) {
     fileHandleRef,
     diskTextRef,
     ensureHandlePermission,
-    forgetHandle,
     setData,
     resetHistory,
     setSel,
@@ -71,10 +71,9 @@ async function restoreMountedFile(c) {
       const readOnly = await requestHandlePermission(handle, 'read');
       if (readOnly !== 'granted') return;
     }
-    const file = await handle.getFile();
-    const text = await file.text();
-    const d = normalizeLoadedData(isMarkdownName(handle.name) ? parseMdToProject(text) : JSON.parse(text));
-    if (!isValidProjectData(d)) throw new Error('Invalid project file in mounted location.');
+    // Bounded: a file that waits for a download must not freeze the button.
+    // Nothing is set before the read is back, so a late answer changes nothing.
+    const { d, text } = await withTimeout(readHandle(handle), FILE_READ_TIMEOUT_MS, 'read the file');
     setData(d);
     resetHistory(); // different document — the old undo stack doesn't apply
     diskTextRef.current = text; // the baseline for the first poll
@@ -84,10 +83,20 @@ async function restoreMountedFile(c) {
     const canWrite = await ensureHandlePermission(handle, false);
     setFileWriteOk(canWrite);
     setAutoSave(true);
+    return true;
   } catch (e) {
-    alert('Could not restore mounted file: ' + (e.message || e));
-    await forgetHandle();
+    // Stay on the restore screen: the user can try again or discard the mount.
+    console.warn('Could not read the mounted file:', e.message || e);
+    return false;
   }
+}
+
+async function readHandle(handle) {
+  const file = await handle.getFile();
+  const text = await file.text();
+  const d = normalizeLoadedData(isMarkdownName(handle.name) ? parseMdToProject(text) : JSON.parse(text));
+  if (!isValidProjectData(d)) throw new Error('Invalid project file in mounted location.');
+  return { d, text };
 }
 
 // Putting a different document on screen: from a file input, as a blank

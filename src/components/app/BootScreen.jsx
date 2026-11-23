@@ -1,6 +1,8 @@
 // The two screens shown before a plan is loaded and the app has anything to
 // edit: the short wait while the last project is restored, and the prompt
 // that asks for file access again after a reload.
+import { useState } from 'react';
+import { useT } from '../../i18n.jsx';
 import { Icon } from '../shared/Icon.jsx';
 
 export function BootScreen() {
@@ -19,6 +21,21 @@ export function BootScreen() {
 }
 
 export function RestoreMountScreen({ fileName, onRestore, onForget }) {
+  const { t } = useT();
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  // One read at a time; `onRestore` answers false when the file could not be read.
+  const reactivate = async () => {
+    if (busy) return;
+    setBusy(true);
+    setFailed(false);
+    try {
+      if ((await onRestore()) === false) setFailed(true);
+    } catch {
+      setFailed(true);
+    }
+    setBusy(false);
+  };
   return (
     <div className="onboard">
       <div className="onboard-card fade" style={{ padding: 32, width: 420, textAlign: 'center' }}>
@@ -52,9 +69,14 @@ export function RestoreMountScreen({ fileName, onRestore, onForget }) {
         <p className="helper" style={{ marginBottom: 18, fontSize: 12 }}>
           Browser security requires you to grant file access again after a page reload.
         </p>
+        {failed && (
+          <p role="alert" className="helper" style={{ marginBottom: 18, fontSize: 12, color: 'var(--re)' }}>
+            {t('boot.readFailed')}
+          </p>
+        )}
         <div className="ob-actions">
-          <button className="ob-btn ob-pri" onClick={onRestore}>
-            Reactivate file access
+          <button className="ob-btn ob-pri" onClick={reactivate} disabled={busy} aria-busy={busy}>
+            {busy ? t('boot.reading') : 'Reactivate file access'}
           </button>
           <button
             className="ob-btn ob-sec"
