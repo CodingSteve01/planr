@@ -565,7 +565,7 @@ export default function App({ mount = null, onFileChange = null } = {}) {
   if (!bootstrapped) return <BootScreen />;
 
   if (!data && fileName && fileHandleRef.current)
-    return <RestoreMountScreen fileName={fileName} onRestore={restoreMountedFile} onForget={forgetHandle} />;
+    return <RestoreMountScreen fileName={fileName} onRestore={restoreMountedFile} onForget={forgetHandle} hosted={hosted} />;
 
   if (!data)
     return (

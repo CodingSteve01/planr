@@ -10,7 +10,11 @@ import {
   queryHandlePermission,
   requestHandlePermission,
 } from '../utils/fileHandleStore.js';
+import { FILE_READ_TIMEOUT_MS, TimeoutError, withTimeout } from '../utils/withTimeout.js';
 import { isValidProjectData, scheduleIdleWrite, cancelIdleWrite } from './shell.js';
+
+// How long the start-up restore may wait in all before the app goes on.
+export const RESTORE_TIMEOUT_MS = FILE_READ_TIMEOUT_MS;
 
 export async function ensureHandlePermission(handle, interactive = false) {
   if (!handle) return false;
@@ -63,41 +67,87 @@ async function readMountedProject(handle) {
 }
 
 async function adoptRestored({ isCancelled, setData, resetHistory, setSel, setFileWriteOk, diskTextRef }, handle, { restored, text }) {
+  // Asked (without prompting) before anything is adopted, so the document is
+  // taken in one step: a limit hit while waiting here cannot leave it half on
+  // screen.
+  const canWrite = await ensureHandlePermission(handle, false);
+  if (isCancelled()) return;
   setData(restored);
   resetHistory(); // different document — the old undo stack doesn't apply
   // After resetHistory, which forgets it: the text read here is what the first
   // poll measures against, so an edit made outside since then is noticed.
   diskTextRef.current = text;
   setSel(null);
-  // Check if we have write permission (non-interactive)
-  const canWrite = await ensureHandlePermission(handle, false);
-  if (!isCancelled()) setFileWriteOk(canWrite);
+  setFileWriteOk(canWrite);
+}
+
+// The steps of the restore. `progress` records the step and the handle as they
+// are reached, so the caller knows what was going on if the limit is hit.
+// Every write to state is guarded by `isCancelled`, which is also true once the
+// limit has been hit: a late answer changes nothing.
+async function restoreSteps(c, progress) {
+  const { mount, isCancelled, fileHandleRef, setFileName, setFileWriteOk } = c;
+  progress.step = 'load the stored file handle';
+  const handle = mount || (await loadMountedFileHandle());
+  if (!handle || isCancelled()) return;
+  progress.handle = handle;
+  fileHandleRef.current = handle;
+  setFileName(handle.name || null);
+
+  progress.step = 'check the file permission';
+  const readPermission = await queryHandlePermission(handle, 'read');
+  if (isCancelled()) return;
+  // Permission is "prompt" or "denied" → keep filename visible so user can re-grant
+  if (readPermission !== 'granted') {
+    setFileWriteOk(false);
+    return;
+  }
+
+  progress.step = 'read the file';
+  const read = await readMountedProject(handle);
+  if (isCancelled()) return;
+  progress.step = 'check the write permission';
+  await adoptRestored(c, handle, read);
+}
+
+// The limit was hit. With a handle known the user lands on the restore screen;
+// the local copy is not the file, so it is taken off the screen (not out of
+// storage). Without a handle the app starts as if nothing was mounted.
+function giveUpWaiting({ fileHandleRef, setFileName, setFileWriteOk, setData }, progress) {
+  const { handle } = progress;
+  if (!handle) return;
+  fileHandleRef.current = handle;
+  setFileName(handle.name || null);
+  setFileWriteOk(false);
+  setData(null);
 }
 
 async function restoreMounted(c) {
-  const { mount, hosted, isCancelled, fileHandleRef, setFileName, setFileWriteOk, setBootstrapped } = c;
+  const { hosted, isCancelled, fileHandleRef, setFileName, setBootstrapped } = c;
+  let timedOut = false;
+  const stale = () => timedOut || isCancelled();
+  const progress = { step: 'start', handle: null };
   try {
-    const handle = mount || (await loadMountedFileHandle());
-    if (!handle) return;
-    fileHandleRef.current = handle;
-    if (!isCancelled()) setFileName(handle.name || null);
-
-    const readPermission = await queryHandlePermission(handle, 'read');
-    // Permission is "prompt" or "denied" → keep filename visible so user can re-grant
-    if (readPermission !== 'granted') {
-      if (!isCancelled()) setFileWriteOk(false);
-      return;
-    }
-
-    const read = await readMountedProject(handle);
-    if (!isCancelled()) await adoptRestored(c, handle, read);
+    // The flag is set by the timer itself, before any step can resume: a read
+    // that lands in the same tick as the limit is already stale.
+    const hitLimit = () => {
+      timedOut = true;
+      return progress.step;
+    };
+    await withTimeout(restoreSteps({ ...c, isCancelled: stale }, progress), RESTORE_TIMEOUT_MS, hitLimit);
   } catch (e) {
-    console.error('Mounted file restore failed:', e);
-    fileHandleRef.current = null;
-    if (!isCancelled()) setFileName(null);
-    try {
-      if (!hosted) await clearMountedFileHandle();
-    } catch {}
+    if (e instanceof TimeoutError) {
+      timedOut = true;
+      console.warn('Mounted file restore gave up waiting:', e.message);
+      if (!isCancelled()) giveUpWaiting(c, progress);
+    } else {
+      console.error('Mounted file restore failed:', e);
+      fileHandleRef.current = null;
+      if (!isCancelled()) setFileName(null);
+      try {
+        if (!hosted) await clearMountedFileHandle();
+      } catch {}
+    }
   } finally {
     if (!isCancelled()) setBootstrapped(true);
   }

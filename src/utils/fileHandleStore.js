@@ -14,6 +14,8 @@ function openDb() {
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
+    // Another tab holds an older connection open: the open would wait for ever.
+    req.onblocked = () => reject(new Error('Opening the file handle database is blocked by another tab.'));
   });
 }
 
