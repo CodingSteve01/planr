@@ -476,6 +476,16 @@ it:
   wrappers that call whatever the latest render of `buildLogWriters` returned.
 - `src/app/fileLoaders.js`: `loadFile`, `newProject`, `restoreMountedFile`.
   `restoreMountedFile` is not the same as `restoreMounted` in `useFileSession`.
+- Neither may wait for ever. `restoreMounted` (at start) runs under one limit,
+  `RESTORE_TIMEOUT_MS`; `restoreMountedFile` (the Reactivate button) bounds its
+  read with `FILE_READ_TIMEOUT_MS`. Both come from `src/utils/withTimeout.js`.
+  A file in a cloud-synced folder can wait for its download as long as it likes.
+  When the start-up limit is hit with a known handle, `App` shows
+  `RestoreMountScreen` and the cached local copy leaves the screen (not the
+  storage); without a handle the app starts as if nothing was mounted. An answer
+  that comes after the limit is ignored. Reactivate keeps the mount when the
+  read fails and says why: a timeout asks to try again, a broken file names the
+  cause. In the plugin (`hosted`) the same screen offers only "Try again".
 
 - `src/app/`: hooks for self-contained state (`useViewFilters`, `useUiPrefs`,
   `useReviewWindow`, `useTour`, `useTabBar`), pure derivations the component

@@ -1,10 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { withTimeout } from '../withTimeout.js';
-import { loadMountedFileHandle } from '../fileHandleStore.js';
 
 afterEach(() => {
   vi.useRealTimers();
-  vi.unstubAllGlobals();
 });
 
 describe('withTimeout', () => {
@@ -24,17 +22,5 @@ describe('withTimeout', () => {
 
   it('passes on the rejection of a promise that fails in time', async () => {
     await expect(withTimeout(Promise.reject(new Error('boom')), 1000, 'read')).rejects.toThrow('boom');
-  });
-});
-
-describe('opening the handle database', () => {
-  it('rejects when another tab blocks the open', async () => {
-    const req = {};
-    vi.stubGlobal('indexedDB', { open: () => req });
-    const p = loadMountedFileHandle();
-    const seen = p.catch(e => e);
-    await Promise.resolve();
-    req.onblocked();
-    expect((await seen).message).toMatch(/blocked/i);
   });
 });

@@ -128,7 +128,13 @@ async function restoreMounted(c) {
   const stale = () => timedOut || isCancelled();
   const progress = { step: 'start', handle: null };
   try {
-    await withTimeout(restoreSteps({ ...c, isCancelled: stale }, progress), RESTORE_TIMEOUT_MS, () => progress.step);
+    // The flag is set by the timer itself, before any step can resume: a read
+    // that lands in the same tick as the limit is already stale.
+    const hitLimit = () => {
+      timedOut = true;
+      return progress.step;
+    };
+    await withTimeout(restoreSteps({ ...c, isCancelled: stale }, progress), RESTORE_TIMEOUT_MS, hitLimit);
   } catch (e) {
     if (e instanceof TimeoutError) {
       timedOut = true;

@@ -40,11 +40,50 @@ function handle({ getFile, name = 'plan.md' }) {
 
 const okFile = async () => ({ name: 'plan.md', lastModified: 1000, text: async () => PLAN });
 
+// Hosted: the host (the Obsidian plugin) hands the document over.
 function mountApp(mount) {
   return render(
     <I18nProvider>
       <ThemeProvider>
         <App mount={mount} onFileChange={() => {}} />
+      </ThemeProvider>
+    </I18nProvider>,
+  );
+}
+
+// A handle store that answers with `stored`, the way IndexedDB does: the
+// result arrives after the caller has set its handlers.
+function fakeHandleStore(stored) {
+  const answer = (req, result) => {
+    queueMicrotask(() => {
+      req.result = result;
+      req.onsuccess?.();
+    });
+    return req;
+  };
+  const db = {
+    transaction: () => {
+      const tx = {
+        objectStore: () => ({
+          get: () => answer({}, stored),
+          put: () => answer({}, undefined),
+          delete: () => answer({}, undefined),
+        }),
+      };
+      return tx;
+    },
+    close: () => {},
+  };
+  return { open: () => answer({}, db) };
+}
+
+// In the browser: the handle comes from the store, the app is not hosted.
+function mountBrowser(stored) {
+  vi.stubGlobal('indexedDB', fakeHandleStore(stored));
+  return render(
+    <I18nProvider>
+      <ThemeProvider>
+        <App />
       </ThemeProvider>
     </I18nProvider>,
   );
@@ -77,7 +116,7 @@ describe('boot restore with a hanging read', () => {
     // A cached local copy exists; it must not be shown as if it were the file.
     localStorage.setItem(SK, JSON.stringify({ tree: [{ id: 'C1', name: 'Cached Thing', children: [] }] }));
     const h = handle({ getFile: never });
-    mountApp(h);
+    mountBrowser(h);
     await pass(100);
     expect(screen.getByText('Restoring project context...')).toBeTruthy();
     await pass(FILE_READ_TIMEOUT_MS);
@@ -93,7 +132,7 @@ describe('boot restore with a hanging read', () => {
     let release;
     const late = new Promise(r => (release = r));
     const h = handle({ getFile: () => late });
-    mountApp(h);
+    mountBrowser(h);
     await pass(FILE_READ_TIMEOUT_MS + 100);
     expect(screen.getByText('Reactivate file access')).toBeTruthy();
     await act(async () => {
@@ -107,7 +146,13 @@ describe('boot restore with a hanging read', () => {
 
   it('starts without a mount when the handle store never answers', async () => {
     vi.stubGlobal('indexedDB', { open: () => ({}) });
-    mountApp(undefined);
+    render(
+      <I18nProvider>
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
     await pass(FILE_READ_TIMEOUT_MS + 100);
     expect(screen.queryByText('Restoring project context...')).toBeNull();
     expect(screen.queryByText('Reactivate file access')).toBeNull();
@@ -125,7 +170,7 @@ describe('boot restore with a hanging read', () => {
   it('reactivate: a hanging read shows a message and frees the button again', async () => {
     let hang = true;
     const h = handle({ getFile: () => (hang ? never() : okFile()) });
-    mountApp(h);
+    mountBrowser(h);
     await pass(FILE_READ_TIMEOUT_MS + 100);
     const btn = () => screen.getByRole('button', { name: /Reactivate file access|Reading file/ });
     await act(async () => {
@@ -134,7 +179,7 @@ describe('boot restore with a hanging read', () => {
     await pass(10);
     expect(btn().disabled).toBe(true);
     await pass(FILE_READ_TIMEOUT_MS + 100);
-    expect(screen.getByRole('alert').textContent).toMatch(/could not be read/i);
+    expect(screen.getByRole('alert').textContent).toMatch(/did not load in time/i);
     expect(btn().disabled).toBe(false);
     expect(screen.getByText('Discard mount')).toBeTruthy();
     // Trying again works once the file answers.
@@ -144,5 +189,34 @@ describe('boot restore with a hanging read', () => {
     });
     await pass(50);
     expect(screen.getByText('Alpha Task')).toBeTruthy();
+  });
+
+  it('reactivate: a broken file names the cause instead of asking to try again', async () => {
+    let broken = false;
+    const h = handle({
+      name: 'plan.json',
+      getFile: () => (broken ? Promise.resolve({ name: 'plan.json', lastModified: 1, text: async () => '{' }) : never()),
+    });
+    mountBrowser(h);
+    await pass(FILE_READ_TIMEOUT_MS + 100);
+    broken = true;
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Reactivate file access' }));
+    });
+    await pass(50);
+    const alert = screen.getByRole('alert').textContent;
+    expect(alert).toMatch(/could not be read: /i);
+    expect(alert).not.toMatch(/in time/i);
+    expect(screen.getByText('Discard mount')).toBeTruthy();
+  });
+
+  it('hosted: a slow file offers to try again, without the browser hint or a discard', async () => {
+    mountApp(handle({ getFile: never }));
+    await pass(FILE_READ_TIMEOUT_MS + 100);
+    expect(screen.getByText('plan.md')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
+    expect(screen.queryByText(/Browser security/)).toBeNull();
+    expect(screen.queryByText('Discard mount')).toBeNull();
+    expect(screen.getByText(/taking long to load/)).toBeTruthy();
   });
 });

@@ -2,7 +2,7 @@ import { isMarkdownName } from '../utils/fileKind.js';
 import { normalizeLoadedData } from '../utils/loadedData.js';
 import { parseMdToProject } from '../utils/markdownParse.js';
 import { requestHandlePermission } from '../utils/fileHandleStore.js';
-import { FILE_READ_TIMEOUT_MS, withTimeout } from '../utils/withTimeout.js';
+import { FILE_READ_TIMEOUT_MS, TimeoutError, withTimeout } from '../utils/withTimeout.js';
 import { isValidProjectData } from './shell.js';
 import { bindActions } from './actions/bindActions.js';
 
@@ -86,8 +86,10 @@ async function restoreMountedFile(c) {
     return true;
   } catch (e) {
     // Stay on the restore screen: the user can try again or discard the mount.
+    // A slow file is worth another try; a broken one is not, so the screen
+    // names the cause.
     console.warn('Could not read the mounted file:', e.message || e);
-    return false;
+    return e instanceof TimeoutError ? { error: 'timeout' } : { error: 'read', detail: String(e.message || e) };
   }
 }
 
